@@ -1,3 +1,8 @@
+---
+name: lab-module
+description: Guide you through creating a single Red Hat Showroom workshop module from reference materials (URLs, files, docs, or text) with business storytelling and proper AsciiDoc formatting.
+---
+
 # Lab Module Generator
 
 Guide you through creating a single Red Hat Showroom workshop module from reference materials (URLs, files, docs, or text) with business storytelling and proper AsciiDoc formatting.
@@ -17,7 +22,7 @@ Guide you through creating a single Red Hat Showroom workshop module from refere
 
 ## Shared Rules
 
-**IMPORTANT**: This skill follows shared contracts defined in `.claude/skills/SKILL-COMMON-RULES.md`:
+**IMPORTANT**: This skill follows shared contracts defined in `.claude/docs/SKILL-COMMON-RULES.md`:
 - Version pinning or attribute placeholders (REQUIRED)
 - Reference enforcement (REQUIRED)
 - Attribute file location (REQUIRED)
@@ -117,7 +122,7 @@ Your choice? [1/2/3/4/5]
 
 **If user needs help (options 3-4):**
 
-See `.claude/skills/SKILL-COMMON-RULES.md` section "AgnosticV Configuration Assistance" for complete workflow including:
+See `.claude/docs/SKILL-COMMON-RULES.md` section "AgnosticV Configuration Assistance" for complete workflow including:
 - Access check protocol
 - User-suggested catalog search
 - Keyword-based recommendations

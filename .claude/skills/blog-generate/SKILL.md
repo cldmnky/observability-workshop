@@ -1,3 +1,8 @@
+---
+name: blog-generate
+description: Transform completed Red Hat Showroom lab modules or demo content into blog posts for Red Hat Developer, internal blogs, or marketing platforms.
+---
+
 # Blog Generator
 
 Transform completed Red Hat Showroom lab modules or demo content into blog posts for Red Hat Developer, internal blogs, or marketing platforms.
@@ -17,7 +22,7 @@ Transform completed Red Hat Showroom lab modules or demo content into blog posts
 
 ## Shared Rules
 
-**IMPORTANT**: This skill follows shared contracts defined in `.claude/skills/SKILL-COMMON-RULES.md`:
+**IMPORTANT**: This skill follows shared contracts defined in `.claude/docs/SKILL-COMMON-RULES.md`:
 - Reference enforcement (REQUIRED)
 - **Source traceability** (REQUIRED for trust and attribution)
 - Failure-mode behavior (stop if cannot proceed safely)
