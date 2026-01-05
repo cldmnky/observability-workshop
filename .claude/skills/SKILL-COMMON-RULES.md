@@ -470,7 +470,269 @@ Search again or proceed to keyword recommendations? [Search again/Keywords]
   - `ocp4_workload_gitea_operator` (Git server for labs)
 
 **Workshop/Demo Content Delivery:**
-- `agnosticd.showroom` - Workshop content platform, terminal integration, Know/Show structure support (for demos), multi-user UI
+- `agnosticd.showroom.ocp4_workload_showroom` - For OCP-based workshops/demos (config: openshift-workloads or openshift-cluster)
+- `agnosticd.showroom.showroom_deployer` - For VM-based workshops/demos (config: cloud-vms-base)
+- Features: Terminal integration, Know/Show structure support (for demos), multi-user UI
+
+### Workload Selection Assistant
+
+**Purpose:** Recommend specific workloads based on workshop/demo abstract and keywords
+
+#### Workload Recommendation Workflow
+
+**Step 1: When showing catalog matches** (from search results):
+
+```markdown
+**Recommended Catalog:**
+
+1. **"Agentic AI on OpenShift"** (90% match)
+   - Catalog: agd_v2/agentic-ai-openshift
+   - Multi-user: Yes (5-40 users)
+   - Infrastructure: CNV multi-node
+
+   **Workloads included:**
+   ✓ ocp4_workload_authentication_htpasswd → Multi-user login
+   ✓ ocp4_workload_showroom → Workshop platform
+   ✓ ocp4_workload_litellm_virtual_keys → LLM API proxy
+   ✓ ocp4_workload_openshift_ai → OpenShift AI operator
+   ✓ ocp4_workload_pipelines → Model deployment automation
+
+   Use this catalog? [Yes/Create new based on this/See next]
+```
+
+**Step 2: When creating new catalog** (user chose "Create new"):
+
+Extract keywords from abstract → Map to workloads → Present recommendations
+
+```markdown
+**Workload Recommendations for Your New Catalog:**
+
+Based on abstract: "{{ workshop_abstract }}"
+Keywords detected: {{ detected_keywords }}
+
+**Core (Always Required):**
+
+**Authentication Method:**
+Q: Which authentication method?
+- Keycloak (Recommended) → More features, SSO, better UX
+- htpasswd → Simple, faster setup
+
+✓ agnosticd.core_workloads.ocp4_workload_authentication_keycloak (Recommended)
+  Purpose: Keycloak-based authentication with SSO support
+  OR
+✓ agnosticd.core_workloads.ocp4_workload_authentication_htpasswd
+  Purpose: Simple htpasswd authentication
+
+**Showroom (Content Delivery):**
+{% if infrastructure_type == 'ocp' %}
+✓ agnosticd.showroom.ocp4_workload_showroom
+  Purpose: OCP-based workshop/demo content platform
+{% else %}
+✓ agnosticd.showroom.showroom_deployer
+  Purpose: VM-based workshop/demo content platform
+{% endif %}
+
+**{{ primary_category }} Stack (Recommended):**
+{% for workload in recommended_workloads %}
+✓ {{ workload.full_name }}
+  Purpose: {{ workload.description }}
+{% endfor %}
+
+**Optional Workloads:**
+{% for workload in optional_workloads %}
+? {{ workload.full_name }}
+  Purpose: {{ workload.description }}
+  When to include: {{ workload.use_case }}
+{% endfor %}
+
+Include optional workloads? [All/Customize/Skip optional]
+```
+
+#### Keyword to Workload Mapping
+
+**AI/ML Keywords** (ai, ml, llm, rag, model, inference, training):
+
+**Core AI:**
+- `agnosticd.ai_workloads.ocp4_workload_openshift_ai`
+  - Purpose: OpenShift AI operator, notebook servers, data science pipelines
+  - When: Any AI/ML workshop or demo
+  - Variables: Enable GPU, monitoring, default notebook images
+
+**LLM Access:**
+- `rhpds.litellm_virtual_keys.ocp4_workload_litellm_virtual_keys`
+  - Purpose: LLM API proxy with virtual keys (Mistral, Granite, CodeLlama)
+  - When: LLM inference, chatbots, RAG applications
+  - Provides: `litellm_api_base_url`, `litellm_virtual_key`, `litellm_available_models`
+
+**GPU Support:**
+- `agnosticd.ai_workloads.ocp4_workload_nvidia_gpu_operator`
+  - Purpose: NVIDIA GPU operator for model training
+  - When: Training large models, GPU-accelerated workloads
+  - Requires: AWS infrastructure (g6.4xlarge)
+
+**AI Assistant:**
+- `agnosticd.ai_workloads.ocp4_workload_ols`
+  - Purpose: OpenShift Lightspeed (AI coding assistant)
+  - When: Developer productivity demos
+
+**DevOps/GitOps Keywords** (pipeline, gitops, ci/cd, tekton, argo, automation):
+
+**Pipelines:**
+- `agnosticd.core_workloads.ocp4_workload_pipelines`
+  - Purpose: Tekton Pipelines (cloud-native CI/CD)
+  - When: Pipeline workshops, CI/CD automation
+  - Includes: Tekton operator, example pipelines
+
+**GitOps:**
+- `agnosticd.core_workloads.ocp4_workload_openshift_gitops`
+  - Purpose: Argo CD for GitOps workflows
+  - When: GitOps training, declarative deployments
+  - Includes: Argo CD operator, sync policies
+
+**Git Server:**
+- `agnosticd.core_workloads.ocp4_workload_gitea_operator`
+  - Purpose: Self-hosted Git server for labs
+  - When: Disconnected environments, Git workflow training
+  - Provides: Gitea instance with user repositories
+
+**Developer Tools Keywords** (ide, vscode, dev-spaces, inner-loop):
+
+**Dev Spaces:**
+- `agnosticd.core_workloads.ocp4_workload_openshift_devspaces`
+  - Purpose: Cloud-based IDE (Eclipse Che)
+  - When: Developer onboarding, browser-based coding
+  - Includes: Dev Spaces operator, workspace templates
+
+**Security Keywords** (security, compliance, acs, stackrox, scanning):
+
+**ACS (Advanced Cluster Security):**
+- `agnosticd.core_workloads.ocp4_workload_acs`
+  - Purpose: Kubernetes security platform
+  - When: Security workshops, compliance demos
+  - Includes: Central, Scanner, Admission Controller
+
+**Observability Keywords** (monitoring, logging, observability, metrics):
+
+**Monitoring:**
+- `agnosticd.core_workloads.ocp4_workload_observability`
+  - Purpose: OpenShift monitoring stack
+  - When: Observability training, metrics workshops
+  - Includes: Prometheus, Grafana, AlertManager
+
+**Logging:**
+- `agnosticd.core_workloads.ocp4_workload_logging`
+  - Purpose: Cluster logging (Loki, Vector)
+  - When: Log aggregation, troubleshooting demos
+  - Includes: Logging operator, log forwarding
+
+**Networking Keywords** (service-mesh, istio, networking, ingress):
+
+**Service Mesh:**
+- `agnosticd.core_workloads.ocp4_workload_service_mesh`
+  - Purpose: Red Hat OpenShift Service Mesh (Istio)
+  - When: Microservices workshops, traffic management
+  - Includes: Service Mesh operator, control plane
+
+**Serverless Keywords** (serverless, knative, functions, eventing):
+
+**Serverless:**
+- `agnosticd.core_workloads.ocp4_workload_serverless`
+  - Purpose: Knative Serving and Eventing
+  - When: Event-driven architectures, auto-scaling demos
+  - Includes: Serverless operator, Knative components
+
+#### Workload Variable Configuration
+
+**When recommending a workload, also mention key variables:**
+
+Example:
+```
+✓ agnosticd.ai_workloads.ocp4_workload_openshift_ai
+  Purpose: OpenShift AI operator
+
+  Key variables (optional):
+  - ocp4_workload_openshift_ai_channel: "stable" (default: stable)
+  - ocp4_workload_openshift_ai_enable_gpu: false (set true if GPU needed)
+  - ocp4_workload_openshift_ai_enable_monitoring: true
+
+  Configure? [Use defaults/Customize]
+```
+
+#### Passing Data Between Workloads
+
+**Critical pattern for dependent workloads:**
+
+**Scenario:** LiteLLM outputs API key → Next workload needs it
+
+**Workload A (produces data):**
+```yaml
+# In workload tasks/main.yml:
+- name: Save LiteLLM credentials
+  agnosticd.core.agnosticd_user_info:
+    data:
+      litellm_api_base_url: "{{ litellm_url }}"
+      litellm_virtual_key: "{{ generated_key }}"
+```
+
+**AgV config (passes data):**
+```yaml
+# In common.yaml:
+workloads:
+- rhpds.litellm_virtual_keys.ocp4_workload_litellm_virtual_keys
+- myorg.my_app.ocp4_workload_my_app
+
+# Pass LiteLLM data to my_app workload:
+ocp4_workload_my_app_api_url: "{{ lookup('agnosticd_user_data', 'litellm_api_base_url') }}"
+ocp4_workload_my_app_api_key: "{{ lookup('agnosticd_user_data', 'litellm_virtual_key') }}"
+```
+
+**Workload B (consumes data):**
+```yaml
+# In workload defaults/main.yml:
+ocp4_workload_my_app_api_url: ""
+ocp4_workload_my_app_api_key: ""
+
+# Data automatically available from AgV config
+```
+
+**Common patterns:**
+- API keys, tokens, credentials
+- Service URLs and endpoints
+- Generated usernames/passwords
+- Deployed application routes
+
+#### Post-Creation Testing Workflow
+
+**After catalog files created and PR submitted:**
+
+```markdown
+✓ Catalog created: agd_v2/{{ catalog_slug }}
+✓ Branch pushed: {{ catalog_slug }}
+
+**Next Steps:**
+
+1. Create PR (if not already done):
+   gh pr create --title "Add {{ catalog_display_name }}"
+
+2. After PR merged → Test in Integration:
+   - Login to RHDP integration environment
+   - Order your catalog
+   - Verify all workloads provision correctly
+   - Test workshop/demo content
+
+3. Troubleshooting provision failures:
+   - Check RHDP portal → Order → Logs
+   - Common issues:
+     * Missing collection dependency
+     * Wrong workload variable name
+     * Resource exhaustion
+   - Contact RHDP developers if needed
+
+**Timeline:**
+- Integration deploy: ~1 hour after merge
+- Stage deploy: ~4 hours
+- Production: After approval
+```
 
 ### Git Workflow Requirements (CRITICAL)
 
