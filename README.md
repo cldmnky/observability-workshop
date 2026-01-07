@@ -48,7 +48,7 @@ Checks content against Red Hat standards, technical accuracy, and accessibility 
 
 ## Documentation
 
-- **Claude Skills Guide**: `CLAUDE-SKILLS-GUIDE.md` - Detailed documentation for content developers
+- **Claude Skills Guide**: `CLAUDE-SKILLS-GUIDE.adoc` - Detailed documentation for content developers
 - **Skill Details**: `.claude/skills/*/SKILL.md` - Complete skill documentation
 
 ## Support
