@@ -43,13 +43,23 @@ This separates what presenters need to **understand** (business value) from what
 
 ## Workflow
 
-**CRITICAL: Ask Questions SEQUENTIALLY**
+**CRITICAL RULES**
+
+### 1. Ask Questions SEQUENTIALLY
 
 - Ask ONE question or ONE group of related questions at a time
 - WAIT for user's answer before proceeding
 - If user chooses "Yes, help me create new catalog" in Step 2.5, you MUST complete the ENTIRE AgV workflow before proceeding to Step 3
 - Do NOT ask questions from multiple steps together
 - Do NOT skip workflows based on incomplete answers
+
+### 2. Manage Output Tokens
+
+- **NEVER output full demo content** - Use Write tool to create files
+- **Show brief confirmations only** - "✅ Created: filename (X lines)"
+- **Keep total output under 5000 tokens** - Summaries, not content
+- **Files are written, not displayed** - User reviews with their editor
+- **Token limit**: Claude Code has 32000 token output limit - stay well below it
 
 **Example of WRONG approach**:
 ```
@@ -665,25 +675,65 @@ I'll automatically add the module to `content/modules/ROOT/nav.adoc` - this is R
 
 ### Step 11: Deliver
 
-You'll get:
+**CRITICAL: Manage Output Tokens to Prevent Overflow**
 
-**Generated files**:
-- Complete demo module at `content/modules/ROOT/pages/<module-file>.adoc`
-- Images saved to `content/modules/ROOT/assets/images/` (if provided)
-- Proper AsciiDoc references for all visual assets
+**Token Management Rules**:
+1. **Write files using Write tool** - Don't output full file contents to user
+2. **Show brief confirmations only** - "✅ Created: file.adoc (X lines)"
+3. **Provide summary at end** - List what was created, not the full content
+4. **Never output entire demo content** - Files are already written
+5. **Keep total output under 5000 tokens** - Brief summaries only
 
-**Presenter documentation**:
-- Screenshot capture guide (for images you still need to capture)
-- Navigation xref snippet
-- Presenter notes and tips
-- Business talking points for each section
-- Next module suggestions
+**Output Format**:
 
-**Asset summary**:
-- List of diagrams/screenshots included with references
-- List of images still needed (placeholders for you to capture)
-- Demo scripts formatted with presenter tips
-- Before/after comparisons properly placed
+```
+✅ Demo Module Generation Complete
+
+**Files Created**:
+- content/modules/ROOT/pages/demo-01-platform-value.adoc (312 lines)
+- content/modules/ROOT/nav.adoc (updated)
+
+**Demo Structure**:
+- Know sections: 4 (business context, pain points, value props, ROI)
+- Show sections: 3 (technical demonstrations)
+- Presenter tips: 8
+- Business metrics: 5 quantified benefits
+- Troubleshooting scenarios: 4
+
+**Assets**:
+- Diagrams needed: 3 placeholders (architecture, before/after, ROI chart)
+- Screenshots needed: 2 placeholders (UI demonstrations)
+- Dynamic attributes used: {openshift_console_url}, {demo_app_url}
+
+**Presenter Notes**:
+- Estimated presentation time: 25 minutes
+- Business talking points included in each Know section
+- Technical demo scripts in each Show section
+- Pause points for questions marked
+
+**Next Steps**:
+1. Review demo: content/modules/ROOT/pages/demo-01-platform-value.adoc
+2. Prepare diagrams for business context sections
+3. Capture screenshots for technical demonstrations
+4. Practice demo flow and timing
+5. Run: verify-content to check quality
+6. Create next module: demo-module (continuing existing demo)
+
+**Note**: All files have been written. Use your editor to review them.
+```
+
+**What NOT to do**:
+- ❌ Don't show full demo content in response
+- ❌ Don't output the entire file you just created
+- ❌ Don't paste hundreds of lines of generated AsciiDoc
+- ❌ Don't include long example sections in output
+
+**What TO do**:
+- ✅ Write files using Write tool
+- ✅ Show brief "Created: filename (X lines)" confirmations
+- ✅ Provide structured summary
+- ✅ Give clear next steps for presenters
+- ✅ Keep output concise (under 5000 tokens)
 
 ## Example Usage
 

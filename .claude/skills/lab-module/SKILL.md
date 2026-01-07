@@ -34,13 +34,23 @@ See SKILL-COMMON-RULES.md for complete details.
 
 ## Workflow
 
-**CRITICAL: Ask Questions SEQUENTIALLY**
+**CRITICAL RULES**
+
+### 1. Ask Questions SEQUENTIALLY
 
 - Ask ONE question or ONE group of related questions at a time
 - WAIT for user's answer before proceeding
 - If user chooses "Yes, help me create new catalog" in Step 2.5, you MUST complete the ENTIRE AgV workflow before proceeding to Step 3
 - Do NOT ask questions from multiple steps together
 - Do NOT skip workflows based on incomplete answers
+
+### 2. Manage Output Tokens
+
+- **NEVER output full module content** - Use Write tool to create files
+- **Show brief confirmations only** - "✅ Created: filename (X lines)"
+- **Keep total output under 5000 tokens** - Summaries, not content
+- **Files are written, not displayed** - User reviews with their editor
+- **Token limit**: Claude Code has 32000 token output limit - stay well below it
 
 **Example of WRONG approach**:
 ```
@@ -732,23 +742,60 @@ I'll automatically update `content/modules/ROOT/nav.adoc` - this is REQUIRED for
 
 ### Step 11: Deliver
 
-You'll get:
+**CRITICAL: Manage Output Tokens to Prevent Overflow**
 
-**Generated files**:
-- Complete module file at `content/modules/ROOT/pages/<module-file>.adoc`
-- Images saved to `content/modules/ROOT/assets/images/` (if provided)
-- Proper AsciiDoc references for all assets
+**Token Management Rules**:
+1. **Write files using Write tool** - Don't output full file contents to user
+2. **Show brief confirmations only** - "✅ Created: file.adoc (X lines)"
+3. **Provide summary at end** - List what was created, not the full content
+4. **Never output entire module content** - Files are already written
+5. **Keep total output under 5000 tokens** - Brief summaries only
 
-**Documentation**:
-- Screenshot capture guide (for images you still need to capture)
-- Navigation xref snippet
-- Review checklist
-- Next module suggestions
+**Output Format**:
 
-**Asset summary**:
-- List of images included with references
-- List of images still needed (placeholders)
-- Code blocks integrated with syntax highlighting
+```
+✅ Module Generation Complete
+
+**Files Created**:
+- content/modules/ROOT/pages/index.adoc (45 lines)
+- content/modules/ROOT/pages/01-overview.adoc (82 lines)
+- content/modules/ROOT/pages/02-details.adoc (65 lines)
+- content/modules/ROOT/pages/module-01-intro.adoc (234 lines)
+- content/modules/ROOT/nav.adoc (updated)
+
+**Module Structure**:
+- Learning objectives: 4 items
+- Exercises: 3
+- Verification checkpoints: 3
+- Troubleshooting scenarios: 5
+- Learning outcomes: 4 items
+
+**Assets**:
+- Images needed: 2 placeholders (see module for TODO comments)
+- Dynamic attributes used: {openshift_console_url}, {user}, {password}
+
+**Next Steps**:
+1. Review module: content/modules/ROOT/pages/module-01-intro.adoc
+2. Capture screenshots for placeholder images
+3. Test commands in your environment
+4. Run: verify-content to check quality
+5. Create next module: lab-module (continuing existing lab)
+
+**Note**: All files have been written. Use your editor to review them.
+```
+
+**What NOT to do**:
+- ❌ Don't show full module content in response
+- ❌ Don't output the entire file you just created
+- ❌ Don't paste hundreds of lines of generated AsciiDoc
+- ❌ Don't include long example sections in output
+
+**What TO do**:
+- ✅ Write files using Write tool
+- ✅ Show brief "Created: filename (X lines)" confirmations
+- ✅ Provide structured summary
+- ✅ Give clear next steps
+- ✅ Keep output concise (under 5000 tokens)
 
 ## Example Usage
 
