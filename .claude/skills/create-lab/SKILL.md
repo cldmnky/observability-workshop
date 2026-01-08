@@ -1,5 +1,5 @@
 ---
-name: lab-module
+name: create-lab
 description: Guide you through creating a single Red Hat Showroom workshop module from reference materials (URLs, files, docs, or text) with business storytelling and proper AsciiDoc formatting.
 ---
 
@@ -939,7 +939,7 @@ I'll automatically update `content/modules/ROOT/nav.adoc` - this is REQUIRED for
 2. Capture screenshots for placeholder images
 3. Test commands in your environment
 4. Run: verify-content to check quality
-5. Create next module: lab-module (continuing existing lab)
+5. Create next module: create-lab (continuing existing lab)
 
 **Note**: All files have been written. Use your editor to review them.
 ```

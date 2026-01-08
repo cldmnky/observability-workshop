@@ -16,8 +16,8 @@ Transform completed Red Hat Showroom lab modules or demo content into blog posts
 - Repurpose Showroom content for broader audiences
 
 **Don't use this for**:
-- Creating new lab content → use `/lab-module`
-- Creating new demo content → use `/demo-module`
+- Creating new lab content → use `/create-lab`
+- Creating new demo content → use `/create-demo`
 - Editing existing blog posts → use technical-editor agent
 
 ## Shared Rules

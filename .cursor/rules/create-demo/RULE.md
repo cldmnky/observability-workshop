@@ -1,5 +1,5 @@
 ---
-description: "Demo module generation skill - creates presenter-led demo content using Know/Show structure when user says 'create demo module'"
+description: "Demo module generation skill - creates presenter-led demo content using Know/Show structure when user says 'create demo'"
 alwaysApply: false
 ---
 
@@ -8,8 +8,6 @@ alwaysApply: false
 ## Trigger Commands
 
 When user says ANY of these phrases, invoke this skill:
-- "create demo module"
-- "demo-module"
 - "generate demo"
 - "create demo"
 - "new demo"
@@ -17,7 +15,7 @@ When user says ANY of these phrases, invoke this skill:
 
 ## Skill Execution
 
-**Action**: Read and follow `.claude/skills/demo-module/SKILL.md` completely.
+**Action**: Read and follow `.claude/skills/create-demo/SKILL.md` completely.
 
 The skill file contains the complete workflow for:
 1. Determining context (first module vs continuation)

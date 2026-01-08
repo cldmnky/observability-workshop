@@ -1,5 +1,5 @@
 ---
-description: "Workshop module generation skill - creates Red Hat Showroom workshop modules with hands-on exercises when user says 'create lab module'"
+description: "Workshop module generation skill - creates Red Hat Showroom workshop modules with hands-on exercises when user says 'create lab'"
 alwaysApply: false
 ---
 
@@ -9,7 +9,6 @@ alwaysApply: false
 
 When user says ANY of these phrases, invoke this skill:
 - "create lab"
-- "create lab module"
 - "generate workshop module"
 - "create workshop"
 - "new lab"

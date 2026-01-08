@@ -1,5 +1,5 @@
 ---
-name: demo-module
+name: create-demo
 description: Guide you through creating a Red Hat Showroom demo module using the Know/Show structure for presenter-led demonstrations.
 ---
 
@@ -729,7 +729,7 @@ I'll automatically add the module to `content/modules/ROOT/nav.adoc` - this is R
 3. Capture screenshots for technical demonstrations
 4. Practice demo flow and timing
 5. Run: verify-content to check quality
-6. Create next module: demo-module (continuing existing demo)
+6. Create next module: create-demo (continuing existing demo)
 
 **Note**: All files have been written. Use your editor to review them.
 ```

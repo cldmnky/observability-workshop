@@ -38,9 +38,9 @@
 │   ├── verify_accessibility_compliance.txt
 │   └── verify_content_quality.txt
 ├── skills/                             # Skill definitions
-│   ├── lab-module/
+│   ├── create-lab/
 │   │   └── SKILL.md                    # Workshop module generator
-│   ├── demo-module/
+│   ├── create-demo/
 │   │   └── SKILL.md                    # Demo module generator
 │   └── verify-content/
 │       └── SKILL.md                    # Content verification
@@ -68,9 +68,9 @@ CLAUDE-SKILLS-GUIDE.md                  # User-facing quick guide (root)
 
 ## Skill Definitions
 
-### 1. `lab-module` - Workshop Module Generator
+### 1. `create-lab` - Workshop Module Generator
 
-**File**: `.claude/skills/lab-module/SKILL.md`
+**File**: `.claude/skills/create-lab/SKILL.md`
 
 **Purpose**: Generate hands-on workshop modules with step-by-step instructions, verification commands, and progressive learning structure.
 
@@ -94,7 +94,7 @@ CLAUDE-SKILLS-GUIDE.md                  # User-facing quick guide (root)
 8. Update navigation
 
 **Files Read**:
-- `.claude/skills/lab-module/SKILL.md`
+- `.claude/skills/create-lab/SKILL.md`
 - `.claude/docs/SKILL-COMMON-RULES.md`
 - `.claude/prompts/redhat_style_guide_validation.txt`
 - `content/modules/ROOT/pages/workshop/templates/03-module-01.adoc`
@@ -112,9 +112,9 @@ CLAUDE-SKILLS-GUIDE.md                  # User-facing quick guide (root)
 
 ---
 
-### 2. `demo-module` - Demo Content Generator
+### 2. `create-demo` - Demo Content Generator
 
-**File**: `.claude/skills/demo-module/SKILL.md`
+**File**: `.claude/skills/create-demo/SKILL.md`
 
 **Purpose**: Generate presenter-led demo modules with Know/Show structure and business value messaging.
 
@@ -136,13 +136,13 @@ CLAUDE-SKILLS-GUIDE.md                  # User-facing quick guide (root)
 8. Update navigation
 
 **Files Read**:
-- `.claude/skills/demo-module/SKILL.md`
+- `.claude/skills/create-demo/SKILL.md`
 - `.claude/docs/SKILL-COMMON-RULES.md`
 - `.claude/prompts/redhat_style_guide_validation.txt`
 - `content/modules/ROOT/pages/demo/example/`
 
 **Files Written**:
-- Demo module files (similar structure to lab-module)
+- Demo module files (similar structure to create-lab)
 - `content/modules/ROOT/nav.adoc` (updated)
 
 ---
@@ -460,12 +460,12 @@ Preserve:
 **Implementation**:
 ```
 Before generation, read:
-  for lab-module:
+  for create-lab:
     - redhat_style_guide_validation.txt
     - verify_workshop_structure.txt (conceptually)
     - All workshop templates and examples
 
-  for demo-module:
+  for create-demo:
     - redhat_style_guide_validation.txt
     - Demo templates and examples
 ```
@@ -476,7 +476,7 @@ Before generation, read:
 
 ### AgV Workflow in Skills
 
-Both `lab-module` and `demo-module` offer **optional** AgV catalog assistance (Step 2.5).
+Both `create-lab` and `create-demo` offer **optional** AgV catalog assistance (Step 2.5).
 
 **Flow**:
 ```
@@ -612,7 +612,7 @@ All content must follow:
 ### Version History
 
 **January 2026** - Initial release
-- Created lab-module, demo-module, verify-content skills
+- Created create-lab, create-demo, verify-content skills
 - Implemented 4 critical workflow fixes:
   - UUID generation before file creation
   - Showroom repo auto-detection
@@ -642,8 +642,8 @@ None currently. Report issues to Prakhar Srivastava or RHDP team.
 ## Appendix: File Reference Quick Links
 
 ### Skill Definitions
-- [lab-module SKILL.md](skills/lab-module/SKILL.md)
-- [demo-module SKILL.md](skills/demo-module/SKILL.md)
+- [create-lab SKILL.md](skills/create-lab/SKILL.md)
+- [create-demo SKILL.md](skills/create-demo/SKILL.md)
 - [verify-content SKILL.md](skills/verify-content/SKILL.md)
 
 ### Shared Rules

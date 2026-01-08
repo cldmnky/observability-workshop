@@ -284,12 +284,12 @@ Content passes verification when:
 
 ## Integration with Other Skills
 
-**After `/lab-module`**:
+**After `/create-lab`**:
 - Run verification on generated module
 - Apply fixes before committing
 - Ensure quality standards met
 
-**After `/demo-module`**:
+**After `/create-demo`**:
 - Verify Know/Show structure
 - Check business messaging
 - Validate presenter guidance

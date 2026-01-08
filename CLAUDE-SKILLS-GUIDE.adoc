@@ -7,11 +7,11 @@ Quick guide to using Claude Code skills for creating Red Hat Showroom workshops 
 . Clone this repository and navigate to the directory
 . Start a Claude Code session
 . Run `/skills` to list available skills
-. Run a skill by name (without `/`): `lab-module`, `demo-module`, or `verify-content`
+. Run a skill by name (without `/`): `create-lab`, `create-demo`, or `verify-content`
 
 == Available Skills
 
-=== lab-module - Create Workshop Modules
+=== create-lab - Create Workshop Modules
 
 Creates hands-on workshop modules with:
 
@@ -22,7 +22,7 @@ Creates hands-on workshop modules with:
 
 *When to use*: Creating workshops for developers, architects, SREs
 
-=== demo-module - Create Demo Content
+=== create-demo - Create Demo Content
 
 Creates presenter-led demo modules with:
 
@@ -49,7 +49,7 @@ Checks content for:
 === Create a New Workshop
 
 ----
-1. Run: lab-module
+1. Run: create-lab
 2. Answer: First module of NEW lab
 3. Provide lab overview and module details
 4. Review and refine generated content
@@ -59,7 +59,7 @@ Checks content for:
 === Continue Existing Workshop
 
 ----
-1. Run: lab-module
+1. Run: create-lab
 2. Answer: Continuing EXISTING lab
 3. Provide path to previous module
 4. Content continues the story automatically
@@ -68,7 +68,7 @@ Checks content for:
 === Create a Demo
 
 ----
-1. Run: demo-module
+1. Run: create-demo
 2. Follow the workflow prompts
 3. Skills guide you through Know/Show structure
 4. Run: verify-content to check quality
