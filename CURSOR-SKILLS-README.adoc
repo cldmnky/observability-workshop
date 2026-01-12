@@ -30,6 +30,12 @@ create demo
 verify content
 ----
 
+*Generate AgV catalog description:*
+[source,text]
+----
+generate agv description
+----
+
 That's it! Claude will read the skill files and guide you through the workflow.
 
 ---
@@ -104,6 +110,42 @@ That's it! Claude will read the skill files and guide you through the workflow.
 
 ---
 
+=== AgnosticV Catalog Description Generator
+
+*What it does*: Creates properly formatted `description.adoc` files for AgnosticV catalog entries that appear in the Red Hat Demo Platform UI.
+
+*When to use*:
+
+* After completing workshop/demo content
+* Before creating AgnosticV catalog PR
+* When updating existing catalog descriptions
+
+*Commands to trigger*:
+
+* "generate agv description"
+* "create agv description"
+* "generate catalog description"
+
+*What you'll get*:
+
+* Complete `description.adoc` file with:
+** Brief overview (2-3 sentences)
+** Warning blocks (if needed)
+** Link to rendered Showroom guide
+** Featured technology list
+** Detailed agenda (auto-generated from modules)
+** Author contact information
+
+*Smart features*:
+
+* Auto-detects Showroom content (asks for path)
+* Extracts module structure and technologies
+* Pulls author from git config
+* Suggests content based on guide analysis
+* Preview before writing
+
+---
+
 == How It Works
 
 === Behind the Scenes
@@ -120,6 +162,7 @@ That's it! Claude will read the skill files and guide you through the workflow.
 * `create-lab/SKILL.md` - Workshop module generator workflow
 * `create-demo/SKILL.md` - Demo content generator workflow
 * `verify-content/SKILL.md` - Content verification workflow
+* `generate-agv-description/SKILL.md` - AgV catalog description generator
 
 . *Shared rules* (in `.claude/docs/`)
 +
@@ -340,6 +383,9 @@ create demo
 # Verify content quality
 verify content
 
+# Generate AgnosticV catalog description
+generate agv description
+
 # Force skill to load (if auto-detection fails)
 Read .claude/skills/create-lab/SKILL.md and follow all instructions
 to create a workshop module. Ask questions one at a time.
@@ -347,4 +393,4 @@ to create a workshop module. Ask questions one at a time.
 
 ---
 
-*Ready to create content!* Just say "create lab" or "create demo" in Cursor chat.
+*Ready to create content!* Just say "create lab", "create demo", or "generate agv description" in Cursor chat.

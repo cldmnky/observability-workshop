@@ -128,6 +128,7 @@ If you have Cursor with Claude access:
 .. `create lab` - Create workshop modules
 .. `create demo` - Create demo content
 .. `verify content` - Verify content quality
+.. `generate agv description` - Generate AgnosticV catalog descriptions
 
 For detailed Cursor setup, see `CURSOR-SKILLS-README.adoc`.
 
@@ -137,6 +138,6 @@ If you have Claude Code CLI installed:
 
 . Clone this repository and start a Claude Code session within the directory
 . Run `/skills` to list available skills
-. Run a skill by name: `/create-lab`, `/create-demo`, or `/verify-content`
+. Run a skill by name: `/create-lab`, `/create-demo`, `/verify-content`, or `/generate-agv-description`
 
 For detailed documentation on using Claude skills, see `CLAUDE-SKILLS-GUIDE.adoc`.
