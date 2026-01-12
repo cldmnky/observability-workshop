@@ -1,6 +1,6 @@
 ---
 name: generate-agv-description
-description: Generate AgnosticV catalog description from workshop content for RHDP provisioning.
+description: Generate AgnosticV catalog description from lab or demo content for RHDP provisioning.
 ---
 
 ---
@@ -62,8 +62,9 @@ This skill will ask you for:
 
 1. **Brief Overview**
    - What is this thing showing? (2-3 sentences)
+   - **MUST start with main product/technology name** (NOT "This workshop/demo/lab")
    - What is the intended use?
-   - **Smart feature**: If guide provided, suggests overview from content
+   - **Smart feature**: If guide provided, suggests overview from content starting with product name
 
 2. **Warnings** (optional)
    - Any important notices (e.g., GPU availability, resource requirements)
@@ -101,8 +102,11 @@ Generates a complete `description.adoc` file in AsciiDoc format ready to commit 
 The generated `description.adoc` follows this structure:
 
 1. **Brief overview** (2-3 sentences)
+   - **MUST start with main product/technology name**
    - What is this thing showing?
    - What is the intended use?
+   - **NEVER** use "This workshop", "This demo", "This hands-on lab", or "This lab" at the start
+   - **NEVER** use the word "workshop" anywhere
 
 2. **Warnings** (optional)
    - These come after the brief overview so they don't waste space on the UI tile
@@ -184,24 +188,84 @@ When this skill runs, gather the following information interactively:
    - Extract module titles from each module file
 
 3. **Extract key information:**
-   - Workshop/demo title
+   - Lab/demo title
    - Module titles (for agenda)
    - Technologies mentioned in the guide
    - Any warnings or prerequisites mentioned
-   - Guide structure (lab vs demo)
+   - **Try to detect content type:** Check for Know/Show sections (likely demo) vs Exercise sections (likely lab)
+   - Note: Detection is not always reliable - always confirm with user in Step 1
 
 4. **Use extracted info to pre-populate suggestions:**
    - Show the user what you found
    - Offer to use this as a starting point
    - Allow user to edit/override
 
-### Step 1: Basic Information
+### Step 1: Content Type and Basic Information
+
+**First, determine content type (ALWAYS ask, even if detected from Showroom):**
+
+```
+What type of content is this?
+
+1. Lab (hands-on exercises, learner-driven)
+2. Demo (presenter-led demonstration)
+
+Your choice: [1/2]
+```
+
+**If Showroom was read and content type detected:**
+- Show detected type: "I detected this is a [lab/demo] based on the content structure."
+- Ask for confirmation: "Is this correct? [1: Lab, 2: Demo]"
+
+**Store the content type for use in overview generation and output location.**
 
 Ask the user:
 - **What is this lab/demo about?** (2-3 sentence overview)
-  - If guide was read, suggest an overview based on content
+
+  **CRITICAL FORMATTING RULES:**
+  - ❌ **NEVER** start with "This demo", "This hands-on lab", "This workshop", or "This lab"
+  - ✅ **ALWAYS** start with the main product/technology name
+  - ❌ **NEVER** use the word "workshop" anywhere in the overview
+  - ✅ Use "lab", "demo", "guide", or "content" instead
+
+  **Examples:**
+
+  ❌ **WRONG**:
+  ```
+  This workshop teaches you to build AI/ML workloads using Red Hat OpenShift AI.
+  This hands-on lab demonstrates building a RAG chatbot.
+  This demo shows how to deploy applications on OpenShift.
+  ```
+
+  ✅ **CORRECT**:
+  ```
+  Red Hat OpenShift AI enables data scientists to build and deploy machine learning
+  workloads at scale. Learners explore model serving, pipelines, and integration with
+  enterprise data sources.
+
+  Red Hat OpenShift AI with LiteMaaS provides enterprise-grade model serving for
+  RAG-based chatbots. This content demonstrates vector database integration, semantic
+  search, and LLM grounding with custom data.
+
+  OpenShift Container Platform simplifies application deployment with GitOps workflows.
+  This guide covers Argo CD setup, Kustomize overlays, and automated rollouts.
+  ```
+
+  **If guide was read:**
+  - Extract main product/technology from title and content
+  - Generate overview starting with product name
+  - Show to user for approval/editing
+  - Remind user: "Overview starts with product name (not 'This workshop/demo/lab')"
+
+  **If manual entry:**
   - User can accept, edit, or provide their own
-- **What is the intended use?** (self-paced learning, workshop, demo, sales enablement, etc.)
+  - Validate that overview starts with product name
+  - If starts with "This workshop/demo/lab", ask user to rewrite
+
+- **What is the intended use?** (self-paced learning, instructor-led, demo, sales enablement, etc.)
+  - Use "instructor-led" instead of "workshop"
+  - Use "self-paced learning" instead of "self-paced workshop"
+
 - **Are there any warnings or special requirements?** (optional - GPU needs, resource limits, beta features, etc.)
   - If guide was read, check for any prerequisites mentioned
 
@@ -340,9 +404,9 @@ If user requests:
 ## Example Output
 
 ```asciidoc
-This lab demonstrates building a RAG-based chatbot using Red Hat OpenShift AI with LiteMaaS for model serving and vector databases for semantic search. Learners will deploy a complete AI application stack and understand the RAG pattern for grounding LLMs with custom data.
+Red Hat OpenShift AI with LiteMaaS provides enterprise-grade model serving for RAG-based chatbots. Learners deploy a complete AI application stack with vector databases for semantic search and explore the RAG pattern for grounding LLMs with custom data.
 
-Intended for self-paced learning and instructor-led workshops.
+Intended for self-paced learning and instructor-led sessions.
 
 [WARNING]
 ====
