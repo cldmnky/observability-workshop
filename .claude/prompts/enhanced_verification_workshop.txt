@@ -167,6 +167,81 @@ Assess if the verification methods match the content type:
 ❌ **UI-based workshops lacking code blocks or CLI commands** - UI workshops use different verification methods
 ❌ **Technical reference files lacking full workshop structure** - Supporting files have specific focused purposes
 
+## ASCIIDOC LIST FORMATTING VALIDATION (CRITICAL):
+
+**MANDATORY CHECK**: All lists MUST have proper blank lines for correct rendering.
+
+**Problem**: Improper list formatting causes text to run together when rendered in Showroom, making workshop content unreadable and difficult to follow.
+
+**Required blank lines**:
+1. **Blank line BEFORE every list**
+2. **Blank line AFTER every list** (before next content)
+3. **Blank line after bold text or headings before lists**
+
+**Common violations to actively scan for**:
+
+❌ **BAD - Text/heading immediately followed by list:**
+```
+Some text:
+**Heading:**
+* Item 1
+* Item 2
+```
+
+✅ **CORRECT - Blank line before list:**
+```
+Some text:
+
+**Heading:**
+
+* Item 1
+* Item 2
+```
+
+❌ **BAD - List immediately followed by next content:**
+```
+. Step 1
+. Step 2
+Next section starts here
+```
+
+✅ **CORRECT - Blank line after list:**
+```
+. Step 1
+. Step 2
+
+Next section starts here
+```
+
+**ACTIVELY SCAN the content for**:
+- Bold text (`**Text:**`) immediately followed by `*` or `.` (list marker)
+- Colons (`:`) immediately followed by list items on next line
+- List items followed immediately by paragraphs (no blank line)
+- Lists after headings without blank line separation
+
+**Learning Impact of Poor List Formatting**:
+- **Reduced comprehension**: Learners can't quickly scan steps or concepts
+- **Professional credibility**: Rendering issues damage Red Hat brand quality
+- **Learner frustration**: Students struggle with poorly formatted instructions
+- **Higher support burden**: Instructors field questions about confusing formatting
+
+**For EVERY list formatting issue, report**:
+```json
+{
+  "type": "critical_issue",
+  "category": "asciidoc_formatting",
+  "message": "Missing blank lines around lists - causes text to run together",
+  "current_example": "**Prerequisites:**\n* OpenShift installed\n* Admin access\nNow let's begin...",
+  "improved_example": "**Prerequisites:**\n\n* OpenShift installed\n* Admin access\n\nNow let's begin...",
+  "implementation_steps": [
+    "Add blank line after bold heading/colon",
+    "Ensure blank line before first list item",
+    "Add blank line after last list item"
+  ],
+  "files": ["affected-module.adoc"]
+}
+```
+
 ## Intelligent Analysis Instructions:
 
 Before evaluating, determine the file type and purpose:
@@ -187,6 +262,44 @@ Provide analysis in this structure:
 {
   "file_type": "workshop_content|demo_content|navigation|infrastructure|technical_reference|supporting",
   "evaluation_focus": "Brief description of what was evaluated for this file type",
+  "validation_summary": {
+    "total_errors": 0,
+    "total_warnings": 0,
+    "total_improvements": 0,
+    "checks_performed": {
+      "external_link_caret": {
+        "violations_found": 0,
+        "severity": "error",
+        "files_affected": []
+      },
+      "clickable_image_caret": {
+        "violations_found": 0,
+        "severity": "error",
+        "files_affected": []
+      },
+      "list_marker_semantic": {
+        "violations_found": 0,
+        "severity": "warning",
+        "files_affected": []
+      },
+      "list_blank_lines": {
+        "violations_found": 0,
+        "severity": "error",
+        "files_affected": []
+      },
+      "formatting_consistency": {
+        "violations_found": 0,
+        "severity": "warning",
+        "files_affected": []
+      }
+    },
+    "severity_breakdown": {
+      "critical": 0,
+      "error": 0,
+      "warning": 0,
+      "info": 0
+    }
+  },
   "contentType": "workshop|demo|mixed",
   "contentTypeConfidence": 85,
   "typeMismatchWarning": "Optional warning if user selection doesn't match detected type",
@@ -210,7 +323,6 @@ Provide analysis in this structure:
     "suggestions": []
   },
   "redhatBestPractices": {
-    "score": 88,
     "strengths": ["Proper OpenShift terminology", "Good Red Hat branding"],
     "improvements": ["Consider adding customer success story"]
   },
@@ -313,25 +425,126 @@ Reference the comprehensive style guidelines: `prompts/redhat_style_guide_valida
   - Clickable external: `image::arch.png[Architecture,link=https://docs.redhat.com^]` ✅
   - Regular image: `image::screenshot.png[Screenshot]` ✅ (no link, no caret needed)
 
-**VALIDATION CHECKS - You MUST actively scan content and flag these issues:**
+## MANDATORY ACTIVE VALIDATION FRAMEWORK
 
-1. **Scan for image macros with external links missing caret:**
+You MUST perform these validation checks and produce ERROR or WARNING findings when violations are detected. These checks are NOT optional - every violation MUST be reported with counts and specific examples.
+
+### Check 1: External Link Caret Enforcement
+**What to scan**: All `link:https://` and `link:http://` patterns in content
+**Pattern to detect violations**: `link:https?://[^\^]+\[[^\]]+\]` (link without `^` before closing bracket)
+**Error condition**: External link without `^` caret
+**Severity**: ERROR
+**Why this matters**: External links without caret replace the current tab, causing learners to lose their place in the workshop
+**Example violation**: `link:https://docs.redhat.com[Documentation]`
+**Required fix**: `link:https://docs.redhat.com[Documentation^]`
+**Count tracking**: MUST count total violations and list all file locations
+
+### Check 2: Clickable Image Link Caret Enforcement
+**What to scan**: All `image::` macros with `link=` attribute pointing to external URLs
+**Pattern to detect violations**:
+- `image::[^[]+\[.*link=https?://[^\^]+\]` (image macro with external link, no caret)
+- `link:https?://[^\^]+\[image:` (link macro wrapping image, no caret)
+**Error condition**: Image with external link without `^` caret
+**Severity**: ERROR
+**Why this matters**: Clickable images without caret lose workshop context when opening external content
+**Example violation**: `image::diagram.png[Architecture,link=https://example.com]`
+**Required fix**: `image::diagram.png[Architecture,link=https://example.com^]`
+**Count tracking**: MUST count total violations and list all file locations
+
+### Check 3: List Marker Semantic Validation (NEW)
+**What to scan**: All list markers in relation to their section context
+**Section Detection Patterns**:
+- **Knowledge/information sections**: Headers containing "Learning objectives", "Overview", "Introduction", "Background", "Prerequisites", "Concepts", "Benefits", "Key takeaways"
+- **Task/exercise sections**: Headers containing "Exercise", "Steps", "Procedure", "Activity", "Lab", "Practice", "Tasks", "Instructions"
+- **Verification sections**: Headers containing "Verify", "Check", "Validation", "Confirm", "Test", "Expected output"
+
+**Expected list markers by section type**:
+- Knowledge/information sections → MUST use `* ` (bullets) for concepts and benefits
+- Task/exercise sections → MUST use `. ` (numbers) for sequential steps
+- Verification sections → MUST use `* ` (bullets) for success indicators
+
+**Error conditions to detect**:
+1. Numbered list (`. `) found in knowledge/information section
+2. Bulleted list (`* `) found in task/exercise section
+3. Mixed markers (both `*` and `.`) within same logical section
+4. Numbered list (`. `) found in verification section
+
+**Severity**: WARNING (affects readability but doesn't break functionality)
+**Why this matters**: Bullets indicate information to absorb; numbers indicate sequential actions to perform. Mixing them confuses the learning pattern.
+
+**Example violation in Learning Objectives**:
+```asciidoc
+== Learning Objectives
+
+. Understand containers                ← ERROR: Should use *
+. Deploy applications                  ← ERROR: Should use *
+. Configure networks                   ← ERROR: Should use *
+```
+
+**Required fix**:
+```asciidoc
+== Learning Objectives
+
+* Understand containers                ← CORRECT: Bullets for concepts
+* Deploy applications                  ← CORRECT
+* Configure networks                   ← CORRECT
+```
+
+**Example violation in Exercise section**:
+```asciidoc
+== Exercise 1: Deploy Application
+
+* Open OpenShift Console               ← ERROR: Should use .
+* Navigate to Developer perspective    ← ERROR: Should use .
+* Click "+Add" button                  ← ERROR: Should use .
+```
+
+**Required fix**:
+```asciidoc
+== Exercise 1: Deploy Application
+
+. Open OpenShift Console               ← CORRECT: Numbers for steps
+. Navigate to Developer perspective    ← CORRECT
+. Click "+Add" button                  ← CORRECT
+```
+
+**Count tracking**: MUST count violations by section type and list all affected sections with line numbers
+
+---
+
+**VALIDATION EXECUTION - You MUST perform these scans and produce ERROR findings:**
+
+1. **MUST scan EVERY file for image macros with external links missing caret:**
    - Search pattern: `image::[^[]+\[.*link=https?://[^\^]+\]`
-   - Flag as ERROR: Missing `^` caret in clickable image
+   - MUST produce ERROR for each violation found
+   - MUST track count of violations per file
+   - MUST include file name and line number for each violation
    - Example to flag: `image::diagram.png[Alt,link=https://docs.redhat.com]`
    - Correct version: `image::diagram.png[Alt,link=https://docs.redhat.com^]`
 
-2. **Scan for link macros wrapping images, missing caret:**
+2. **MUST scan EVERY file for link macros wrapping images, missing caret:**
    - Search pattern: `link:https?://[^\^]+\[image:`
-   - Flag as ERROR: Missing `^` caret in image link
+   - MUST produce ERROR for each violation found
+   - MUST track count of violations per file
+   - MUST include file name and line number for each violation
    - Example to flag: `link:https://docs.redhat.com[image:diagram.png[Alt]]`
    - Correct version: `link:https://docs.redhat.com^[image:diagram.png[Alt]]`
 
-3. **Scan for text links to external URLs missing caret:**
+3. **MUST scan EVERY file for text links to external URLs missing caret:**
    - Search pattern: `link:https?://[^\^]+\[[^\]]+\]` (without ^ before bracket)
-   - Flag as ERROR: Missing `^` caret in external link
+   - MUST produce ERROR for each violation found
+   - MUST track count of violations per file
+   - MUST include file name and line number for each violation
    - Example to flag: `link:https://docs.redhat.com[Documentation]`
    - Correct version: `link:https://docs.redhat.com[Documentation^]`
+
+4. **MUST scan EVERY section for list marker type mismatches:**
+   - Detect section type from header keywords (Learning objectives/Exercise/Verify)
+   - MUST produce WARNING for bullets (*) in Exercise/task sections
+   - MUST produce WARNING for numbers (.) in Learning objectives/knowledge sections
+   - MUST produce WARNING for numbers (.) in Verify sections
+   - MUST track count of violations by section type
+   - MUST include section header name and line numbers for each violation
 
 **Troubleshooting Section Guidance:**
 - ⚠️ **Optional for simple workshops**: Introductory modules and basic tutorials may skip troubleshooting
@@ -367,16 +580,6 @@ Reference the comprehensive style guidelines: `prompts/redhat_style_guide_valida
 Required JSON structure:
 ```json
 {
-  "overall_score": 85,
-  "dimension_scores": {
-    "learning_objectives": 8,
-    "content_structure": 9,
-    "technical_accuracy": 8,
-    "hands_on_activities": 7,
-    "redhat_compliance": 9,
-    "learner_engagement": 8,
-    "assessment_integration": 7
-  },
   "strengths": [
     "Specific positive aspects with detailed examples"
   ],
@@ -427,9 +630,135 @@ Required JSON structure:
 }
 ```
 
-**IMPORTANT:** 
+**IMPORTANT:**
 - Always include detailed "current_example" and "improved_example" fields for issues
 - Provide specific "implementation_steps" for every recommendation
 - Include "business_impact" explanations for why changes matter
 - Use "files" arrays to specify which files are affected
 - Ensure all JSON is properly formatted and valid
+
+---
+
+## SCANNING EXECUTION PROTOCOL
+
+**CRITICAL: You MUST follow this exact scanning workflow to ensure complete validation coverage.**
+
+### Scanning Workflow (Execute in Order)
+
+When performing validation, you MUST:
+
+1. **Read entire content**:
+   - Don't skip any files in the provided content
+   - Don't sample or spot-check - scan EVERY line
+   - Process all .adoc files completely
+
+2. **Track violations systematically**:
+   - Count EVERY occurrence of each validation check
+   - Record file name for each violation
+   - Note line numbers or section headers for each violation
+   - Group violations by check type
+
+3. **Build summary FIRST**:
+   - Count all violations across all checks BEFORE writing JSON response
+   - Calculate totals: total_errors, total_warnings, total_improvements
+   - Calculate per-check counts: violations_found for each check type
+   - List affected files for each check type
+   - Build severity_breakdown from counts
+
+4. **Verify summary matches details**:
+   - BEFORE finalizing JSON, verify validation_summary totals equal issues array length
+   - Verify validation_summary.checks_performed counts match detailed findings
+   - Verify validation_summary.severity_breakdown matches issue types
+   - If counts don't match, recount and correct
+
+5. **Report systematically**:
+   - Group issues by check type in the issues array
+   - Within each check type, group by file
+   - Provide specific examples for each violation
+   - Include before/after fixes for each violation
+
+### Scanning Order (Execute All Checks)
+
+1. **External Link Caret Check** (Scan all files)
+   - Pattern: `link:https?://[^\^]+\[[^\]]+\]`
+   - Count: Total violations across all files
+   - Track: File names where violations found
+
+2. **Clickable Image Caret Check** (Scan all files)
+   - Pattern 1: `image::[^[]+\[.*link=https?://[^\^]+\]`
+   - Pattern 2: `link:https?://[^\^]+\[image:`
+   - Count: Total violations across all files
+   - Track: File names where violations found
+
+3. **List Marker Semantic Check** (Scan all sections)
+   - Classify each section by header keywords
+   - Check list markers match section type
+   - Count: Violations by section type (Learning objectives/Exercise/Verify)
+   - Track: Section headers and file names
+
+4. **List Blank Line Check** (Scan all lists)
+   - Check for blank lines before/after lists
+   - Count: Total spacing violations
+   - Track: File names and approximate line numbers
+
+5. **Formatting Consistency Check** (Scan all content)
+   - Check other formatting issues
+   - Count: Total formatting violations
+   - Track: Issue types and file names
+
+6. **Build Summary Table**
+   - Sum all error-level violations → total_errors
+   - Sum all warning-level violations → total_warnings
+   - Sum all improvement suggestions → total_improvements
+   - Populate checks_performed with individual counts
+   - Build severity_breakdown
+
+7. **Write Detailed Issues**
+   - For each violation found, create issue object
+   - Include all required fields (type, category, message, etc.)
+   - Provide current_example and improved_example
+   - Add implementation_steps
+
+8. **Final Verification**
+   - Count issues array length
+   - Compare with validation_summary.total_errors + total_warnings
+   - If mismatch, identify and fix discrepancy
+   - Ensure JSON is valid before returning
+
+### Count Consistency Requirements
+
+**THESE MUST MATCH EXACTLY:**
+
+- `validation_summary.total_errors` = count of `issues` where `type: "error"`
+- `validation_summary.total_warnings` = count of `issues` where `type: "warning"`
+- `validation_summary.checks_performed.external_link_caret.violations_found` = count of external link caret errors in `issues`
+- `validation_summary.checks_performed.clickable_image_caret.violations_found` = count of clickable image caret errors in `issues`
+- `validation_summary.checks_performed.list_marker_semantic.violations_found` = count of list marker warnings in `issues`
+- `validation_summary.checks_performed.list_blank_lines.violations_found` = count of list blank line errors in `issues`
+- `validation_summary.severity_breakdown.error` = `total_errors`
+- `validation_summary.severity_breakdown.warning` = `total_warnings`
+
+**If these don't match, the validation is INCORRECT and must be redone.**
+
+### Error Reporting Standards
+
+Every validation error in the `issues` array MUST include:
+
+- **type**: "error" | "warning" | "improvement"
+- **category**: The check that triggered it (e.g., "external_link_caret", "list_marker_semantic")
+- **message**: Clear description with count (e.g., "7 external links missing required `^` caret")
+- **file**: Exact filename containing issue (e.g., "03-module-01.adoc")
+- **why_problematic**: Why this violates standards
+- **business_impact**: How this affects learner experience
+- **current_example**: Actual problematic code from the file
+- **improved_example**: Corrected version
+- **implementation_steps**: Array of how to fix it
+
+### No Optional Checks
+
+**DO NOT ask users:**
+- "Do you want to enforce caret for images?"
+- "Should external links open in new tab?"
+- "Would you like to check list formatting?"
+
+**ALL checks listed above are MANDATORY.** Run them all and report all violations.
