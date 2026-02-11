@@ -30,7 +30,7 @@
 🎯 Next steps:
 
 1. Deploy ServiceMonitors with label:
-   monitoring.rhobs/stack: {{ .Values.monitoringStack.resourceSelector.matchLabels | first }}
+   monitoring.rhobs/stack: {{ index .Values.monitoringStack.resourceSelector.matchLabels "monitoring.rhobs/stack" }}
 
 2. Access Prometheus UI:
    oc port-forward -n {{ .Values.monitoringStack.namespace }} svc/{{ .Values.monitoringStack.name }}-prometheus 9090:9090
