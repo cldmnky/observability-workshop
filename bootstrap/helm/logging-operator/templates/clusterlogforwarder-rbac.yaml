@@ -1,0 +1,75 @@
+{{- if .Values.clusterLogging.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.clusterLogging.serviceAccount.name }}
+  namespace: {{ .Values.clusterLogging.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-logs-writer" .Values.clusterLogging.serviceAccount.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.clusterLogging.serviceAccount.name }}
+  namespace: {{ .Values.clusterLogging.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: logging-collector-logs-writer
+{{- if .Values.clusterLogging.collection.logs.application.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-collect-application-logs" .Values.clusterLogging.serviceAccount.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.clusterLogging.serviceAccount.name }}
+  namespace: {{ .Values.clusterLogging.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: collect-application-logs
+{{- end }}
+{{- if .Values.clusterLogging.collection.logs.infrastructure.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-collect-infrastructure-logs" .Values.clusterLogging.serviceAccount.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.clusterLogging.serviceAccount.name }}
+  namespace: {{ .Values.clusterLogging.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: collect-infrastructure-logs
+{{- end }}
+{{- if .Values.clusterLogging.collection.logs.audit.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-collect-audit-logs" .Values.clusterLogging.serviceAccount.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.clusterLogging.serviceAccount.name }}
+  namespace: {{ .Values.clusterLogging.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: collect-audit-logs
+{{- end }}
+{{- end }}

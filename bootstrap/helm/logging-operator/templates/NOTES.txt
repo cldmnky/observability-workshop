@@ -9,7 +9,7 @@
   - LokiStack: {{ .Values.lokiStack.name }} (size: {{ .Values.lokiStack.size }})
 {{- end }}
 {{- if .Values.clusterLogging.enabled }}
-  - ClusterLogging: {{ .Values.clusterLogging.name }} (log collector: Vector)
+  - ClusterLogForwarder: {{ .Values.clusterLogging.name }}
 {{- end }}
 
 🔍 Verification commands:
@@ -30,11 +30,11 @@
 {{- end }}
 
 {{- if .Values.clusterLogging.enabled }}
-4. Check ClusterLogging status:
-   oc get clusterlogging {{ .Values.clusterLogging.name }} -n {{ .Values.clusterLogging.namespace }}
+4. Check ClusterLogForwarder status:
+  oc get clusterlogforwarder {{ .Values.clusterLogging.name }} -n {{ .Values.clusterLogging.namespace }}
 
-5. Check log collector (Vector) pods:
-   oc get pods -n {{ .Values.clusterLogging.namespace }} -l app.kubernetes.io/component=collector
+5. Check log collector pods:
+  oc get pods -n {{ .Values.clusterLogging.namespace }} -l app.kubernetes.io/component=collector
 {{- end }}
 
 📊 Access logs via OpenShift Console:

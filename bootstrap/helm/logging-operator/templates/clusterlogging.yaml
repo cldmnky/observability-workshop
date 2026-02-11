@@ -1,6 +1,6 @@
 {{- if .Values.clusterLogging.enabled }}
-apiVersion: logging.openshift.io/v1
-kind: ClusterLogging
+apiVersion: observability.openshift.io/v1
+kind: ClusterLogForwarder
 metadata:
   name: {{ .Values.clusterLogging.name }}
   namespace: {{ .Values.clusterLogging.namespace }}
@@ -8,38 +8,31 @@ metadata:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  # Management state
   managementState: Managed
-  
-  # Log collection
-  collection:
-    type: vector
-    vector: {}
-    {{- if or .Values.clusterLogging.collection.logs.application.enabled .Values.clusterLogging.collection.logs.infrastructure.enabled .Values.clusterLogging.collection.logs.audit.enabled }}
-    logs:
+  serviceAccount:
+    name: {{ .Values.clusterLogging.serviceAccount.name }}
+  outputs:
+  - name: lokistack
+    type: lokiStack
+    lokiStack:
+      target:
+        name: {{ .Values.lokiStack.name }}
+        namespace: {{ .Values.lokiStack.namespace }}
+      authentication:
+        token:
+          from: serviceAccount
+  pipelines:
+  - name: default
+    inputRefs:
       {{- if .Values.clusterLogging.collection.logs.application.enabled }}
-      application:
-        namespaceSelector:
-          matchExpressions:
-          - key: kubernetes.io/metadata.name
-            operator: NotIn
-            values:
-            - openshift
-            - openshift-operators
-            - openshift-logging
-            - openshift-monitoring
+      - application
       {{- end }}
       {{- if .Values.clusterLogging.collection.logs.infrastructure.enabled }}
-      infrastructure: {}
+      - infrastructure
       {{- end }}
       {{- if .Values.clusterLogging.collection.logs.audit.enabled }}
-      audit: {}
+      - audit
       {{- end }}
-    {{- end }}
-  
-  # Log storage
-  logStore:
-    type: lokistack
-    lokistack:
-      name: {{ .Values.lokiStack.name }}
+    outputRefs:
+    - lokistack
 {{- end }}

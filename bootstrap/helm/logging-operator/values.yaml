@@ -79,14 +79,17 @@ lokiStack:
       # S3 secret access key
       accessKeySecret: ""
 
-# ClusterLogging Configuration
+# ClusterLogForwarder Configuration (Logging 6.x)
 clusterLogging:
-  # Enable ClusterLogging instance
+  # Enable ClusterLogForwarder instance
   enabled: true
-  # Name of the ClusterLogging instance
+  # Name of the ClusterLogForwarder instance
   name: instance
   # Namespace
   namespace: openshift-logging
+  # ServiceAccount used by the collector
+  serviceAccount:
+    name: logging-collector
   # Collection configuration
   collection:
     # Log types to collect
