@@ -2,8 +2,8 @@
 operator:
   # Namespace for the logging operator
   namespace: openshift-logging
-  # Operator channel (stable-6.0, stable-6.1, stable-6.2)
-  channel: stable-6.2
+  # Operator channel (stable-6.0, stable-6.1, stable-6.2, stable-6.4)
+  channel: stable-6.4
   # Install plan approval
   installPlanApproval: Automatic
   # Source catalog
