@@ -1,7 +1,9 @@
 # Network Observability Operator Configuration
 operator:
-  # Namespace where the operator will be installed
-  # The operator is automatically installed in openshift-netobserv-operator
+  # Namespace where the operator subscription will be installed
+  # Network Observability operator uses AllNamespaces mode and installs to openshift-operators
+  subscriptionNamespace: openshift-operators
+  # Target namespace for Network Observability resources (FlowCollector, etc.)
   namespace: openshift-netobserv-operator
   # Operator channel (stable)
   channel: stable
