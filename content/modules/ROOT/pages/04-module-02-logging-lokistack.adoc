@@ -1,0 +1,642 @@
+= Module 2: Logging with LokiStack
+:source-highlighter: rouge
+:toc: macro
+:toclevels: 1
+
+After implementing user workload monitoring in Module 1, your manager at Red Hat Observability Inc. has a new challenge. "The metrics show us when something is wrong, but we still waste hours digging through pod logs to find out why," she explains. "We need centralized logging so we can query logs across all our microservices in one place."
+
+Red Hat Observability Inc. runs a distributed application with 12+ microservices. When an issue occurs, developers currently SSH into individual pods and grep through log files. This manual process is time-consuming and error-prone, especially when correlating events across services.
+
+In this module, you'll implement centralized logging with LokiStack and learn to write LogQL queries that quickly surface relevant log entries across your entire application.
+
+toc::[]
+
+== Learning objectives
+
+By the end of this module, you'll be able to:
+
+* Understand LokiStack architecture and how it differs from traditional logging solutions
+* Configure ClusterLogForwarder to send application logs to Loki
+* Write LogQL queries to search and filter logs across multiple services
+* Correlate logs with metrics to accelerate troubleshooting
+* Create log-based alerts for critical application events
+
+== Understanding LokiStack architecture
+
+Before configuring logging, you need to understand how LokiStack works and why it's efficient for Kubernetes environments.
+
+=== What is Loki?
+
+**Loki** is a horizontally scalable, highly available log aggregation system inspired by Prometheus. Unlike traditional logging systems that index the full text of log messages, Loki only indexes metadata (labels) and stores log content separately.
+
+**Key differences from traditional logging**:
+
+* **Traditional (Elasticsearch)**: Indexes every word in every log message → high storage cost, slower writes
+* **Loki**: Indexes only labels (namespace, pod, container) → lower storage cost, faster writes, efficient for Kubernetes
+
+**LokiStack components**:
+
+* **Distributor**: Receives log streams from clients
+* **Ingester**: Writes logs to storage and serves recent queries
+* **Querier**: Handles LogQL queries against stored logs
+* **Compactor**: Maintains index and deletes expired logs
+
+=== Log forwarding flow
+
+In OpenShift, logs flow through this pipeline:
+
+. Application writes logs to stdout/stderr
+. Container runtime captures logs to node filesystem
+. OpenShift Logging Operator's collector pods read logs
+. ClusterLogForwarder routes logs to LokiStack
+. Loki stores logs with labels for querying
+
+You'll configure the ClusterLogForwarder to ensure application logs reach Loki.
+
+== Exercise 1: Verify logging infrastructure
+
+You need to verify that the logging stack was deployed via GitOps and is ready to receive logs.
+
+The LokiStack instance and logging operator were pre-configured, so you'll confirm the components are running.
+
+=== Steps
+
+. Log into the OpenShift console at {openshift_cluster_console_url} (if not already logged in)
+
+. Verify the logging operator is running:
++
+[source,bash]
+----
+oc get pods -n openshift-logging
+----
++
+.Expected output
+[source,text]
+----
+NAME                                           READY   STATUS    RESTARTS   AGE
+cluster-logging-operator-xxxxx                 1/1     Running   0          1h
+collector-xxxxx                                2/2     Running   0          1h
+collector-xxxxx                                2/2     Running   0          1h
+logging-loki-compactor-0                       1/1     Running   0          1h
+logging-loki-distributor-xxxxx                 1/1     Running   0          1h
+logging-loki-gateway-xxxxx                     2/2     Running   0          1h
+logging-loki-index-gateway-0                   1/1     Running   0          1h
+logging-loki-ingester-0                        1/1     Running   0          1h
+logging-loki-querier-xxxxx                     1/1     Running   0          1h
+logging-loki-query-frontend-xxxxx              1/1     Running   0          1h
+----
+
+. Check the LokiStack instance:
++
+[source,bash]
+----
+oc get lokistack -n openshift-logging
+----
++
+.Expected output
+[source,text]
+----
+NAME           AGE   SIZE       MODE      STATUS
+logging-loki   1h    1x.small   static    Ready
+----
++
+The status should be **Ready**.
+
+. Verify the ClusterLogForwarder configuration:
++
+[source,bash]
+----
+oc get clusterlogforwarder -n openshift-logging
+----
++
+.Expected output
+[source,text]
+----
+NAME       AGE
+instance   1h
+----
+
+. View the ClusterLogForwarder configuration:
++
+[source,bash]
+----
+oc get clusterlogforwarder instance -n openshift-logging -o yaml
+----
++
+Look for pipelines that forward application and infrastructure logs to the default output (LokiStack).
+
+=== Verify
+
+Check that your logging infrastructure is operational:
+
+* ✓ Logging operator pod is Running
+* ✓ Collector pods are Running on each node
+* ✓ LokiStack components (distributor, ingester, querier) are Running
+* ✓ LokiStack status is Ready
+* ✓ ClusterLogForwarder exists with pipelines configured
+
+**What you learned**: OpenShift Logging uses a collector (based on Vector) to gather logs from all pods and forward them to LokiStack according to ClusterLogForwarder rules.
+
+=== Troubleshooting
+
+**Issue**: LokiStack status shows "Degraded" or "Pending"
+
+**Solution**:
+. Check LokiStack pods for errors: `oc get pods -n openshift-logging | grep loki`
+. Describe the LokiStack: `oc describe lokistack logging-loki -n openshift-logging`
+. Check for storage issues: `oc get pvc -n openshift-logging`
+. Verify storage class exists: `oc get storageclass`
+
+**Issue**: No collector pods running
+
+**Solution**:
+. Check DaemonSet status: `oc get daemonset -n openshift-logging`
+. View collector logs: `oc logs -n openshift-logging -l component=collector`
+. Verify ClusterLogging resource exists: `oc get clusterlogging -n openshift-logging`
+
+**Issue**: ClusterLogForwarder not found
+
+**Solution**: The logging stack may not be fully configured. Check that the GitOps deployment completed successfully.
+
+== Exercise 2: Generate application logs
+
+To practice querying logs, you need an application that generates diverse log entries. You'll use the sample application from Module 1 and enhance it to produce more interesting logs.
+
+=== Steps
+
+. Verify the sample application from Module 1 is still running:
++
+[source,bash]
+----
+oc get pods -n observability-demo
+----
++
+If the pods aren't running, redeploy:
++
+[source,bash]
+----
+oc apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+  namespace: observability-demo
+  labels:
+    app: sample-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+    spec:
+      containers:
+      - name: app
+        image: quay.io/brancz/prometheus-example-app:v0.3.0
+        ports:
+        - containerPort: 8080
+          name: http
+EOF
+----
+
+. Generate traffic with mixed success and failure responses:
++
+[source,bash]
+----
+for i in {1..50}; do
+  # Successful requests
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  
+  # Failed requests (404 errors)
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/nonexistent > /dev/null
+  
+  echo "Completed request pair $i"
+  sleep 0.5
+done
+----
++
+This generates a mix of 200 (success) and 404 (error) responses, creating varied log entries.
+
+. View logs directly from a pod to see what's being generated:
++
+[source,bash]
+----
+oc logs -n observability-demo deployment/sample-app --tail=20
+----
++
+.Sample output
+[source,text]
+----
+2026/02/11 10:23:15 HTTP GET /: 200
+2026/02/11 10:23:16 HTTP GET /nonexistent: 404
+2026/02/11 10:23:17 HTTP GET /: 200
+2026/02/11 10:23:18 HTTP GET /nonexistent: 404
+----
+
+. Deploy an additional application to simulate a multi-service environment:
++
+[source,bash]
+----
+oc apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-backend
+  namespace: observability-demo
+  labels:
+    app: api-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-backend
+  template:
+    metadata:
+      labels:
+        app: api-backend
+    spec:
+      containers:
+      - name: backend
+        image: quay.io/brancz/prometheus-example-app:v0.3.0
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: APP_NAME
+          value: "api-backend"
+EOF
+----
+
+. Generate logs from the backend service:
++
+[source,bash]
+----
+for i in {1..20}; do
+  oc exec -n observability-demo deployment/api-backend -- curl -s localhost:8080 > /dev/null
+  sleep 1
+done
+----
+
+=== Verify
+
+Check that logs are being generated:
+
+* ✓ sample-app pods are producing logs with 200 and 404 status codes
+* ✓ api-backend pod is running and generating logs
+* ✓ Logs visible via `oc logs` command
+* ✓ Multiple applications running in observability-demo namespace
+
+**What you learned**: Applications write logs to stdout/stderr, which OpenShift captures and forwards to your logging backend. Multiple services can run in the same namespace.
+
+== Exercise 3: Query logs with LogQL
+
+Now you'll access the Loki web interface and write LogQL queries to search logs across all your applications.
+
+**LogQL** is Loki's query language, similar to PromQL but for logs instead of metrics.
+
+=== Steps
+
+. Access the OpenShift console and navigate to **Observe** → **Logs**
++
+This opens the log query interface powered by Loki.
+
+. Write your first LogQL query to see all logs from your namespace:
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo"}
+----
++
+Click **Run query**
++
+You should see log entries from all pods in the observability-demo namespace.
+
+. Filter logs to show only error responses (404):
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo"} |= "404"
+----
++
+The `|=` operator filters for log lines containing "404".
+
+. Query logs from a specific pod:
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo", kubernetes_pod_name=~"sample-app.*"}
+----
++
+The `=~` operator matches a regular expression.
+
+. Combine multiple filters to find successful requests to the sample-app:
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo", kubernetes_pod_name=~"sample-app.*"} |= "200" != "404"
+----
++
+This shows lines containing "200" but not "404".
+
+. Use LogQL to count error rates:
++
+[source,logql]
+----
+sum(rate({kubernetes_namespace_name="observability-demo"} |= "404" [5m]))
+----
++
+This calculates the rate of 404 errors per second over the last 5 minutes.
+
+. Query logs from multiple applications:
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo"} | json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
+----
++
+This formats output to show which pod generated each log line.
+
+=== Verify
+
+Check that you can query logs effectively:
+
+* ✓ Logs from observability-demo namespace are visible
+* ✓ Filter queries return only matching log lines
+* ✓ Pod-specific queries work with regex patterns
+* ✓ Rate calculations show error frequency
+* ✓ Logs from multiple applications can be queried together
+
+**What you learned**: LogQL uses labels (like namespace, pod name) to select log streams, then filters content with operators like `|=` (contains) and `!=` (does not contain).
+
+=== Troubleshooting
+
+**Issue**: No logs appear in query results
+
+**Solution**:
+. Wait 1-2 minutes for logs to be ingested by Loki
+. Verify pods are running: `oc get pods -n observability-demo`
+. Check collector is forwarding logs: `oc logs -n openshift-logging -l component=collector`
+. Verify time range in query interface (expand to last 1 hour)
+
+**Issue**: Query returns "Error: parse error"
+
+**Solution**:
+. Check LogQL syntax (labels in braces, filters with pipes)
+. Ensure label names are correct: `kubernetes_namespace_name` not `namespace`
+. Use quotes around label values: `{kubernetes_namespace_name="observability-demo"}`
+
+**Issue**: Rate queries return no data
+
+**Solution**:
+. Ensure enough matching logs exist (generate more traffic)
+. Check time range: `[5m]` requires data in last 5 minutes
+. Verify filter matches log content: `|= "404"` requires "404" in log lines
+
+== Exercise 4: Correlate logs with metrics
+
+The real power of observability comes from correlating different signals. You'll use metrics from Module 1 alongside logs to diagnose an issue faster.
+
+=== Steps
+
+. Generate a burst of errors to simulate an incident:
++
+[source,bash]
+----
+for i in {1..100}; do
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
+  sleep 0.1
+done
+----
+
+. Check metrics to detect the error spike:
++
+Navigate to **Observe** → **Metrics**
++
+Query:
++
+[source,promql]
+----
+rate(http_requests_total{namespace="observability-demo", code="404"}[5m])
+----
++
+You should see a spike in the error rate.
+
+. Switch to **Observe** → **Logs** and correlate with log data:
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo"} |= "404" |= "error"
+----
++
+This shows the actual error log messages during the spike.
+
+. Use time range alignment to see the correlation:
++
+In the logs interface, set the time range to match when you saw the metric spike (last 15 minutes).
++
+Compare the timestamp of log entries with the metric spike time.
+
+. Extract structured data from logs:
++
+[source,logql]
+----
+{kubernetes_namespace_name="observability-demo"} 
+  |= "404" 
+  | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*(?P<method>\w+).*(?P<status>\d{3})`
+  | line_format "{{.timestamp}} - {{.method}} {{.status}}"
+----
++
+This extracts timestamp, HTTP method, and status code from log lines.
+
+=== Verify
+
+Check that you can correlate metrics and logs:
+
+* ✓ Metric query shows error rate spike
+* ✓ Log query reveals error messages during the same time period
+* ✓ Time ranges align between metrics and logs views
+* ✓ Structured data can be extracted from log lines
+* ✓ Correlation reduces investigation time from minutes to seconds
+
+**What you learned**: Metrics tell you when and where problems occur. Logs provide the detailed context explaining why. Together, they dramatically reduce mean time to resolution.
+
+=== Troubleshooting
+
+**Issue**: Metric and log timestamps don't align
+
+**Solution**:
+. Check timezone settings in console (both views should use same timezone)
+. Verify system clocks are synchronized across cluster nodes
+. Allow 30-60 seconds for metric scraping and log ingestion delays
+
+**Issue**: Cannot extract structured data with regexp
+
+**Solution**:
+. Verify log format matches regex pattern
+. View raw logs first: `{kubernetes_namespace_name="observability-demo"}`
+. Test regex pattern against actual log samples
+. Use simpler filters first, then add complexity
+
+== Exercise 5: Create log-based alerts
+
+Just as you created metric-based alerts in Module 1, you can create alerts based on log patterns. You'll configure an alert that fires when error rates exceed thresholds.
+
+=== Steps
+
+. Create an AlertingRule that triggers on high error log rates:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: loki.grafana.com/v1
+kind: AlertingRule
+metadata:
+  name: high-error-rate
+  namespace: openshift-logging
+  labels:
+    app: loki
+spec:
+  tenantID: application
+  groups:
+  - name: application-errors
+    interval: 30s
+    rules:
+    - alert: HighApplicationErrorRate
+      expr: |
+        sum(rate({kubernetes_namespace_name="observability-demo"} |= "404" [5m])) > 0.5
+      for: 2m
+      labels:
+        severity: warning
+        team: platform
+      annotations:
+        summary: "High error rate in observability-demo namespace"
+        description: "Application in observability-demo is producing more than 0.5 errors/second for 2 minutes."
+EOF
+----
++
+This alert fires if error logs exceed 0.5 entries per second for 2 minutes.
+
+. Verify the AlertingRule was created:
++
+[source,bash]
+----
+oc get alertingrule -n openshift-logging
+----
+
+. Trigger the alert by generating sustained errors:
++
+[source,bash]
+----
+for i in {1..200}; do
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
+  sleep 0.5
+done
+----
++
+This generates errors for about 100 seconds, which should trigger the alert after 2 minutes.
+
+. Check alert status in the console:
++
+Navigate to **Observe** → **Alerting** → **Alerting rules**
++
+Search for "HighApplicationErrorRate"
++
+The alert should transition: **Inactive** → **Pending** (after 2 min) → **Firing** (if errors continue)
+
+. Stop generating errors and watch the alert resolve:
++
+After stopping the error generation, wait 2-3 minutes and the alert should return to **Inactive**.
+
+=== Verify
+
+Check that log-based alerting works:
+
+* ✓ AlertingRule resource created successfully
+* ✓ Alert visible in OpenShift console alerting interface
+* ✓ Alert transitions to Pending when errors increase
+* ✓ Alert fires when error rate exceeds threshold for duration
+* ✓ Alert resolves when error rate drops below threshold
+
+**What you learned**: Loki supports alerting based on log patterns and rates. This allows you to proactively detect issues based on log content, not just metrics.
+
+=== Troubleshooting
+
+**Issue**: AlertingRule not found or not created
+
+**Solution**:
+. Check API availability: `oc api-resources | grep alertingrule`
+. If API not available, check Loki Operator version
+. Verify namespace: AlertingRules must be in openshift-logging for Loki
+. Check for syntax errors: `oc describe alertingrule high-error-rate -n openshift-logging`
+
+**Issue**: Alert never fires
+
+**Solution**:
+. Verify LogQL expression matches actual logs: Test in **Observe** → **Logs** first
+. Ensure error rate actually exceeds threshold (0.5/sec)
+. Check `for` duration: Must exceed threshold for full 2 minutes
+. View Loki ruler logs: `oc logs -n openshift-logging -l app.kubernetes.io/component=ruler`
+
+**Issue**: Alert shows in Loki but not in OpenShift Alerting UI
+
+**Solution**:
+. Log-based alerts may only appear in Loki-specific interfaces
+. Check Loki rules: `oc get alertingrule -n openshift-logging`
+. For integration with Alertmanager, additional configuration may be needed
+
+== Learning outcomes
+
+By completing this module, you should now understand:
+
+* ✓ LokiStack's label-based indexing approach reduces storage costs compared to full-text indexing
+* ✓ ClusterLogForwarder routes application logs from pods to Loki for centralized storage
+* ✓ LogQL queries use labels to select streams and filters to search log content
+* ✓ Correlating logs with metrics dramatically reduces troubleshooting time
+* ✓ Log-based alerts can detect issues based on patterns in log messages
+
+**Business impact for Red Hat Observability Inc.**:
+
+You've eliminated the manual log searching process. Instead of SSHing into individual pods and grepping files, you now have:
+
+* Centralized logs from all 12+ microservices in one queryable system
+* Ability to search across all services simultaneously with LogQL
+* Correlation between metric spikes and log messages
+* Automated alerts on critical log patterns
+
+**Estimated time savings**: Reduced log investigation time from 30-60 minutes to 2-5 minutes per incident.
+
+**Next steps**: Module 3 will add distributed tracing, enabling you to follow individual requests across all microservices to identify performance bottlenecks.
+
+== Module summary
+
+You successfully implemented centralized logging with LokiStack at Red Hat Observability Inc.
+
+**What you accomplished**:
+
+* Verified the LokiStack logging infrastructure deployed via GitOps
+* Generated diverse application logs across multiple services
+* Wrote LogQL queries to filter and search logs across distributed applications
+* Correlated metric spikes with detailed log messages for faster root cause analysis
+* Created log-based alerts to proactively detect error patterns
+
+**Key concepts mastered**:
+
+* **LokiStack**: Label-based log aggregation system optimized for Kubernetes
+* **ClusterLogForwarder**: Routes logs from pods to configured outputs (Loki)
+* **LogQL**: Query language for searching and filtering log streams
+* **Log correlation**: Combining logs with metrics for comprehensive troubleshooting
+* **Log-based alerting**: Detecting issues based on log content patterns
+
+**LogQL operators learned**:
+
+* `{label="value"}`: Select log streams by label
+* `|=`: Filter for lines containing text
+* `!=`: Exclude lines containing text
+* `|~`: Regex match filter
+* `rate()`: Calculate rate of log entries
+* `regexp`: Extract structured data from logs
+
+Continue to Module 3 to add distributed tracing capabilities.

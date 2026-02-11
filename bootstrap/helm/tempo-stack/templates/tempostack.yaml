@@ -1,0 +1,68 @@
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoStack
+metadata:
+  name: {{ .Values.tempoStack.name }}
+  namespace: {{ .Values.tempoStack.namespace }}
+spec:
+  # Storage configuration - S3 backend
+  storage:
+    secret:
+      {{- if eq .Values.storage.type "odf" }}
+      name: {{ .Values.storage.odf.bucketName }}
+      {{- else }}
+      name: {{ .Values.storage.external.secretName }}
+      {{- end }}
+      type: s3
+  
+  # Storage size for each component
+  storageSize: {{ .Values.tempoStack.storageSize }}
+  
+  # Multi-tenancy configuration
+  tenants:
+    mode: static
+    authentication:
+    - tenantName: dev
+      tenantId: {{ .Values.tenants.dev.id }}
+      oidc:
+        issuerURL: https://kubernetes.default.svc
+        usernameClaim: sub
+    - tenantName: prod
+      tenantId: {{ .Values.tenants.prod.id }}
+      oidc:
+        issuerURL: https://kubernetes.default.svc
+        usernameClaim: sub
+  
+  # Retention configuration
+  retention:
+    global:
+      traces: {{ .Values.tempoStack.retention.global }}
+  
+  # Replication factor
+  replicationFactor: {{ .Values.tempoStack.replicationFactor }}
+  
+  # Resource limits
+  resources:
+    total:
+      limits:
+        cpu: {{ .Values.tempoStack.resources.total.limits.cpu }}
+        memory: {{ .Values.tempoStack.resources.total.limits.memory }}
+  
+  # Ingestion limits
+  limits:
+    global:
+      ingestion:
+        ingestionBurstSizeBytes: {{ .Values.tempoStack.limits.global.ingestion.ingestionBurstSizeBytes }}
+        ingestionRateLimitBytes: {{ .Values.tempoStack.limits.global.ingestion.ingestionRateLimitBytes }}
+  
+  # Template configuration for individual components
+  template:
+    # Gateway configuration for OpenShift authentication
+    gateway:
+      enabled: {{ .Values.tempoStack.gateway.enabled }}
+      ingress:
+        type: {{ .Values.tempoStack.gateway.ingressType }}
+    
+    # Query frontend configuration with Jaeger UI
+    queryFrontend:
+      jaegerQuery:
+        enabled: {{ .Values.tempoStack.jaegerUI.enabled }}

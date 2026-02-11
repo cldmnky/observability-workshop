@@ -1,0 +1,18 @@
+apiVersion: v2
+name: logging-operator
+description: OpenShift Logging Operator with LokiStack for centralized logging (Workshop Module 2)
+type: application
+version: 0.1.0
+appVersion: "6.2"
+keywords:
+  - logging
+  - loki
+  - lokistack
+  - observability
+maintainers:
+  - name: Red Hat
+sources:
+  - https://github.com/openshift/cluster-logging-operator
+annotations:
+  workshop.openshift.io/module: "2"
+  workshop.openshift.io/purpose: "educational"

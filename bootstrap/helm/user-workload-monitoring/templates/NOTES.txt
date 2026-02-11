@@ -1,0 +1,70 @@
+✅ User Workload Monitoring enabled successfully!
+
+⚠️  NOTE: This chart is for Workshop Module 1 - Alternative approach to COO
+
+📋 What was configured:
+  - User workload monitoring enabled via cluster-monitoring-config
+  - Prometheus for user workloads: retention {{ .Values.monitoring.prometheusUserWorkload.retention }}, storage {{ .Values.monitoring.prometheusUserWorkload.volumeClaimTemplate.spec.resources.requests.storage }}
+{{- if .Values.monitoring.thanosQuerier.enabled }}
+  - Thanos Querier enabled for query aggregation
+{{- end }}
+
+🔍 Verification commands:
+
+1. Wait for user workload monitoring pods to start:
+   oc wait --for=condition=Ready pods -l app.kubernetes.io/name=prometheus -n openshift-user-workload-monitoring --timeout=300s
+
+2. Check Prometheus pods:
+   oc get pods -n openshift-user-workload-monitoring
+
+3. Check Thanos Querier:
+   oc get pods -n openshift-user-workload-monitoring -l app.kubernetes.io/name=thanos-querier
+
+4. Verify ConfigMaps:
+   oc get configmap cluster-monitoring-config -n openshift-monitoring
+   oc get configmap user-workload-monitoring-config -n openshift-user-workload-monitoring
+
+📊 Access Prometheus:
+
+1. Via OpenShift Console:
+   Navigate to: Observe → Metrics
+   Switch to "User" metrics (not "Platform")
+
+2. Via port-forward:
+   oc port-forward -n openshift-user-workload-monitoring svc/prometheus-user-workload 9090:9090
+   Open: http://localhost:9090
+
+🎯 Create ServiceMonitors:
+
+User workload monitoring discovers ServiceMonitors in any namespace:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: my-app
+  namespace: my-namespace
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+```
+
+⚡ Difference from COO MonitoringStack:
+
+| Feature | User Workload Monitoring | COO MonitoringStack |
+|---------|-------------------------|---------------------|
+| Scope | Cluster-wide | Namespace-scoped |
+| Discovery | All namespaces | Label selector |
+| Management | ConfigMap-based | CR-based |
+| Multi-tenancy | No | Yes (via ThanosQuerier) |
+| Use case | Workshop/Simple | Production/Advanced |
+
+💡 For production deployments, consider using the coo-monitoring-stack chart instead,
+   which provides namespace-scoped monitoring with better multi-tenancy support.
+
+📚 Documentation: https://docs.openshift.com/container-platform/latest/observability/monitoring/enabling-monitoring-for-user-defined-projects.html

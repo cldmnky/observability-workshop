@@ -1,0 +1,25 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: MonitoringStack
+metadata:
+  name: {{ .Values.monitoringStack.name }}
+  namespace: {{ .Values.monitoringStack.namespace }}
+spec:
+  logLevel: {{ .Values.monitoringStack.logLevel }}
+  retention: {{ .Values.monitoringStack.retention }}
+  
+  # Resource selector - automatically discovers ServiceMonitors with matching labels
+  resourceSelector:
+    matchLabels:
+      {{- toYaml .Values.monitoringStack.resourceSelector.matchLabels | nindent 6 }}
+  
+  # Prometheus configuration
+  prometheusConfig:
+    replicas: {{ .Values.monitoringStack.prometheus.replicas }}
+    resources:
+      {{- toYaml .Values.monitoringStack.prometheus.resources | nindent 6 }}
+  
+  # Alertmanager configuration
+  alertmanagerConfig:
+    replicas: {{ .Values.monitoringStack.alertmanager.replicas }}
+    resources:
+      {{- toYaml .Values.monitoringStack.alertmanager.resources | nindent 6 }}

@@ -1,0 +1,34 @@
+{{- if .Values.clusterLogging.enabled }}
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogging
+metadata:
+  name: {{ .Values.clusterLogging.name }}
+  namespace: {{ .Values.clusterLogging.namespace }}
+spec:
+  # Management state
+  managementState: Managed
+  
+  # Log collection
+  collection:
+    type: vector
+    vector: {}
+    {{- if .Values.clusterLogging.collection.logs.application.enabled }}
+    logs:
+      application:
+        namespaceSelector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: NotIn
+            values:
+            - openshift
+            - openshift-operators
+            - openshift-logging
+            - openshift-monitoring
+    {{- end }}
+  
+  # Log storage
+  logStore:
+    type: lokistack
+    lokistack:
+      name: {{ .Values.lokiStack.name }}
+{{- end }}

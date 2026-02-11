@@ -1,0 +1,566 @@
+= Module 1: User workload monitoring
+:source-highlighter: rouge
+:toc: macro
+:toclevels: 1
+
+Your manager at Red Hat Observability Inc. just assigned you to improve visibility into the company's microservices application. "We need to know when our applications are having problems before customers call us," she says. "Right now, we only monitor infrastructure, not application health."
+
+Red Hat Observability Inc. needs custom application metrics and alerts that reflect business-critical functionality. You've been tasked with implementing user workload monitoring to track application performance, latency, and error rates.
+
+In this module, you'll learn how to configure Prometheus monitoring for custom application metrics and create alerts that notify you when applications deviate from expected behavior.
+
+toc::[]
+
+== Learning objectives
+
+By the end of this module, you'll be able to:
+
+* Understand the 3 pillars of observability (metrics, logs, traces) and when to use each
+* Configure ServiceMonitor resources to collect custom application metrics
+* Write PromQL queries to analyze application performance
+* Create custom dashboards in the OpenShift console for application visibility
+* Configure Alertmanager rules to proactively notify you of application issues
+
+== Understanding observability foundations
+
+Before implementing monitoring, you need to understand the observability landscape at Red Hat Observability Inc.
+
+=== The 3 pillars of observability
+
+Comprehensive observability relies on 3 complementary signal types:
+
+* **Metrics**: Numerical measurements over time (CPU usage, request count, latency percentiles)
+  - Use for: Trends, thresholds, alerting on quantitative changes
+  - Example: "API response time increased 200% in the last 10 minutes"
+
+* **Logs**: Discrete event records with timestamps and context (error messages, transaction IDs, user actions)
+  - Use for: Detailed context, root cause analysis, audit trails
+  - Example: "User 12345 received error: database connection timeout"
+
+* **Traces**: Request flows across distributed services (span duration, service dependencies, bottleneck identification)
+  - Use for: Understanding microservice interactions, performance optimization
+  - Example: "Order API → Inventory Service → Database: 850ms total, 700ms in database query"
+
+**When to use each signal**:
+
+* Start with **metrics** to detect that something is wrong (high error rate)
+* Use **logs** to understand what went wrong (specific error messages)
+* Apply **traces** to find where the problem occurred (which service caused the delay)
+
+=== OpenShift monitoring architecture
+
+OpenShift provides 2 distinct monitoring stacks:
+
+**Platform monitoring** (managed by cluster admins):
+
+* Monitors OpenShift infrastructure and control plane components
+* Includes: etcd, API server, scheduler, controller manager
+* Namespace: `openshift-monitoring`
+
+**User workload monitoring** (for your applications):
+
+* Monitors custom applications and user-deployed services
+* You configure what to monitor via ServiceMonitor resources
+* Namespace: `openshift-user-workload-monitoring`
+* Uses Prometheus, Thanos Querier, and Alertmanager
+
+In this workshop, you'll focus on **user workload monitoring** to track your application metrics.
+
+== Exercise 1: Explore the monitoring stack
+
+You need to verify that user workload monitoring is enabled and understand the components deployed in your cluster.
+
+The observability stack was pre-configured via GitOps, so Prometheus and Alertmanager should already be running.
+
+=== Steps
+
+. Log into the OpenShift console at {openshift_cluster_console_url}
++
+Use the credentials provided in your lab interface:
++
+* Username: {openshift_cluster_admin_username}
+* Password: {openshift_cluster_admin_password}
+
+. Verify user workload monitoring pods are running:
++
+[source,bash]
+----
+oc get pods -n openshift-user-workload-monitoring
+----
++
+.Expected output
+[source,text]
+----
+NAME                                   READY   STATUS    RESTARTS   AGE
+prometheus-operator-xxxxx              2/2     Running   0          1h
+prometheus-user-workload-0             6/6     Running   0          1h
+prometheus-user-workload-1             6/6     Running   0          1h
+thanos-ruler-user-workload-0           3/3     Running   0          1h
+thanos-ruler-user-workload-1           3/3     Running   0          1h
+----
+
+. Check the ConfigMap that enables user workload monitoring:
++
+[source,bash]
+----
+oc get configmap cluster-monitoring-config -n openshift-monitoring -o yaml
+----
++
+Look for `enableUserWorkload: true` in the configuration.
+
+. Access the OpenShift console monitoring interface:
++
+* Navigate to **Observe** → **Metrics** in the left navigation
+* This opens the Prometheus query interface
+
+. Run your first PromQL query to see cluster metrics:
++
+In the query box, enter:
++
+[source,promql]
+----
+up{namespace="openshift-user-workload-monitoring"}
+----
++
+Click **Run Queries**
++
+This shows all targets being scraped in the user workload monitoring namespace. Each target should show `value: 1` (up and healthy).
+
+=== Verify
+
+Check that your monitoring stack is operational:
+
+* ✓ All pods in `openshift-user-workload-monitoring` are Running
+* ✓ User workload monitoring is enabled (`enableUserWorkload: true`)
+* ✓ Prometheus query interface is accessible
+* ✓ PromQL query returns results
+
+**What you learned**: OpenShift provides 2 monitoring stacks (platform and user workload). User workload monitoring is where you'll configure custom application metrics.
+
+=== Troubleshooting
+
+**Issue**: No pods in `openshift-user-workload-monitoring` namespace
+
+**Solution**: User workload monitoring may not be enabled. Check the cluster-monitoring-config ConfigMap and verify `enableUserWorkload: true` exists. If not, contact your cluster administrator.
+
+**Issue**: PromQL query returns no data
+
+**Solution**: Allow a few minutes for Prometheus to scrape targets. Check that the namespace exists: `oc get ns openshift-user-workload-monitoring`
+
+== Exercise 2: Deploy a sample application with metrics
+
+To practice monitoring, you need an application that exposes metrics. You'll deploy a sample application that provides Prometheus-compatible metrics.
+
+=== Steps
+
+. Create a new project for your sample application:
++
+[source,bash]
+----
+oc new-project observability-demo
+----
+
+. Deploy a sample application that exposes metrics:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+  namespace: observability-demo
+  labels:
+    app: sample-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+    spec:
+      containers:
+      - name: app
+        image: quay.io/brancz/prometheus-example-app:v0.3.0
+        ports:
+        - containerPort: 8080
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app
+  namespace: observability-demo
+  labels:
+    app: sample-app
+spec:
+  selector:
+    app: sample-app
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+EOF
+----
++
+This creates a deployment with 2 replicas and a service to expose the application.
+
+. Verify the pods are running:
++
+[source,bash]
+----
+oc get pods -n observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME                          READY   STATUS    RESTARTS   AGE
+sample-app-xxxxx-xxxxx        1/1     Running   0          30s
+sample-app-xxxxx-xxxxx        1/1     Running   0          30s
+----
+
+. Check what metrics the application exposes:
++
+[source,bash]
+----
+oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/metrics | head -20
+----
++
+.Sample output
+[source,text]
+----
+# HELP version Version information about this binary
+# TYPE version gauge
+version{version="v0.3.0"} 1
+# HELP http_requests_total Count of all HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{code="200",method="get"} 0
+http_requests_total{code="404",method="get"} 0
+----
++
+The application exposes metrics like `http_requests_total`, `version`, and others in Prometheus format.
+
+=== Verify
+
+Check that your sample application is ready for monitoring:
+
+* ✓ 2 pods running in observability-demo namespace
+* ✓ Service exposing port 8080
+* ✓ Metrics endpoint returns Prometheus-formatted data
+* ✓ Metrics include `http_requests_total` counter
+
+== Exercise 3: Configure ServiceMonitor to collect metrics
+
+Now you'll configure Prometheus to scrape metrics from your sample application using a ServiceMonitor resource.
+
+A **ServiceMonitor** tells Prometheus which services to scrape for metrics. It uses label selectors to find services and defines scrape intervals and ports.
+
+=== Steps
+
+. Create a ServiceMonitor resource:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-app-monitor
+  namespace: observability-demo
+  labels:
+    app: sample-app
+spec:
+  selector:
+    matchLabels:
+      app: sample-app
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+EOF
+----
++
+This ServiceMonitor tells Prometheus to:
++
+* Find services with label `app: sample-app`
+* Scrape the `http` port
+* Collect metrics every 30 seconds
+* Use the `/metrics` path
+
+. Verify the ServiceMonitor was created:
++
+[source,bash]
+----
+oc get servicemonitor -n observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME                 AGE
+sample-app-monitor   10s
+----
+
+. Generate some traffic to create metrics:
++
+[source,bash]
+----
+for i in {1..50}; do
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  echo "Request $i completed"
+done
+----
++
+This sends 50 HTTP requests to the application, which will increment the `http_requests_total` metric.
+
+. Wait 1-2 minutes for Prometheus to scrape the metrics, then query them:
++
+Go to **Observe** → **Metrics** in the OpenShift console.
++
+Enter this PromQL query:
++
+[source,promql]
+----
+http_requests_total{namespace="observability-demo"}
+----
++
+Click **Run Queries**
++
+You should see results showing the counter values for each pod.
+
+. Query the rate of requests over time:
++
+[source,promql]
+----
+rate(http_requests_total{namespace="observability-demo"}[5m])
+----
++
+This shows requests per second averaged over 5 minutes.
+
+=== Verify
+
+Check that Prometheus is collecting your application metrics:
+
+* ✓ ServiceMonitor exists in observability-demo namespace
+* ✓ PromQL query `http_requests_total` returns data
+* ✓ Multiple time series (one per pod) are visible
+* ✓ Rate query shows request rate calculation
+
+**What you learned**: ServiceMonitor resources configure Prometheus to scrape application metrics. Once configured, metrics are automatically collected and queryable via PromQL.
+
+=== Troubleshooting
+
+**Issue**: PromQL query returns no data
+
+**Solution**: 
+. Wait 1-2 minutes for Prometheus to scrape metrics
+. Verify ServiceMonitor exists: `oc get servicemonitor -n observability-demo`
+. Check that service labels match ServiceMonitor selector
+. Verify pods are running and exposing metrics: `oc exec -n observability-demo deployment/sample-app -- curl localhost:8080/metrics`
+
+**Issue**: Metrics show 0 requests
+
+**Solution**: Generate traffic (run the curl loop again) and wait for Prometheus to scrape the updated values.
+
+== Exercise 4: Create custom dashboards
+
+Querying metrics via PromQL is powerful, but visualizing trends over time is more intuitive. You'll create a custom dashboard to track application performance.
+
+=== Steps
+
+. In the OpenShift console, navigate to **Observe** → **Dashboards**
+
+. Click **Create Dashboard** button (or use existing custom dashboard if available)
+
+. Add a new panel for request rate:
++
+* Panel title: "HTTP Request Rate"
+* Query:
++
+[source,promql]
+----
+sum(rate(http_requests_total{namespace="observability-demo"}[5m])) by (pod)
+----
++
+This sums the request rate per pod.
+
+. Add another panel for total requests:
++
+* Panel title: "Total HTTP Requests"
+* Query:
++
+[source,promql]
+----
+sum(http_requests_total{namespace="observability-demo"}) by (pod)
+----
+
+. Generate more traffic to see the dashboard update:
++
+[source,bash]
+----
+for i in {1..100}; do
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  sleep 0.1
+done
+----
+
+. Observe the dashboard updates in real-time as Prometheus scrapes new data
+
+NOTE: The OpenShift console provides basic dashboarding capabilities. For advanced dashboards, you can use Grafana (not covered in this module).
+
+=== Verify
+
+Check that your dashboard displays application metrics:
+
+* ✓ Dashboard shows request rate per pod
+* ✓ Total requests counter is increasing
+* ✓ Graphs update as new data arrives
+* ✓ Multiple time series (one per pod) are visible
+
+**What you learned**: Dashboards provide real-time visibility into application performance. PromQL queries can aggregate metrics across multiple pods.
+
+== Exercise 5: Configure alerting rules
+
+Dashboards help you see current state, but alerts proactively notify you when problems occur. You'll create an alerting rule that fires when request rates drop unexpectedly.
+
+=== Steps
+
+. Create a PrometheusRule resource with an alerting rule:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sample-app-alerts
+  namespace: observability-demo
+  labels:
+    app: sample-app
+spec:
+  groups:
+  - name: sample-app
+    interval: 30s
+    rules:
+    - alert: LowRequestRate
+      expr: sum(rate(http_requests_total{namespace="observability-demo"}[5m])) < 0.1
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Low request rate detected"
+        description: "Application in namespace {{ \$labels.namespace }} is receiving fewer than 0.1 requests/second for more than 2 minutes."
+EOF
+----
++
+This alert fires if request rate drops below 0.1 requests/second for more than 2 minutes.
+
+. Verify the PrometheusRule was created:
++
+[source,bash]
+----
+oc get prometheusrule -n observability-demo
+----
+
+. Check alert status in the console:
++
+Navigate to **Observe** → **Alerting** in the OpenShift console.
++
+* Click on the **Alerting rules** tab
+* Search for "LowRequestRate"
+* You should see the alert in **Inactive** or **Pending** state
+
+. Trigger the alert by stopping traffic:
++
+Wait 2-3 minutes without generating any traffic. The alert should transition from **Inactive** → **Pending** → **Firing**.
+
+. Generate traffic to resolve the alert:
++
+[source,bash]
+----
+for i in {1..200}; do
+  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  sleep 0.5
+done
+----
++
+After a few minutes, the alert should transition back to **Inactive**.
+
+=== Verify
+
+Check that your alerting rules are working:
+
+* ✓ PrometheusRule exists in observability-demo namespace
+* ✓ Alert appears in **Observe** → **Alerting** → **Alerting rules**
+* ✓ Alert transitions through states: Inactive → Pending → Firing
+* ✓ Alert resolves when traffic increases
+
+**What you learned**: PrometheusRule resources define alerting conditions. Alerts transition through states (Inactive → Pending → Firing) based on PromQL expressions and duration thresholds.
+
+=== Troubleshooting
+
+**Issue**: Alert not visible in console
+
+**Solution**:
+. Verify PrometheusRule exists: `oc get prometheusrule -n observability-demo`
+. Check syntax errors in PromQL expression
+. Wait 1-2 minutes for Prometheus to reload configuration
+
+**Issue**: Alert never fires
+
+**Solution**:
+. Verify condition is met (request rate < 0.1/sec)
+. Check `for` duration (must be in low state for 2 minutes)
+. Generate traffic then stop to test alert firing
+
+== Learning outcomes
+
+By completing this module, you should now understand:
+
+* ✓ The 3 pillars of observability (metrics, logs, traces) and when to use each signal type
+* ✓ OpenShift's dual monitoring architecture (platform vs user workload monitoring)
+* ✓ How ServiceMonitor resources configure Prometheus to scrape application metrics
+* ✓ Writing PromQL queries to analyze application performance and calculate rates
+* ✓ Creating custom dashboards for real-time application visibility
+* ✓ Configuring PrometheusRule resources to proactively alert on application issues
+
+**Business impact for Red Hat Observability Inc.**:
+
+You've implemented the foundation of proactive monitoring. Instead of discovering issues through customer complaints, you now have:
+
+* Real-time visibility into application request rates and patterns
+* Custom dashboards tracking business-critical metrics
+* Automated alerts that notify you before problems impact customers
+
+**Next steps**: Module 2 will add centralized logging with LokiStack, enabling you to correlate metrics with detailed log messages for faster root cause analysis.
+
+== Module summary
+
+You successfully demonstrated how user workload monitoring provides application visibility at Red Hat Observability Inc.
+
+**What you accomplished**:
+
+* Verified the user workload monitoring stack (Prometheus, Thanos, Alertmanager)
+* Deployed a sample application with Prometheus-compatible metrics
+* Configured ServiceMonitor to automatically collect application metrics
+* Created custom dashboards to visualize application performance
+* Implemented alerting rules to proactively detect application issues
+
+**Key concepts mastered**:
+
+* **ServiceMonitor**: Declaratively configures which services Prometheus scrapes
+* **PromQL**: Query language for analyzing time-series metrics data
+* **PrometheusRule**: Defines alerting conditions and notification thresholds
+* **User workload monitoring**: Separate monitoring stack for application metrics
+
+**Metrics collected**:
+
+* `http_requests_total`: Counter of all HTTP requests by status code
+* `up`: Target availability (1 = healthy, 0 = down)
+* Custom application metrics from your deployed services
+
+Continue to Module 2 to add centralized logging capabilities.

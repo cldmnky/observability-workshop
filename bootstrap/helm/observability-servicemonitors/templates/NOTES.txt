@@ -1,0 +1,39 @@
+✅ ServiceMonitors deployed successfully!
+
+📋 ServiceMonitors created with label {{ .Values.monitoringLabel.key }}: {{ .Values.monitoringLabel.value }}
+
+{{- if .Values.serviceMonitors.goApi.enabled }}
+  - {{ .Values.serviceMonitors.goApi.name }} → {{ .Values.serviceMonitors.goApi.serviceName }}:{{ .Values.serviceMonitors.goApi.portNumber }}{{ .Values.serviceMonitors.goApi.path }}
+{{- end }}
+{{- if .Values.serviceMonitors.pythonApi.enabled }}
+  - {{ .Values.serviceMonitors.pythonApi.name }} → {{ .Values.serviceMonitors.pythonApi.serviceName }}:{{ .Values.serviceMonitors.pythonApi.portNumber }}{{ .Values.serviceMonitors.pythonApi.path }}
+{{- end }}
+{{- if .Values.serviceMonitors.quarkusApi.enabled }}
+  - {{ .Values.serviceMonitors.quarkusApi.name }} → {{ .Values.serviceMonitors.quarkusApi.serviceName }}:{{ .Values.serviceMonitors.quarkusApi.portNumber }}{{ .Values.serviceMonitors.quarkusApi.path }}
+{{- end }}
+{{- if .Values.serviceMonitors.nodeApp.enabled }}
+  - {{ .Values.serviceMonitors.nodeApp.name }} → {{ .Values.serviceMonitors.nodeApp.serviceName }}:{{ .Values.serviceMonitors.nodeApp.portNumber }}{{ .Values.serviceMonitors.nodeApp.path }}
+{{- end }}
+
+🔍 Verification commands:
+
+1. Check ServiceMonitors:
+   oc get servicemonitor -n {{ .Values.namespace }}
+
+2. Verify label (matches MonitoringStack resourceSelector):
+   oc get servicemonitor -n {{ .Values.namespace }} -l {{ .Values.monitoringLabel.key }}={{ .Values.monitoringLabel.value }}
+
+3. Check if Prometheus picks them up:
+   oc port-forward -n {{ .Values.namespace }} svc/observability-stack-prometheus 9090:9090
+   # Open browser: http://localhost:9090/targets
+
+4. Query metrics in Prometheus:
+   # Go API: up{job="go-api"}
+   # Python API: up{job="python-api"}
+   # Quarkus API: up{job="quarkus-api"}
+   # Node App: up{job="node-app"}
+
+💡 These ServiceMonitors will be automatically discovered by the MonitoringStack CR
+   because they have the label: {{ .Values.monitoringLabel.key }}: {{ .Values.monitoringLabel.value }}
+
+📚 Learn more: https://docs.openshift.com/container-platform/latest/observability/monitoring/managing-metrics.html

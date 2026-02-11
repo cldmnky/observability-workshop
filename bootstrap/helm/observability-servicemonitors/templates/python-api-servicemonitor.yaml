@@ -1,0 +1,18 @@
+{{- if .Values.serviceMonitors.pythonApi.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.serviceMonitors.pythonApi.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{ .Values.monitoringLabel.key }}: {{ .Values.monitoringLabel.value }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceMonitors.pythonApi.serviceName }}
+  endpoints:
+  - port: {{ .Values.serviceMonitors.pythonApi.port }}
+    path: {{ .Values.serviceMonitors.pythonApi.path }}
+    scheme: http
+    interval: {{ .Values.scrapeInterval }}
+{{- end }}

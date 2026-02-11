@@ -1,0 +1,200 @@
+= Workshop details
+:toc:
+:toc-placement: preamble
+:icons: font
+
+== Timing and schedule
+
+=== Full workshop (4 hours)
+
+* **Module 1**: User workload monitoring (60 minutes)
+* **Module 2**: Logging with LokiStack (60 minutes)
+* **Module 3**: Distributed tracing (60 minutes)
+* **Module 4**: OpenTelemetry integration (60 minutes)
+
+=== Abbreviated workshop (2 hours)
+
+* **Module 1**: User workload monitoring (30 minutes)
+* **Module 2**: Logging basics (30 minutes)
+* **Module 3**: Distributed tracing overview (30 minutes)
+* **Module 4**: OpenTelemetry introduction (30 minutes)
+
+== Technical requirements
+
+=== Software versions
+
+* Red Hat OpenShift Container Platform 4.21
+* Monitoring Stack for Red Hat OpenShift 4.21
+* Red Hat OpenShift Logging 6.2
+* Red Hat build of OpenTelemetry 0.x
+* Tempo Operator (for distributed tracing)
+
+=== Environment access
+
+Participants need access to:
+
+* Red Hat OpenShift cluster (provided during workshop)
+* Namespace with admin privileges
+* OpenShift CLI (oc) - pre-configured in lab terminal
+* Web browser (Chrome, Firefox, Safari, Edge)
+* Pre-deployed observability stack via GitOps
+
+=== Pre-configured components
+
+The following components are already deployed and configured in your lab environment:
+
+* **User Workload Monitoring**: Prometheus, Thanos, Alertmanager
+* **Logging**: LokiStack with storage configured
+* **Distributed Tracing**: Tempo with OpenShift integration
+* **OpenTelemetry**: Operator and collector deployed
+* **Sample Application**: Microservices demo application for testing
+
+=== Network requirements
+
+* Internet connectivity for accessing OpenShift console
+* Access to OpenShift cluster API
+* Browser access to monitoring dashboards
+
+== Environment setup
+
+=== Pre-workshop checklist
+
+□ **OpenShift cluster access confirmed** - Test login credentials
+□ **Terminal access verified** - Confirm oc CLI works
+□ **Browser access tested** - Open OpenShift console
+□ **Sample application running** - Verify demo app is deployed
+□ **GitOps sync confirmed** - Check ArgoCD application status
+
+=== Setup validation
+
+Participants should run these commands to verify setup:
+
+[source,bash]
+----
+# Verify OpenShift CLI
+oc version
+
+# Test cluster connectivity
+oc whoami
+
+# Check current project
+oc project
+
+# Verify observability stack
+oc get pods -n openshift-user-workload-monitoring
+oc get pods -n openshift-logging
+oc get pods -n openshift-tempo-operator
+----
+
+== Troubleshooting guide
+
+=== Common setup issues
+
+**Problem**: "oc command not found"
+→ **Solution**: The oc CLI should be pre-installed in the lab terminal. If missing, refresh your browser.
+
+**Problem**: "Permission denied" errors
+→ **Solution**: Verify you're using the correct namespace. Check with `oc project` and switch if needed using `oc project <namespace-name>`.
+
+**Problem**: "Unable to connect to OpenShift console"
+→ **Solution**: Verify you're using the correct console URL from the lab interface: {openshift_cluster_console_url}
+
+**Problem**: "Prometheus metrics not appearing"
+→ **Solution**: Check ServiceMonitor configuration and verify pods are running: `oc get servicemonitor`
+
+**Problem**: "Logs not visible in Loki"
+→ **Solution**: Verify ClusterLogForwarder is configured: `oc get clusterlogforwarder -n openshift-logging`
+
+=== During workshop support
+
+* Use the lab terminal for all command line operations
+* Console access is available via {openshift_cluster_console_url}
+* All credentials are provided in the lab interface
+* Sample applications are pre-deployed for testing
+
+== Follow-up resources
+
+=== Next steps for participants
+
+* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift documentation^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging documentation^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry documentation^]
+* link:https://www.redhat.com/en/technologies/cloud-computing/openshift[Red Hat OpenShift product page^]
+
+=== Additional learning paths
+
+* **Intermediate**: Advanced monitoring with custom exporters and Grafana dashboards
+* **Advanced**: Multi-cluster observability with OpenShift Cluster Observability Operator
+* **Certification**: Red Hat Certified Specialist in OpenShift Administration
+
+== Module breakdown
+
+=== Module 1: User workload monitoring
+
+**Focus**: Configure Prometheus monitoring for custom application metrics
+
+**Topics**:
+
+* Understanding the 3 pillars of observability
+* Creating ServiceMonitor resources
+* Writing PromQL queries
+* Building custom dashboards
+* Configuring Alertmanager rules
+
+**Hands-on exercises**: 3
+
+=== Module 2: Logging with LokiStack
+
+**Focus**: Implement centralized logging and log analysis
+
+**Topics**:
+
+* LokiStack architecture and components
+* Writing LogQL queries
+* Correlating logs with metrics
+* Creating log-based alerts
+* Log retention and storage management
+
+**Hands-on exercises**: 3
+
+=== Module 3: Distributed tracing
+
+**Focus**: Visualize request flows across microservices
+
+**Topics**:
+
+* Distributed tracing concepts
+* Tempo deployment and configuration
+* Analyzing trace data
+* Identifying performance bottlenecks
+* Correlating traces with logs and metrics
+
+**Hands-on exercises**: 3
+
+=== Module 4: OpenTelemetry integration
+
+**Focus**: Unified observability with OpenTelemetry
+
+**Topics**:
+
+* OpenTelemetry architecture
+* Instrumenting applications
+* Collector configuration
+* Sending data to multiple backends
+* Production best practices
+
+**Hands-on exercises**: 3
+
+== Authors and contributors
+
+**Primary Author**: Red Hat Technical Training Team
+
+**Last Updated**: February 2026
+
+**Workshop Version**: 1.0
+
+**Contact Information**:
+
+* Workshop feedback: Share via lab interface
+* Technical questions: Consult documentation links provided
+* Content updates: Submit issues via workshop repository

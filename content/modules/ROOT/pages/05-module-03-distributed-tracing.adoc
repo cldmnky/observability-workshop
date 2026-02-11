@@ -1,0 +1,687 @@
+= Module 3: Distributed tracing
+:source-highlighter: rouge
+:toc: macro
+:toclevels: 1
+
+Armed with metrics from Module 1 and centralized logging from Module 2, your team at Red Hat Observability Inc. can now detect issues and understand what went wrong. But there's still a challenge: "When customers report slow response times, we can see that the API is slow, but we don't know which of our 12 microservices is causing the bottleneck," explains your lead architect. "We need to trace requests end-to-end."
+
+Red Hat Observability Inc.'s application is a complex mesh of microservices. A single customer request might touch 5-8 different services. When performance degrades, metrics show overall slowness, and logs show individual service behavior, but neither reveals where in the chain the delay occurs.
+
+In this module, you'll implement distributed tracing with Tempo, enabling you to visualize complete request flows and pinpoint exactly where performance bottlenecks occur.
+
+toc::[]
+
+== Learning objectives
+
+By the end of this module, you'll be able to:
+
+* Understand distributed tracing concepts (spans, traces, context propagation)
+* Deploy and configure Tempo for trace storage and visualization
+* Instrument applications to emit trace data
+* Analyze trace waterfalls to identify performance bottlenecks
+* Correlate traces with logs and metrics for comprehensive investigation
+
+== Understanding distributed tracing
+
+Before implementing tracing, you need to understand how distributed tracing works in microservices architectures.
+
+=== Core tracing concepts
+
+**Trace**: Complete journey of a request through your system
+
+* Example: User clicks "checkout" → API gateway → auth service → inventory service → payment service → order service
+
+**Span**: Single operation within a trace
+
+* Example: "Query inventory database" (one step in the checkout trace)
+* Contains: operation name, start time, duration, status, metadata
+
+**Context propagation**: Passing trace ID through service calls
+
+* Each service adds its span to the same trace
+* Enables correlation across service boundaries
+* Typically uses HTTP headers (W3C Trace Context standard)
+
+**Parent-child relationships**: Spans form a tree structure
+
+* Parent span: "Process checkout"
+* Child spans: "Authenticate user", "Check inventory", "Process payment"
+
+=== Why distributed tracing matters
+
+**Without tracing**: You see symptoms, not causes
+
+* Metrics show: API response time increased 200%
+* Logs show: Multiple services logged slow database queries
+* **Question**: Which service actually caused the slowdown?
+
+**With tracing**: You see the complete picture
+
+* Trace shows: Inventory service → database query took 850ms (bottleneck found)
+* Other services functioned normally
+* **Answer**: Database query optimization needed in inventory service
+
+=== Tempo architecture
+
+**Tempo** is a distributed tracing backend that stores and queries traces efficiently.
+
+**Key components**:
+
+* **Distributor**: Receives traces from instrumented applications
+* **Ingester**: Writes traces to storage
+* **Querier**: Handles trace queries
+* **Compactor**: Optimizes stored traces
+
+**Storage**: Tempo uses object storage (S3-compatible) or PersistentVolumes.
+
+**Integration**: Works with Jaeger UI for visualization and OpenTelemetry for instrumentation.
+
+== Exercise 1: Verify Tempo deployment
+
+You need to confirm that the Tempo distributed tracing stack was deployed via GitOps and is ready to receive traces.
+
+=== Steps
+
+. Verify the Tempo Operator is running:
++
+[source,bash]
+----
+oc get pods -n openshift-tempo-operator
+----
++
+.Expected output
+[source,text]
+----
+NAME                              READY   STATUS    RESTARTS   AGE
+tempo-operator-xxxxx              1/1     Running   0          1h
+----
+
+. Check the TempoStack instance:
++
+[source,bash]
+----
+oc get tempostack -n openshift-tempo-operator
+----
++
+.Expected output
+[source,text]
+----
+NAME             AGE   STATUS
+tempo-instance   1h    Ready
+----
++
+The status should be **Ready**.
+
+. Verify Tempo components are running:
++
+[source,bash]
+----
+oc get pods -n openshift-tempo-operator -l app.kubernetes.io/component
+----
++
+.Expected output
+[source,text]
+----
+NAME                                   READY   STATUS    RESTARTS   AGE
+tempo-instance-compactor-xxxxx         1/1     Running   0          1h
+tempo-instance-distributor-xxxxx       1/1     Running   0          1h
+tempo-instance-ingester-0              1/1     Running   0          1h
+tempo-instance-querier-xxxxx           1/1     Running   0          1h
+tempo-instance-query-frontend-xxxxx    1/1     Running   0          1h
+----
+
+. Check if Jaeger Query UI is exposed:
++
+[source,bash]
+----
+oc get route -n openshift-tempo-operator
+----
++
+.Expected output
+[source,text]
+----
+NAME                     HOST/PORT                                  
+tempo-instance-jaeger    tempo-instance-jaeger-openshift-tempo...
+----
+
+. Access the Jaeger UI:
++
+Get the route URL:
++
+[source,bash]
+----
+oc get route tempo-instance-jaeger -n openshift-tempo-operator -o jsonpath='{.spec.host}'
+----
++
+Open this URL in your browser (prepend https://)
+
+=== Verify
+
+Check that your tracing infrastructure is operational:
+
+* ✓ Tempo Operator pod is Running
+* ✓ TempoStack instance status is Ready
+* ✓ All Tempo components (distributor, ingester, querier) are Running
+* ✓ Jaeger Query UI route exists
+* ✓ Jaeger UI is accessible in browser
+
+**What you learned**: Tempo stores traces, and Jaeger provides the UI for visualizing and querying them. Together, they form OpenShift's distributed tracing solution.
+
+=== Troubleshooting
+
+**Issue**: TempoStack status shows "Degraded" or "Pending"
+
+**Solution**:
+. Check TempoStack pods: `oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo-instance`
+. Describe TempoStack: `oc describe tempostack tempo-instance -n openshift-tempo-operator`
+. Check storage configuration: `oc get pvc -n openshift-tempo-operator`
+. View operator logs: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/name=tempo-operator`
+
+**Issue**: Jaeger UI route not found
+
+**Solution**:
+. Check if Jaeger Query is enabled in TempoStack
+. List all routes: `oc get routes -n openshift-tempo-operator`
+. Verify TempoStack has Jaeger configuration: `oc get tempostack tempo-instance -o yaml | grep jaeger`
+
+**Issue**: Cannot access Jaeger UI in browser
+
+**Solution**:
+. Verify route is created: `oc get route -n openshift-tempo-operator`
+. Check route protocol (should be https)
+. Ensure you're logged into OpenShift (may require OAuth authentication)
+. Try accessing from OpenShift console: **Observe** → **Traces**
+
+== Exercise 2: Deploy a traced application
+
+To practice distributed tracing, you need an application that emits trace data. You'll deploy a multi-service demo application with tracing already instrumented.
+
+=== Steps
+
+. Deploy a sample microservices application with tracing:
++
+[source,bash]
+----
+oc new-project tracing-demo
+----
+
+. Deploy the frontend service:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: tracing-demo
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: quay.io/jaegertracing/example-hotrod:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: JAEGER_ENDPOINT
+          value: "http://tempo-instance-distributor.openshift-tempo-operator.svc:4318/v1/traces"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://tempo-instance-distributor.openshift-tempo-operator.svc:4318"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: tracing-demo
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: frontend
+  namespace: tracing-demo
+spec:
+  to:
+    kind: Service
+    name: frontend
+  port:
+    targetPort: http
+EOF
+----
++
+This deploys the HotROD demo application, which simulates a ride-sharing service with multiple internal services.
+
+. Wait for the pod to be running:
++
+[source,bash]
+----
+oc get pods -n tracing-demo -w
+----
++
+Press Ctrl+C when the pod shows Running status.
+
+. Get the application route:
++
+[source,bash]
+----
+oc get route frontend -n tracing-demo -o jsonpath='{.spec.host}'
+----
+
+. Access the application in your browser:
++
+Open https://<route-host> in your browser.
++
+You should see the HotROD application interface with buttons for different customers.
+
+. Generate traces by clicking on customer buttons:
++
+Click "Customer 1", "Customer 2", "Customer 3" multiple times.
++
+Each click triggers a simulated ride request that flows through multiple microservices (frontend → route service → driver service → database).
+
+=== Verify
+
+Check that your traced application is running:
+
+* ✓ frontend pod is Running in tracing-demo namespace
+* ✓ Route exists and application is accessible
+* ✓ Application UI loads in browser
+* ✓ Clicking customer buttons generates activity
+* ✓ Application is configured to send traces to Tempo
+
+**What you learned**: Applications must be instrumented to emit traces. The HotROD demo app uses OpenTelemetry instrumentation to send trace data to Tempo's distributor endpoint.
+
+=== Troubleshooting
+
+**Issue**: HotROD application not starting
+
+**Solution**:
+. Check pod status: `oc get pods -n tracing-demo`
+. View pod logs: `oc logs -n tracing-demo deployment/frontend`
+. Verify image pull: `oc describe pod -n tracing-demo -l app=frontend`
+. Check for resource constraints: `oc get events -n tracing-demo`
+
+**Issue**: Application route not accessible
+
+**Solution**:
+. Verify route exists: `oc get route frontend -n tracing-demo`
+. Check service: `oc get svc frontend -n tracing-demo`
+. Test from within cluster: `oc exec -n tracing-demo deployment/frontend -- curl localhost:8080`
+
+== Exercise 3: Analyze traces in Jaeger UI
+
+Now you'll use the Jaeger UI to visualize and analyze the traces generated by your application.
+
+=== Steps
+
+. Open the Jaeger UI:
++
+Navigate to **Observe** → **Traces** in the OpenShift console, or use the direct Jaeger route from Exercise 1.
+
+. Select the service to query:
++
+In the "Service" dropdown, select **frontend** (or any service name from your HotROD app).
+
+. Click "Find Traces" to see recent traces
++
+You should see a list of traces corresponding to the clicks you made in the HotROD app.
+
+. Click on a trace to view its details:
++
+The trace view shows a waterfall diagram with all spans.
++
+Each horizontal bar represents a span (operation) with:
++
+* **Length**: Duration of the operation
+* **Color**: Different services have different colors
+* **Indentation**: Parent-child relationships
+
+. Analyze the trace structure:
++
+Observe the flow:
++
+. User request → frontend (parent span)
+. frontend → route calculation service
+. route service → driver finder service
+. driver finder → database query
++
+Each step is a span showing how long it took.
+
+. Identify the slowest span:
++
+Look for the longest horizontal bar in the waterfall.
++
+This is your performance bottleneck.
++
+Click on the span to see details:
++
+* Operation name
+* Duration
+* Tags (service name, HTTP method, status code)
+* Logs (events within the span)
+
+. Compare multiple traces:
++
+Search for more traces and compare durations.
++
+Some traces may be fast (50-100ms), others slow (500ms+).
++
+Click on a slow trace to identify which span caused the delay.
+
+. Use trace search filters:
++
+In Jaeger, you can filter by:
++
+* **Min/Max Duration**: Find only slow traces
+* **Tags**: Filter by HTTP status, error conditions
+* **Operation**: Specific function calls
++
+Try filtering for traces longer than 200ms:
++
+Set "Min Duration" to 200ms and click "Find Traces".
+
+=== Verify
+
+Check that you can analyze traces effectively:
+
+* ✓ Traces appear in Jaeger UI after generating traffic
+* ✓ Trace waterfall shows parent-child span relationships
+* ✓ Span duration is visible and clickable for details
+* ✓ Slowest spans can be identified visually
+* ✓ Filtering by duration or tags works
+* ✓ Multiple traces can be compared
+
+**What you learned**: The trace waterfall visualization shows the complete request flow with timing for each operation. This makes performance bottlenecks immediately visible.
+
+=== Troubleshooting
+
+**Issue**: No traces appear in Jaeger UI
+
+**Solution**:
+. Wait 30-60 seconds for trace ingestion
+. Verify time range (expand to last 1 hour)
+. Check application is sending traces: `oc logs -n tracing-demo deployment/frontend | grep -i trace`
+. Verify Tempo distributor received traces: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/component=distributor`
+. Confirm application environment variables point to correct Tempo endpoint
+
+**Issue**: Traces appear but spans are missing
+
+**Solution**:
+. Check for sampling: Application may only send % of traces
+. Verify all services are instrumented
+. Look for errors in span export: Check application logs for "failed to export"
+
+**Issue**: Cannot filter traces by duration or tags
+
+**Solution**:
+. Ensure traces have completed ingestion (wait 1-2 minutes)
+. Check that tags are being added during instrumentation
+. Use exact tag names (case-sensitive)
+
+== Exercise 4: Correlate traces with logs and metrics
+
+The true power of observability comes from using all 3 signals together. You'll investigate a performance issue using traces, logs, and metrics.
+
+=== Steps
+
+. Generate a slow trace scenario:
++
+In the HotROD app, click "Customer 3" multiple times rapidly (10+ clicks).
++
+Customer 3 is intentionally configured to trigger slower responses.
+
+. Check metrics for the anomaly:
++
+Navigate to **Observe** → **Metrics**
++
+Query the request duration:
++
+[source,promql]
+----
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{namespace="tracing-demo"}[5m]))
+----
++
+This shows the 95th percentile response time.
++
+You should see an increase corresponding to Customer 3 requests.
+
+. Find the slow trace in Jaeger:
++
+Open Jaeger UI and filter for slow traces:
++
+* Service: frontend
+* Min Duration: 500ms
+* Find Traces
++
+Select one of the slow traces for Customer 3.
+
+. Identify the problematic span:
++
+In the trace waterfall, find the longest span.
++
+It's likely "FindDriver" or a database query.
++
+Note the span's trace ID and timestamp.
+
+. Correlate with logs:
++
+Navigate to **Observe** → **Logs**
++
+Query logs from the same time period:
++
+[source,logql]
+----
+{kubernetes_namespace_name="tracing-demo"} |= "Customer 3"
+----
++
+Look for log entries that match the trace timestamp.
++
+The logs might show: "Slow driver query for Customer 3" or similar messages.
+
+. Extract the trace ID from logs:
++
+Some applications log trace IDs. If available, you can query:
++
+[source,logql]
+----
+{kubernetes_namespace_name="tracing-demo"} |= "trace_id" |= "<trace-id-from-jaeger>"
+----
++
+This shows all logs associated with that specific trace.
+
+. Document your findings:
++
+**Symptom** (Metrics): 95th percentile latency increased to 850ms
++
+**Root cause** (Trace): "FindDriver" span took 750ms
++
+**Context** (Logs): "Slow driver query for Customer 3 - insufficient drivers available"
+
+=== Verify
+
+Check that you can correlate all 3 signals:
+
+* ✓ Metrics show latency increase
+* ✓ Traces identify which operation is slow
+* ✓ Logs provide context for why it's slow
+* ✓ Time ranges align across metrics, traces, and logs
+* ✓ Trace ID can be found in logs (if instrumented)
+* ✓ Complete story from symptom to root cause is clear
+
+**What you learned**: Metrics detect issues, traces pinpoint where they occur, and logs explain why. Using all 3 together reduces investigation time from hours to minutes.
+
+=== Troubleshooting
+
+**Issue**: Cannot find matching logs for trace
+
+**Solution**:
+. Verify application logs trace IDs (requires instrumentation)
+. Use timestamp correlation instead of trace ID
+. Expand log time range to ±5 minutes of trace timestamp
+. Check log level: Debug messages may be disabled
+
+**Issue**: Metrics don't show latency increase
+
+**Solution**:
+. Generate more traffic to populate metrics
+. Check metric labels match: `namespace="tracing-demo"`
+. Allow 30-60 seconds for Prometheus scraping
+. Verify application exposes metrics: `oc exec -n tracing-demo deployment/frontend -- curl localhost:8080/metrics`
+
+== Exercise 5: Implement trace sampling
+
+In production, storing every trace can be expensive. You'll configure trace sampling to balance observability with storage costs.
+
+=== Steps
+
+. Understand sampling strategies:
++
+**Head sampling**: Decision made at trace start
++
+* **Probabilistic**: Sample X% of traces (e.g., 10%)
+* **Rate limiting**: Sample max N traces/second
++
+**Tail sampling**: Decision made after trace completes
++
+* **Error sampling**: Always sample failed requests
+* **Latency sampling**: Always sample slow requests
+
+. Configure probabilistic sampling in the application:
++
+Update the frontend deployment with sampling configuration:
++
+[source,bash]
+----
+oc set env deployment/frontend -n tracing-demo OTEL_TRACES_SAMPLER=parentbased_traceidratio
+oc set env deployment/frontend -n tracing-demo OTEL_TRACES_SAMPLER_ARG=0.1
+----
++
+This samples 10% of traces (0.1 = 10%).
+
+. Restart the deployment to apply the change:
++
+[source,bash]
+----
+oc rollout restart deployment/frontend -n tracing-demo
+oc rollout status deployment/frontend -n tracing-demo
+----
+
+. Generate traffic and observe sampling:
++
+Click customer buttons in HotROD app many times (50+ clicks).
++
+Check Jaeger UI:
++
+You should see fewer traces than the number of clicks (approximately 10%).
+
+. Configure intelligent sampling for errors:
++
+For production, you want to always sample errors regardless of rate:
++
+[source,bash]
+----
+oc set env deployment/frontend -n tracing-demo OTEL_TRACES_SAMPLER=parentbased_always_on
+----
++
+This samples 100% of traces.
++
+In production, you'd use more sophisticated sampling (Tempo supports tail sampling based on error status).
+
+=== Verify
+
+Check that sampling configuration is working:
+
+* ✓ Sampling environment variables applied to deployment
+* ✓ Pod restarted with new configuration
+* ✓ Fewer traces appear in Jaeger than requests made
+* ✓ Sampling rate approximately matches configured value
+* ✓ Important traces (errors, slow requests) are captured
+
+**What you learned**: Sampling reduces trace storage costs while maintaining observability. Intelligent sampling ensures critical traces (errors, slow requests) are always captured.
+
+=== Troubleshooting
+
+**Issue**: All traces still appear despite low sampling rate
+
+**Solution**:
+. Verify environment variables: `oc set env deployment/frontend -n tracing-demo --list | grep SAMPLER`
+. Check pod was restarted: `oc get pods -n tracing-demo`
+. View application logs for sampling messages: `oc logs -n tracing-demo deployment/frontend | grep sampling`
+
+**Issue**: No traces appear after setting low sampling rate
+
+**Solution**:
+. Generate more traffic (need more requests to see sampled traces)
+. Check sampling rate isn't too low: 0.01 = 1% (very few traces)
+. Verify application still sending traces: Check distributor logs
+
+== Learning outcomes
+
+By completing this module, you should now understand:
+
+* ✓ Distributed tracing reveals request flows across microservices using spans organized into traces
+* ✓ Tempo stores traces efficiently and integrates with Jaeger for visualization
+* ✓ Trace waterfalls show parent-child span relationships and operation durations
+* ✓ Identifying performance bottlenecks is visual: longest span = slowest operation
+* ✓ Correlating traces with logs and metrics provides complete incident context
+* ✓ Trace sampling balances observability with storage costs
+
+**Business impact for Red Hat Observability Inc.**:
+
+You've eliminated the guesswork in performance troubleshooting. Instead of manually testing each microservice, you now have:
+
+* Visual representation of complete request flows across all 12 microservices
+* Ability to identify bottlenecks in seconds, not hours
+* Correlation between performance issues (traces), symptoms (metrics), and context (logs)
+* Data-driven performance optimization decisions
+
+**Estimated improvement**: Reduced time to identify performance bottlenecks from 2-3 hours to 5-10 minutes.
+
+**Next steps**: Module 4 will unify your observability stack using OpenTelemetry, providing standardized instrumentation across all signals (metrics, logs, and traces).
+
+== Module summary
+
+You successfully implemented distributed tracing with Tempo at Red Hat Observability Inc.
+
+**What you accomplished**:
+
+* Verified the Tempo distributed tracing stack deployed via GitOps
+* Deployed a multi-service application with trace instrumentation
+* Analyzed trace waterfalls in Jaeger UI to identify performance bottlenecks
+* Correlated traces with logs and metrics for comprehensive investigation
+* Configured trace sampling to balance observability with storage costs
+
+**Key concepts mastered**:
+
+* **Trace**: Complete request journey through multiple services
+* **Span**: Individual operation within a trace with timing and metadata
+* **Context propagation**: Passing trace context across service boundaries
+* **Waterfall visualization**: Graphical representation of span timing and relationships
+* **Sampling**: Selective trace capture to reduce storage requirements
+
+**Tracing workflow**:
+
+1. User request enters system → root span created
+2. Each service operation creates child spans
+3. Spans include timing, status, and metadata
+4. All spans share trace ID for correlation
+5. Tempo stores complete trace
+6. Jaeger queries and visualizes traces
+
+Continue to Module 4 to implement OpenTelemetry for unified observability instrumentation.

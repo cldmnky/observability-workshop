@@ -1,0 +1,18 @@
+{{- if .Values.serviceMonitors.goApi.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.serviceMonitors.goApi.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{ .Values.monitoringLabel.key }}: {{ .Values.monitoringLabel.value }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceMonitors.goApi.serviceName }}
+  endpoints:
+  - port: {{ .Values.serviceMonitors.goApi.port }}
+    path: {{ .Values.serviceMonitors.goApi.path }}
+    scheme: http
+    interval: {{ .Values.scrapeInterval }}
+{{- end }}

@@ -1,0 +1,18 @@
+{{- if .Values.serviceMonitors.quarkusApi.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.serviceMonitors.quarkusApi.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{ .Values.monitoringLabel.key }}: {{ .Values.monitoringLabel.value }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceMonitors.quarkusApi.serviceName }}
+  endpoints:
+  - port: {{ .Values.serviceMonitors.quarkusApi.port }}
+    path: {{ .Values.serviceMonitors.quarkusApi.path }}
+    scheme: http
+    interval: {{ .Values.scrapeInterval }}
+{{- end }}

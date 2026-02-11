@@ -1,0 +1,17 @@
+apiVersion: v2
+name: opentelemetry-stack
+description: OpenTelemetry Operator with auto-instrumentation, sidecar and central collectors, and spanmetrics connector
+type: application
+version: 0.1.0
+appVersion: "0.x"
+keywords:
+  - opentelemetry
+  - instrumentation
+  - tracing
+  - metrics
+  - observability
+  - collectors
+maintainers:
+  - name: Red Hat
+sources:
+  - https://github.com/open-telemetry/opentelemetry-operator

@@ -1,19 +1,99 @@
-=== Getting Started
+= OpenShift Observability Workshop
 
-This template is designed to be used as a base for your showroom lab guides.
+A comprehensive 4-hour hands-on workshop teaching observability on Red Hat OpenShift, covering metrics, logging, distributed tracing, and OpenTelemetry.
 
-The content is built using Antora, a static site generator for creating documentation sites from AsciiDoc documents.
+== Workshop Overview
 
-This git repo template was created to make it easy for you to start developing your lab instructions.
+This workshop guides developers through implementing production-ready observability for applications running on OpenShift 4.21.
 
-Features:
+**Modules**:
 
-. 0% cruft
-. Red Hat Demo Platform UI Bundle default
-. Dev Mode extension that displays the asciidoc attributes you have to work with
-. Content is generated using Antora, a static site generator for creating documentation sites from AsciiDoc documents.
+* **Module 1**: User Workload Monitoring (Prometheus, ServiceMonitor, alerts)
+* **Module 2**: Logging with LokiStack (centralized logging, LogQL)
+* **Module 3**: Distributed Tracing (Tempo, Jaeger, trace analysis)
+* **Module 4**: OpenTelemetry Integration (unified instrumentation, collector)
 
-== Getting Started
+**Prerequisites**:
+
+* OpenShift 4.21+ cluster with cluster-admin access
+* OpenShift GitOps (ArgoCD) for bootstrap deployment
+* Basic understanding of Kubernetes and containers
+
+== Deployment on RHDP
+
+=== Deploy with Showroom Deployer (Recommended)
+
+This workshop is designed to be deployed on Red Hat Demo Platform (RHDP) using showroom-deployer.
+
+**Prerequisites**:
+
+* RHDP cluster access
+* AgnosticV catalog item configured (see AgnosticV setup below)
+
+**Deployment steps**:
+
+. Fork or clone this repository to your GitHub account
+
+. Create your AgnosticV catalog item pointing to this repository
+
+. Deploy using showroom-deployer:
++
+[source,bash]
+----
+# From your AgnosticV workload or catalog configuration
+showroom_git_repo: https://github.com/<your-org>/observability-workshop.git
+showroom_ref: main
+----
+
+. The showroom-deployer will:
++
+* Clone the repository
+* Build the Antora site
+* Deploy the Showroom interface
+* Provide the workshop URL
+
+**Documentation**: link:https://github.com/rhpds/showroom-deployer[showroom-deployer on GitHub^]
+
+=== Deploy Observability Stack
+
+After the workshop interface is deployed, you need to deploy the observability infrastructure:
+
+. Apply the ArgoCD ApplicationSet to deploy all observability components:
++
+[source,bash]
+----
+oc apply -f bootstrap/argocd/applicationset-observability.yaml
+----
+
+. Monitor deployment:
++
+[source,bash]
+----
+oc get applications -n openshift-gitops
+----
+
+. Verify all components are ready:
++
+[source,bash]
+----
+# User Workload Monitoring
+oc get pods -n openshift-user-workload-monitoring
+
+# Logging
+oc get pods -n openshift-logging
+
+# Tempo
+oc get pods -n openshift-tempo-operator
+
+# OpenTelemetry
+oc get pods -n openshift-opentelemetry-operator
+----
+
+See link:bootstrap/README.md[bootstrap/README.md] for detailed deployment instructions and customization options.
+
+== Local Development
+
+For developing and testing workshop content locally before deploying to RHDP:
 
 === Using Containers (Recommended)
 
@@ -60,7 +140,86 @@ You can start editing the files in the `content/modules/ROOT/pages/` directory.
 
 Many modern editors such as Visual Studio Code offer live Asciidoc Preview extensions.
 
-=== Understanding the Basic Template Directory Structure
+=== Workshop Content Structure
+
+[source,sh]
+----
+./content/modules/ROOT/
+├── assets
+│   └── images                                    # Images for your content
+├── pages                                         # Workshop content
+│   ├── index.adoc                                # Learner landing page
+│   ├── 01-overview.adoc                          # Business scenario & objectives
+│   ├── 02-details.adoc                           # Technical requirements
+│   ├── 03-module-01-user-workload-monitoring.adoc
+│   ├── 04-module-02-logging-lokistack.adoc
+│   ├── 05-module-03-distributed-tracing.adoc
+│   └── 06-module-04-opentelemetry.adoc
+└── nav.adoc                                      # Navigation structure
+
+./bootstrap/
+├── argocd
+│   └── applicationset-observability.yaml         # ArgoCD ApplicationSet
+├── helm                                          # Helm charts for components
+│   ├── user-workload-monitoring/
+│   ├── logging-operator/
+│   ├── tempo-operator/
+│   └── opentelemetry-operator/
+└── README.md                                     # Bootstrap deployment guide
+----
+
+=== Module Structure
+
+Each module follows this structure:
+
+* **Learning objectives**: 5 clear, measurable outcomes
+* **Concept explanation**: Theory and architecture
+* **5 hands-on exercises**: Progressive skill building
+* **Verification checkpoints**: Confirm success after each exercise
+* **Troubleshooting guidance**: 4-5 common issues and solutions
+* **Learning outcomes**: Recap of skills gained
+
+=== Workshop Technologies
+
+**Observability Components**:
+
+* Monitoring Stack for Red Hat OpenShift 4.21 (Prometheus, Thanos, Alertmanager)
+* OpenShift Logging 6.2 (LokiStack, LogQL)
+* Tempo Operator 2.3 (distributed tracing)
+* Red Hat build of OpenTelemetry 0.x
+
+**Deployment Tools**:
+
+* OpenShift GitOps (ArgoCD)
+* Helm charts for configuration
+* OpenShift 4.21+
+
+== Reference Materials
+
+**Official Documentation**:
+
+* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry^]
+* link:https://docs.openshift.com/container-platform/4.21/otel/[Distributed Tracing Documentation^]
+
+**Workshop Story**:
+
+The workshop follows **Red Hat Observability Inc.**, a fictional company implementing comprehensive observability to reduce mean time to resolution from 2-4 hours to 15-30 minutes.
+
+== Contributing
+
+To contribute improvements or report issues:
+
+1. Fork this repository
+2. Create a feature branch
+3. Make your changes
+4. Test locally using the container method
+5. Submit a pull request
+
+== License
+
+This workshop content follows Red Hat's standard licensing for training materials.
 
 [source,sh]
 ----

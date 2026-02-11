@@ -1,0 +1,42 @@
+# User Workload Monitoring Configuration
+# This enables the built-in OpenShift user workload monitoring
+# Alternative to COO MonitoringStack (which is namespace-scoped)
+
+monitoring:
+  # Enable user workload monitoring
+  enabled: true
+  
+  # Prometheus for user workloads
+  prometheusUserWorkload:
+    # Enable Prometheus for user workloads
+    enabled: true
+    # Retention period
+    retention: 24h
+    # Volume claim template for Prometheus storage
+    volumeClaimTemplate:
+      spec:
+        storageClassName: gp3-csi
+        resources:
+          requests:
+            storage: 10Gi
+    # Resource requests and limits
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  
+  # Thanos Querier for user workloads
+  thanosQuerier:
+    # Enable Thanos Querier
+    enabled: true
+    # Resource requests and limits
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi

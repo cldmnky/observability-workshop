@@ -1,0 +1,8 @@
+{{- if .Values.thanosQuerier.enabled }}
+apiVersion: monitoring.rhobs/v1alpha1
+kind: ThanosQuerier
+metadata:
+  name: {{ .Values.thanosQuerier.name }}
+  namespace: {{ .Values.thanosQuerier.namespace }}
+spec: {}
+{{- end }}

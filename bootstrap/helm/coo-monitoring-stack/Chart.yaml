@@ -1,0 +1,16 @@
+apiVersion: v2
+name: coo-monitoring-stack
+description: Cluster Observability Operator with MonitoringStack for namespace-scoped monitoring
+type: application
+version: 0.1.0
+appVersion: "1.2.2"
+keywords:
+  - monitoring
+  - prometheus
+  - alertmanager
+  - thanos
+  - observability
+maintainers:
+  - name: Red Hat
+sources:
+  - https://github.com/rhobs/observability-operator

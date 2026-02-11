@@ -1,0 +1,84 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: observability-stack-bootstrap
+  namespace: openshift-gitops
+spec:
+  generators:
+  - list:
+      elements:
+      # === PRODUCTION CHARTS (from actual repo manifests) ===
+      
+      # Cluster Observability Operator with MonitoringStack (Production - Module 1)
+      - name: coo-monitoring-stack
+        namespace: observability-demo
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/coo-monitoring-stack
+      # Tempo Operator with TempoStack (Production - Module 3)
+      - name: tempo-stack
+        namespace: openshift-tempo-operator
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/tempo-stack
+      # OpenTelemetry Operator with auto-instrumentation and collectors (Production - Module 4)
+      - name: opentelemetry-stack
+        namespace: observability-demo
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/opentelemetry-stack
+      # ServiceMonitors for demo applications (Production)
+      - name: observability-servicemonitors
+        namespace: observability-demo
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/observability-servicemonitors
+      
+      # === WORKSHOP CHARTS (educational supplements) ===
+      # Uncomment these for workshop Module 1 & 2 content
+      
+      # User Workload Monitoring (Workshop Module 1 - Alternative to COO)
+      # - name: user-workload-monitoring
+      #   namespace: openshift-monitoring
+      #   repoURL: https://github.com/cldmnky/observability-workshop.git
+      #   targetRevision: main
+      #   path: bootstrap/helm/user-workload-monitoring
+      
+      # Logging Operator with LokiStack (Workshop Module 2 - Not in production)
+      # - name: logging-operator
+      #   namespace: openshift-logging
+      #   repoURL: https://github.com/cldmnky/observability-workshop.git
+      #   targetRevision: main
+      #   path: bootstrap/helm/logging-operator
+  template:
+    metadata:
+      name: '{{name}}'
+      labels:
+        app.kubernetes.io/name: '{{name}}'
+        app.kubernetes.io/part-of: observability-stack
+    spec:
+      project: default
+      source:
+        repoURL: '{{repoURL}}'
+        targetRevision: '{{targetRevision}}'
+        path: '{{path}}'
+        helm:
+          valueFiles:
+          - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

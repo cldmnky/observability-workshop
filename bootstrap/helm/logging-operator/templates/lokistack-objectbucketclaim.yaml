@@ -1,0 +1,14 @@
+{{- if and .Values.lokiStack.enabled (eq .Values.lokiStack.s3.type "odf") .Values.lokiStack.s3.odf.enabled }}
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: {{ .Values.lokiStack.s3.odf.bucketName }}
+  namespace: {{ .Values.lokiStack.namespace }}
+spec:
+  generateBucketName: {{ .Values.lokiStack.s3.odf.bucketName }}
+  storageClassName: {{ .Values.lokiStack.s3.odf.storageClassName }}
+  {{- if eq .Values.lokiStack.s3.odf.reclaimPolicy "Delete" }}
+  objectBucketName: {{ .Values.lokiStack.s3.odf.bucketName }}
+  {{- end }}
+{{- end }}

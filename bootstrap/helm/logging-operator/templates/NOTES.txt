@@ -1,0 +1,70 @@
+✅ OpenShift Logging with LokiStack deployed successfully!
+
+⚠️  NOTE: This chart is for Workshop Module 2 - Educational purposes
+
+📋 Components installed:
+  - Cluster Logging Operator in namespace: {{ .Values.operator.namespace }}
+{{- if .Values.lokiStack.enabled }}
+  - LokiStack: {{ .Values.lokiStack.name }} (size: {{ .Values.lokiStack.size }})
+{{- end }}
+{{- if .Values.clusterLogging.enabled }}
+  - ClusterLogging: {{ .Values.clusterLogging.name }} (log collector: Vector)
+{{- end }}
+
+🔍 Verification commands:
+
+1. Check operator installation:
+   oc get csv -n {{ .Values.operator.namespace }} | grep cluster-logging
+
+{{- if .Values.lokiStack.enabled }}
+2. Check LokiStack status:
+   oc get lokistack {{ .Values.lokiStack.name }} -n {{ .Values.lokiStack.namespace }}
+
+3. Check LokiStack components:
+   oc get pods -n {{ .Values.lokiStack.namespace }} -l app.kubernetes.io/component=compactor
+   oc get pods -n {{ .Values.lokiStack.namespace }} -l app.kubernetes.io/component=distributor
+   oc get pods -n {{ .Values.lokiStack.namespace }} -l app.kubernetes.io/component=ingester
+   oc get pods -n {{ .Values.lokiStack.namespace }} -l app.kubernetes.io/component=querier
+   oc get pods -n {{ .Values.lokiStack.namespace }} -l app.kubernetes.io/component=query-frontend
+{{- end }}
+
+{{- if .Values.clusterLogging.enabled }}
+4. Check ClusterLogging status:
+   oc get clusterlogging {{ .Values.clusterLogging.name }} -n {{ .Values.clusterLogging.namespace }}
+
+5. Check log collector (Vector) pods:
+   oc get pods -n {{ .Values.clusterLogging.namespace }} -l app.kubernetes.io/component=collector
+{{- end }}
+
+📊 Access logs via OpenShift Console:
+
+1. Navigate to: Observe → Logs
+2. Select namespace and view application/infrastructure logs
+3. Use LogQL queries to filter and search logs
+
+Example LogQL queries:
+  - All logs: {kubernetes_namespace_name="observability-demo"}
+  - Errors only: {kubernetes_namespace_name="observability-demo"} |= "error"
+  - Specific pod: {kubernetes_pod_name="go-api-xxx"}
+
+{{- if .Values.lokiStack.enabled }}
+
+⚠️  Storage Configuration:
+
+For production use, configure S3-compatible storage in the secret:
+{{ .Values.lokiStack.name }}-s3
+
+For workshop purposes, LokiStack uses PersistentVolumeClaims with:
+  - Storage class: {{ .Values.lokiStack.storageClassName }}
+  - Size per component: {{ .Values.lokiStack.storage.size }}
+{{- end }}
+
+💡 Workshop Module 2 Activities:
+
+1. Deploy an application and generate logs
+2. Query logs using LogQL in OpenShift Console
+3. Create log-based alerts
+4. Configure log retention policies
+5. Export logs to external systems
+
+📚 Documentation: https://docs.openshift.com/container-platform/latest/observability/logging/cluster-logging.html

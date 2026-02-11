@@ -1,0 +1,48 @@
+# Namespace for ServiceMonitors
+namespace: observability-demo
+
+# Label that matches MonitoringStack resourceSelector
+monitoringLabel:
+  key: monitoring.rhobs/stack
+  value: observability-stack
+
+# Scrape interval
+scrapeInterval: 30s
+
+# ServiceMonitors configuration
+serviceMonitors:
+  # Go API ServiceMonitor
+  goApi:
+    enabled: true
+    name: go-api
+    serviceName: go-api
+    port: http
+    portNumber: 8080
+    path: /metrics
+  
+  # Python API ServiceMonitor
+  pythonApi:
+    enabled: true
+    name: python-api
+    serviceName: python-api
+    port: http
+    portNumber: 8000
+    path: /metrics
+  
+  # Quarkus API ServiceMonitor
+  quarkusApi:
+    enabled: true
+    name: quarkus-api
+    serviceName: quarkus-api
+    port: http
+    portNumber: 4003
+    path: /metrics
+  
+  # Node.js App ServiceMonitor
+  nodeApp:
+    enabled: true
+    name: node-app
+    serviceName: node-app
+    port: http
+    portNumber: 3000
+    path: /metrics

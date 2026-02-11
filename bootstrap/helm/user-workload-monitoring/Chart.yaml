@@ -1,0 +1,19 @@
+apiVersion: v2
+name: user-workload-monitoring
+description: Enable User Workload Monitoring for application metrics (Workshop Module 1 - Alternative approach)
+type: application
+version: 0.1.0
+appVersion: "4.21"
+keywords:
+  - monitoring
+  - prometheus
+  - user-workload
+  - observability
+maintainers:
+  - name: Red Hat
+sources:
+  - https://docs.openshift.com/container-platform/latest/observability/monitoring/
+annotations:
+  workshop.openshift.io/module: "1"
+  workshop.openshift.io/purpose: "educational"
+  workshop.openshift.io/note: "Alternative to COO - enables cluster-wide user workload monitoring"

@@ -1,0 +1,100 @@
+= Workshop overview
+:toc:
+:toc-placement: preamble
+:icons: font
+
+== Your role and mission
+
+You're a senior developer at Red Hat Observability Inc., and you've been assigned to improve the reliability and troubleshooting capabilities for the company's cloud-native applications.
+
+Red Hat Observability Inc. needs to reduce mean time to resolution for production issues and improve overall application reliability. Your manager has explained: "We're spending too much time troubleshooting production incidents, and our current monitoring gaps are costing us valuable development time and customer satisfaction."
+
+**Your assignment**: Implement comprehensive observability for the company's microservices applications running on OpenShift to enable faster issue detection and resolution.
+
+**The objective**: Demonstrate how metrics, logs, and traces work together to provide complete visibility into application behavior and performance.
+
+== Success criteria for your mission
+
+By the end of this workshop, you'll have practical observability skills to address Red Hat Observability Inc.'s operational challenges:
+
+* Configure user workload monitoring with custom metrics and alerts → **proactively detect application issues before they impact users**
+* Implement centralized logging with LokiStack for efficient log analysis → **reduce time spent searching through distributed logs**
+* Set up distributed tracing to visualize request flows across microservices → **quickly identify performance bottlenecks**
+* Instrument applications with OpenTelemetry for unified telemetry collection → **standardize observability across all services**
+* Correlate signals (metrics, logs, traces) to diagnose complex issues → **dramatically reduce mean time to resolution**
+
+**Technical outcome**: You'll have hands-on experience implementing a production-ready observability stack on OpenShift.
+
+**Business benefit**: Proven approach to improving application reliability and reducing operational overhead through comprehensive observability.
+
+== Target audience
+
+This workshop is designed for:
+
+* Application developers who want to improve application reliability
+* Platform engineers implementing observability solutions
+* SREs and DevOps practitioners responsible for production systems
+* Technical professionals evaluating OpenShift observability capabilities
+
+== What you need to succeed
+
+You should have:
+
+* Basic understanding of OpenShift and Kubernetes concepts
+* Experience with containerized applications and microservices
+* Familiarity with command line tools and YAML configuration
+* Basic knowledge of monitoring and logging concepts
+* Access to a computer with internet connectivity
+
+== Red Hat Observability Inc.'s operational challenges
+
+**The situation**: Red Hat Observability Inc. runs a complex microservices application on OpenShift, but lacks comprehensive observability, leading to extended troubleshooting times and production incidents.
+
+**Current challenges** (operational pain points):
+
+* **Limited visibility**: Only basic infrastructure monitoring exists → cannot see application-level health or business metrics
+* **Log fragmentation**: Logs scattered across multiple pods and namespaces → troubleshooting requires manual log collection and correlation
+* **No distributed tracing**: Difficult to understand request flows across 12+ microservices → performance issues take hours to diagnose
+* **Manual correlation**: When issues occur, teams manually piece together metrics and logs → mean time to resolution averages 2-4 hours
+* **Reactive monitoring**: No custom alerts for business-critical metrics → issues discovered by customers first
+
+**The opportunity**: Implementing comprehensive observability with OpenShift's monitoring stack, LokiStack logging, distributed tracing, and OpenTelemetry instrumentation will dramatically improve the team's ability to maintain reliable applications.
+
+**Technical perspective**: "We need to move from reactive firefighting to proactive monitoring. Complete visibility into our application behavior will let us catch issues early and resolve them quickly."
+
+== Your vision of success
+
+When comprehensive observability is implemented at Red Hat Observability Inc., here's the expected improvements:
+
+**Immediate improvements** (short-term):
+
+* **Faster troubleshooting**: Reduce mean time to resolution from 2-4 hours to 15-30 minutes → improve customer satisfaction and reduce operational stress
+* **Proactive alerts**: Custom metrics and alerts catch issues before customer impact → shift from reactive to proactive operations
+* **Unified logging**: Centralized log analysis with LokiStack → troubleshoot issues without SSH access to individual pods
+* **Request tracing**: Visualize complete request flows → identify bottlenecks in seconds instead of hours
+
+**Strategic benefits** (longer-term):
+
+* **Improved reliability**: Better visibility leads to higher application uptime → increased customer confidence
+* **Reduced operational costs**: Less time spent troubleshooting → teams can focus on feature development
+* **Performance optimization**: Data-driven insights enable targeted improvements → better resource utilization
+* **Standardized instrumentation**: OpenTelemetry provides consistent observability across all services → easier onboarding and maintenance
+
+**Success metric**: Measurable reduction in mean time to detection and mean time to resolution for production incidents, with comprehensive visibility into application health.
+
+== Common questions
+
+**"Do I need to instrument every microservice individually?"**
+→ Yes, but Module 4 shows how OpenTelemetry auto-instrumentation reduces the effort significantly
+
+**"What's the difference between metrics, logs, and traces?"**
+→ Module 1 explains the 3 pillars of observability and when to use each signal type
+
+**"Can I use my existing Prometheus queries?"**
+→ Yes. OpenShift user workload monitoring uses Prometheus, so existing queries work unchanged
+
+**"How much storage does logging and tracing require?"**
+→ Module 2 covers LokiStack storage configuration and Module 3 discusses trace sampling strategies
+
+**"Is this approach suitable for production?"**
+→ Yes. This workshop uses the same observability stack that Red Hat supports for production OpenShift environments

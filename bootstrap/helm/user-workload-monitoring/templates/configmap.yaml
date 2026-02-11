@@ -1,0 +1,62 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true
+    {{- if .Values.monitoring.prometheusUserWorkload.enabled }}
+    prometheusK8s:
+      retention: {{ .Values.monitoring.prometheusUserWorkload.retention }}
+      volumeClaimTemplate:
+        spec:
+          storageClassName: {{ .Values.monitoring.prometheusUserWorkload.volumeClaimTemplate.spec.storageClassName }}
+          resources:
+            requests:
+              storage: {{ .Values.monitoring.prometheusUserWorkload.volumeClaimTemplate.spec.resources.requests.storage }}
+      resources:
+        requests:
+          cpu: {{ .Values.monitoring.prometheusUserWorkload.resources.requests.cpu }}
+          memory: {{ .Values.monitoring.prometheusUserWorkload.resources.requests.memory }}
+        limits:
+          cpu: {{ .Values.monitoring.prometheusUserWorkload.resources.limits.cpu }}
+          memory: {{ .Values.monitoring.prometheusUserWorkload.resources.limits.memory }}
+    {{- end }}
+    {{- if .Values.monitoring.thanosQuerier.enabled }}
+    thanosQuerier:
+      resources:
+        requests:
+          cpu: {{ .Values.monitoring.thanosQuerier.resources.requests.cpu }}
+          memory: {{ .Values.monitoring.thanosQuerier.resources.requests.memory }}
+        limits:
+          cpu: {{ .Values.monitoring.thanosQuerier.resources.limits.cpu }}
+          memory: {{ .Values.monitoring.thanosQuerier.resources.limits.memory }}
+    {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-workload-monitoring-config
+  namespace: openshift-user-workload-monitoring
+data:
+  config.yaml: |
+    prometheus:
+      retention: {{ .Values.monitoring.prometheusUserWorkload.retention }}
+      {{- if .Values.monitoring.prometheusUserWorkload.volumeClaimTemplate }}
+      volumeClaimTemplate:
+        spec:
+          storageClassName: {{ .Values.monitoring.prometheusUserWorkload.volumeClaimTemplate.spec.storageClassName }}
+          resources:
+            requests:
+              storage: {{ .Values.monitoring.prometheusUserWorkload.volumeClaimTemplate.spec.resources.requests.storage }}
+      {{- end }}
+      resources:
+        requests:
+          cpu: {{ .Values.monitoring.prometheusUserWorkload.resources.requests.cpu }}
+          memory: {{ .Values.monitoring.prometheusUserWorkload.resources.requests.memory }}
+        limits:
+          cpu: {{ .Values.monitoring.prometheusUserWorkload.resources.limits.cpu }}
+          memory: {{ .Values.monitoring.prometheusUserWorkload.resources.limits.memory }}
+{{- end }}

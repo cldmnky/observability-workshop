@@ -1,0 +1,25 @@
+{{- if .Values.lokiStack.enabled }}
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: {{ .Values.lokiStack.name }}
+  namespace: {{ .Values.lokiStack.namespace }}
+spec:
+  size: {{ .Values.lokiStack.size }}
+  storage:
+    schemas:
+    - version: v13
+      effectiveDate: "2024-01-01"
+    {{- if or (eq .Values.lokiStack.s3.type "odf") (eq .Values.lokiStack.s3.type "external") }}
+    secret:
+      {{- if eq .Values.lokiStack.s3.type "odf" }}
+      name: {{ .Values.lokiStack.s3.odf.bucketName }}
+      {{- else }}
+      name: {{ .Values.lokiStack.name }}-s3
+      {{- end }}
+      type: s3
+    {{- end }}
+  storageClassName: {{ .Values.lokiStack.storageClassName }}
+  tenants:
+    mode: {{ .Values.lokiStack.tenantMode }}
+{{- end }}

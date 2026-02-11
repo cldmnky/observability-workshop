@@ -1,0 +1,18 @@
+{{- if .Values.serviceMonitors.nodeApp.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.serviceMonitors.nodeApp.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{ .Values.monitoringLabel.key }}: {{ .Values.monitoringLabel.value }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceMonitors.nodeApp.serviceName }}
+  endpoints:
+  - port: {{ .Values.serviceMonitors.nodeApp.port }}
+    path: {{ .Values.serviceMonitors.nodeApp.path }}
+    scheme: http
+    interval: {{ .Values.scrapeInterval }}
+{{- end }}

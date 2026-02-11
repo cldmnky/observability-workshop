@@ -1,0 +1,77 @@
+✅ Tempo Operator and TempoStack deployed successfully!
+
+📋 Components installed:
+  - Tempo Operator in namespace: {{ .Values.operator.namespace }}
+  - TempoStack CR: {{ .Values.tempoStack.name }}
+{{- if eq .Values.storage.type "odf" }}
+  - S3 storage: ODF ObjectBucketClaim {{ .Values.storage.odf.bucketName }}
+{{- else }}
+  - S3 storage secret: {{ .Values.storage.external.secretName }}
+{{- end }}
+{{- if .Values.rbac.enabled }}
+  - RBAC: ClusterRole {{ .Values.rbac.clusterRoleName }} for trace access
+{{- end }}
+
+🎯 Multi-tenancy configuration:
+  - Dev tenant ID: {{ .Values.tenants.dev.id }}
+  - Prod tenant ID: {{ .Values.tenants.prod.id }}
+  - Retention: {{ .Values.tempoStack.retention.global }}
+
+{{- if eq .Values.storage.type "odf" }}
+💾 ODF S3 Storage:
+  - ObjectBucketClaim: {{ .Values.storage.odf.bucketName }}
+  - StorageClass: {{ .Values.storage.odf.storageClassName }}
+  
+  Check bucket status:
+    oc get objectbucketclaim {{ .Values.storage.odf.bucketName }} -n {{ .Values.operator.namespace }}
+    oc get configmap {{ .Values.storage.odf.bucketName }} -n {{ .Values.operator.namespace }}
+    oc get secret {{ .Values.storage.odf.bucketName }} -n {{ .Values.operator.namespace }}
+{{- end }}
+
+🔍 Verification commands:
+
+1. Check operator installation:
+   oc get csv -n {{ .Values.operator.namespace }} | grep tempo-product
+
+2. Check TempoStack status:
+   oc get tempostack {{ .Values.tempoStack.name }} -n {{ .Values.tempoStack.namespace }}
+
+3. Check Tempo components:
+   oc get pods -n {{ .Values.tempoStack.namespace }} -l app.kubernetes.io/component=distributor
+   oc get pods -n {{ .Values.tempoStack.namespace }} -l app.kubernetes.io/component=ingester
+   oc get pods -n {{ .Values.tempoStack.namespace }} -l app.kubernetes.io/component=querier
+   oc get pods -n {{ .Values.tempoStack.namespace }} -l app.kubernetes.io/component=query-frontend
+   oc get pods -n {{ .Values.tempoStack.namespace }} -l app.kubernetes.io/component=compactor
+
+4. Check gateway route (for Jaeger UI access):
+   oc get route -n {{ .Values.tempoStack.namespace }} {{ .Values.tempoStack.name }}-tempo-gateway
+
+🚀 Access Jaeger UI:
+   
+   # Get the route URL
+   JAEGER_URL=$(oc get route {{ .Values.tempoStack.name }}-tempo-gateway -n {{ .Values.tempoStack.namespace }} -o jsonpath='{.spec.host}')
+   echo "Jaeger UI: https://$JAEGER_URL/api/traces/v1/dev/search"
+
+📡 OTLP endpoints for sending traces:
+
+   # Distributor service (receives traces from OpenTelemetry collectors)
+   {{ .Values.tempoStack.name }}-tempo-distributor.{{ .Values.tempoStack.namespace }}.svc:4317  # gRPC
+   {{ .Values.tempoStack.name }}-tempo-distributor.{{ .Values.tempoStack.namespace }}.svc:4318  # HTTP
+
+   # Note: Traces must include X-Scope-OrgID header with tenant ID:
+   #   - Dev: {{ .Values.tenants.dev.id }}
+   #   - Prod: {{ .Values.tenants.prod.id }}
+
+💡 Next steps:
+
+1. Configure OpenTelemetry collectors to send traces:
+   - Set endpoint: {{ .Values.tempoStack.name }}-tempo-distributor.{{ .Values.tempoStack.namespace }}.svc:4317
+   - Add bearertokenauth extension for authentication
+   - Add header: X-Scope-OrgID: {{ .Values.tenants.dev.id }}
+
+2. Query traces via Jaeger UI using the gateway route
+
+3. Monitor storage usage:
+   oc get pvc -n {{ .Values.tempoStack.namespace }}
+
+📚 Documentation: https://docs.openshift.com/container-platform/latest/observability/distr_tracing/distr_tracing_tempo/distr-tracing-tempo-installing.html

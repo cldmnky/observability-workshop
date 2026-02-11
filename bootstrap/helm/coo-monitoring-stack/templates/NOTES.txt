@@ -1,0 +1,46 @@
+✅ Cluster Observability Operator and MonitoringStack deployed successfully!
+
+📋 Components installed:
+  - Cluster Observability Operator in namespace: {{ .Values.operator.namespace }}
+  - MonitoringStack CR: {{ .Values.monitoringStack.name }} in namespace: {{ .Values.monitoringStack.namespace }}
+{{- if .Values.thanosQuerier.enabled }}
+  - ThanosQuerier CR: {{ .Values.thanosQuerier.name }} for query aggregation
+{{- end }}
+
+🔍 Verification commands:
+
+1. Check operator installation:
+   oc get csv -n {{ .Values.operator.namespace }} | grep cluster-observability-operator
+
+2. Check MonitoringStack status:
+   oc get monitoringstack {{ .Values.monitoringStack.name }} -n {{ .Values.monitoringStack.namespace }}
+
+3. Check Prometheus pods:
+   oc get pods -n {{ .Values.monitoringStack.namespace }} -l app.kubernetes.io/name=prometheus
+
+4. Check Alertmanager pods:
+   oc get pods -n {{ .Values.monitoringStack.namespace }} -l app.kubernetes.io/name=alertmanager
+
+{{- if .Values.thanosQuerier.enabled }}
+5. Check ThanosQuerier deployment:
+   oc get thanosquerier {{ .Values.thanosQuerier.name }} -n {{ .Values.thanosQuerier.namespace }}
+   oc get pods -n {{ .Values.thanosQuerier.namespace }} -l app.kubernetes.io/name=thanos-query
+{{- end }}
+
+🎯 Next steps:
+
+1. Deploy ServiceMonitors with label:
+   monitoring.rhobs/stack: {{ .Values.monitoringStack.resourceSelector.matchLabels | first }}
+
+2. Access Prometheus UI:
+   oc port-forward -n {{ .Values.monitoringStack.namespace }} svc/{{ .Values.monitoringStack.name }}-prometheus 9090:9090
+
+3. Access Alertmanager UI:
+   oc port-forward -n {{ .Values.monitoringStack.namespace }} svc/{{ .Values.monitoringStack.name }}-alertmanager 9093:9093
+
+{{- if .Values.thanosQuerier.enabled }}
+4. Query via Thanos (aggregated view):
+   oc port-forward -n {{ .Values.thanosQuerier.namespace }} svc/{{ .Values.thanosQuerier.name }}-thanos-querier 9091:9090
+{{- end }}
+
+📚 Documentation: https://docs.openshift.com/container-platform/latest/observability/monitoring/monitoring-overview.html

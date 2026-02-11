@@ -1,0 +1,102 @@
+# OpenTelemetry Operator Configuration
+operator:
+  # Namespace where the OpenTelemetry operator will be installed
+  namespace: openshift-operators
+  # Operator channel (stable, tech-preview)
+  channel: stable
+  # Install plan approval (Automatic or Manual)
+  installPlanApproval: Automatic
+  # Source catalog
+  source: redhat-operators
+  # Source namespace
+  sourceNamespace: openshift-marketplace
+
+# Namespace for OpenTelemetry resources
+namespace: observability-demo
+
+# Service Accounts
+serviceAccounts:
+  sidecar: otel-collector-sidecar
+  central: otel-central-collector
+
+# Auto-instrumentation Configuration
+instrumentation:
+  # Name of the Instrumentation CR
+  name: demo-instrumentation
+  # OTLP exporter endpoint (sidecar collector)
+  exporter:
+    endpoint: http://localhost:4318
+  # Sampler configuration
+  sampler:
+    # Type: always_on, always_off, traceidratio, parentbased_always_on, parentbased_always_off, parentbased_traceidratio
+    type: parentbased_traceidratio
+    # Sampling ratio (0.0 to 1.0) - 1.0 = 100% sampling for demo
+    argument: "1.0"
+  # Propagators for trace context
+  propagators:
+    - tracecontext
+    - baggage
+
+# Sidecar Collector Configuration
+sidecarCollector:
+  # Name of the OpenTelemetryCollector CR
+  name: sidecar
+  # OTLP receiver ports
+  otlp:
+    grpcPort: 4317
+    httpPort: 4318
+  # Central collector endpoint
+  centralCollector:
+    # Service name of central collector
+    service: central-collector
+    # Port
+    port: 4317
+
+# Central Collector Configuration
+centralCollector:
+  # Name of the OpenTelemetryCollector CR
+  name: central-collector
+  # Number of replicas
+  replicas: 2
+  
+  # Memory limiter configuration (MiB)
+  memoryLimit: 1800
+  
+  # Tempo configuration
+  tempo:
+    # Tempo distributor endpoint
+    endpoint: tempo-tempo-distributor.openshift-tempo-operator.svc:4317
+    # Tenant ID for X-Scope-OrgID header
+    tenant: dev
+    # TLS CA file path
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+  
+  # Prometheus remote write configuration
+  prometheus:
+    # Prometheus endpoint
+    endpoint: http://observability-stack-prometheus.observability-demo.svc:9090/api/v1/write
+  
+  # Spanmetrics connector configuration
+  spanmetrics:
+    # Enable spanmetrics connector for RED metrics generation
+    enabled: true
+    # Histogram buckets for latency metrics
+    histogramBuckets:
+      - 2ms
+      - 8ms
+      - 50ms
+      - 100ms
+      - 200ms
+      - 500ms
+      - 1s
+      - 5s
+      - 10s
+    # Dimensions to extract from spans
+    dimensions:
+      - name: http.method
+      - name: http.status_code
+      - name: span.name
+    # Enable exemplars for trace-metric correlation
+    exemplarsEnabled: true
+    # Metrics flush interval
+    flushInterval: 30s

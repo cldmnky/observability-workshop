@@ -1,43 +1,50 @@
-= {lab_name}
+= OpenShift Observability Workshop
 
-The `lab_name` var, known as an asciidoc attribute, above was set in `./content/antora.yml` and can be used to set the lab_name or title of your content.
-You are both free to change its value and if you prefer to use a different var name, you can change the value of `lab_name`, for example to `title` in `./content/antora.yml` and then reference it in your content as `\{title}`. +
+Welcome to the OpenShift Observability Workshop!
 
-image::rhel-logo-black.jpg[rhel-logo-black,55%,55%]
+== What you'll learn
 
-== Variables
+In this workshop, you will:
 
-Other vars can also be set there, such as `ssh_user` and `ssh_password`, and referenced inline in the lab content by using the `\{foo}` syntax.
+* Configure and use user workload monitoring with Prometheus and Alertmanager for application health tracking
+* Implement logging with LokiStack for troubleshooting and performance analysis
+* Set up distributed tracing to understand microservices interactions and identify bottlenecks
+* Instrument applications using Red Hat build of OpenTelemetry for comprehensive observability
+* Analyze and correlate metrics, logs, and traces for effective problem resolution
 
-This is another var, or asciidoc attribute, from `./content/antora.yml` {my_var}
+== Who this is for
 
-== Writing your lab
+This workshop is designed for developers who want to implement comprehensive observability for applications running on OpenShift.
 
-Whatever type of content you are writing we'll refer to your *content* as "your lab" in this document.
+**Experience level**: Intermediate
 
-=== Lab structure
+== Prerequisites
 
-Wether you are writing a lab
+Before starting this workshop, you should have:
 
-* First, we will build a monolithic application already compiled as RPM packages and put it into a container. This will allow us to deploy the application, copy it between machines, and update it separately from the operating system. This process affords us a portable and easily maintained component instead of tightly coupling the application with your operating system maintenance.
+* Basic understanding of OpenShift and Kubernetes concepts
+* Familiarity with containerized applications and microservices
+* Experience with command line tools and YAML configuration
+* Basic knowledge of monitoring and logging concepts
 
-* In closing we will build a second container on a different operating system version that makes an application not packaged into RPMs. This will be similar to a web application deployment, positioning the correct files at the right locations. To do this, we will pull a project from GitHub and position the component files within our container image. The purpose of this is to achieve a portable application container that can deploy on several different versions of Red Hat Enterprise Linux. This also provides the benefit of decoupling your application maintenance, which would all happen by building new containers versus operating system maintenance. The container is no longer reliant on the operating system installed on the machine where the application is deployed.
+== Workshop environment
 
-. Now let's examine this cluster a bit more by describing the cluster (the `$GUID` environment variable is already set for you so you can immediately describe your individual cluster):
-+
-[source,sh,role=execute]
-----
-podman ps
-----
-+
-.Sample Output
-[source,texinfo,subs="attributes"]
-----
-CONTAINER ID  IMAGE                        COMMAND           CREATED      STATUS      PORTS                 NAMES
-2dcfee9e50c4  docker.io/library/httpd:2.4  httpd-foreground  3 hours ago  Up 3 hours  0.0.0.0:8080->80/tcp  showroom-httpd
-----
+This workshop provides a fully configured OpenShift 4.21 multi-node cluster with the observability stack pre-deployed using GitOps.
 
-=== Lab Access
+You will have access to:
 
-The terminal window to your right is *already* logged into the lab environment as the `{ssh_user}` user via `ssh`.
-All steps of this lab are to be completed as the `{ssh_user}` user.
+* OpenShift cluster: {openshift_cluster_console_url}
+* Username: {openshift_cluster_admin_username}
+* Password: {openshift_cluster_admin_password}
+
+NOTE: All environment details and credentials are available in the lab interface. The observability stack (Prometheus, Loki, Tempo, OpenTelemetry Operator) is already configured and ready for you to use.
+
+== Estimated time
+
+This workshop will take approximately **4 hours** to complete.
+
+You can work at your own pace.
+
+== Let's get started!
+
+Click on **Workshop Overview** in the navigation to begin your learning journey.

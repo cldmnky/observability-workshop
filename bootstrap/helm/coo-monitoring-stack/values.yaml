@@ -1,0 +1,61 @@
+# Cluster Observability Operator Configuration
+operator:
+  # Namespace where the COO operator will be installed
+  namespace: openshift-cluster-observability-operator
+  # Operator channel (stable, tech-preview)
+  channel: stable
+  # Install plan approval (Automatic or Manual)
+  installPlanApproval: Automatic
+  # Source catalog
+  source: redhat-operators
+  # Source namespace
+  sourceNamespace: openshift-marketplace
+
+# MonitoringStack Configuration
+monitoringStack:
+  # Namespace where MonitoringStack CR will be deployed
+  namespace: observability-demo
+  # Name of the MonitoringStack CR
+  name: observability-stack
+  
+  # Resource selector - ServiceMonitors with this label will be picked up
+  resourceSelector:
+    matchLabels:
+      monitoring.rhobs/stack: observability-stack
+  
+  # Retention period for metrics
+  retention: 1d
+  
+  # Log level (debug, info, warn, error)
+  logLevel: info
+  
+  # Prometheus configuration
+  prometheus:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  
+  # Alertmanager configuration
+  alertmanager:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# ThanosQuerier Configuration
+thanosQuerier:
+  # Enable ThanosQuerier for multi-tenancy and query aggregation
+  enabled: true
+  # Name of the ThanosQuerier CR
+  name: observability-stack
+  # Namespace (same as MonitoringStack)
+  namespace: observability-demo

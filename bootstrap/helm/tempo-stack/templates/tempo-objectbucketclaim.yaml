@@ -1,0 +1,14 @@
+{{- if and (eq .Values.storage.type "odf") .Values.storage.odf.enabled }}
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: {{ .Values.storage.odf.bucketName }}
+  namespace: {{ .Values.operator.namespace }}
+spec:
+  generateBucketName: {{ .Values.storage.odf.bucketName }}
+  storageClassName: {{ .Values.storage.odf.storageClassName }}
+  {{- if eq .Values.storage.odf.reclaimPolicy "Delete" }}
+  objectBucketName: {{ .Values.storage.odf.bucketName }}
+  {{- end }}
+{{- end }}

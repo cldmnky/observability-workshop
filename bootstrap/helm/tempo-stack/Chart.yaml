@@ -1,0 +1,17 @@
+apiVersion: v2
+name: tempo-stack
+description: Tempo Operator with TempoStack for distributed tracing with S3 storage and multi-tenancy
+type: application
+version: 0.1.0
+appVersion: "0.18.0"
+keywords:
+  - tracing
+  - tempo
+  - jaeger
+  - distributed-tracing
+  - observability
+  - opentelemetry
+maintainers:
+  - name: Red Hat
+sources:
+  - https://github.com/grafana/tempo-operator
