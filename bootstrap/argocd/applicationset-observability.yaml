@@ -39,18 +39,18 @@ spec:
       # Uncomment these for workshop Module 1 & 2 content
       
       # User Workload Monitoring (Workshop Module 1 - Alternative to COO)
-      # - name: user-workload-monitoring
-      #   namespace: openshift-monitoring
-      #   repoURL: https://github.com/cldmnky/observability-workshop.git
-      #   targetRevision: main
-      #   path: bootstrap/helm/user-workload-monitoring
+      - name: user-workload-monitoring
+        namespace: openshift-monitoring
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/user-workload-monitoring
       
       # Logging Operator with LokiStack (Workshop Module 2 - Not in production)
-      # - name: logging-operator
-      #   namespace: openshift-logging
-      #   repoURL: https://github.com/cldmnky/observability-workshop.git
-      #   targetRevision: main
-      #   path: bootstrap/helm/logging-operator
+      - name: logging-operator
+        namespace: openshift-logging
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/logging-operator
   template:
     metadata:
       name: '{{name}}'

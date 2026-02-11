@@ -5,6 +5,8 @@ kind: ObjectBucketClaim
 metadata:
   name: {{ .Values.lokiStack.s3.odf.bucketName }}
   namespace: {{ .Values.lokiStack.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   generateBucketName: {{ .Values.lokiStack.s3.odf.bucketName }}
   storageClassName: {{ .Values.lokiStack.s3.odf.storageClassName }}

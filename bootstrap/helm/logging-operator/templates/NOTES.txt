@@ -50,13 +50,28 @@ Example LogQL queries:
 {{- if .Values.lokiStack.enabled }}
 
 ⚠️  Storage Configuration:
+{{- if eq .Values.lokiStack.s3.type "odf" }}
 
-For production use, configure S3-compatible storage in the secret:
-{{ .Values.lokiStack.name }}-s3
+ODF ObjectBucketClaim created:
+  - OBC: {{ .Values.lokiStack.s3.odf.bucketName }}
+  - Namespace: {{ .Values.lokiStack.namespace }}
 
-For workshop purposes, LokiStack uses PersistentVolumeClaims with:
+Create a LokiStack S3 secret with keys:
+  access_key_id, access_key_secret, bucketnames, endpoint
+using the OBC Secret/ConfigMap values, then set it in the LokiStack spec.
+Secret name:
+  {{ default (printf "%s-s3" .Values.lokiStack.name) .Values.lokiStack.s3.secretName }}
+{{- else if eq .Values.lokiStack.s3.type "external" }}
+
+External S3 secret:
+  - Secret: {{ default (printf "%s-s3" .Values.lokiStack.name) .Values.lokiStack.s3.secretName }}
+  - Namespace: {{ .Values.lokiStack.namespace }}
+{{- else if eq .Values.lokiStack.s3.type "pvc" }}
+
+PersistentVolumeClaims:
   - Storage class: {{ .Values.lokiStack.storageClassName }}
   - Size per component: {{ .Values.lokiStack.storage.size }}
+{{- end }}
 {{- end }}
 
 💡 Workshop Module 2 Activities:

@@ -32,6 +32,8 @@ lokiStack:
   
   # S3 storage configuration
   s3:
+    # Optional secret name for LokiStack S3 credentials (defaults to <lokiStack.name>-s3)
+    secretName: ""
     # Storage backend type: odf or external or pvc
     # - odf: Use OpenShift Data Foundation (ODF) with ObjectBucketClaim
     # - external: Use external S3 (MinIO, AWS S3, etc.)
@@ -48,6 +50,8 @@ lokiStack:
       storageClassName: openshift-storage.noobaa.io
       # Delete bucket when chart is uninstalled
       reclaimPolicy: Delete
+      # ODF requires a LokiStack S3 secret with access_key_id/access_key_secret/bucketnames/endpoint
+      # Use values under s3.secretName to point the LokiStack to that secret
     
     # External S3 storage configuration (type: external)
     external:

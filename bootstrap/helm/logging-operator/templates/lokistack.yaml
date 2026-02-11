@@ -4,6 +4,9 @@ kind: LokiStack
 metadata:
   name: {{ .Values.lokiStack.name }}
   namespace: {{ .Values.lokiStack.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   size: {{ .Values.lokiStack.size }}
   storage:
@@ -12,11 +15,7 @@ spec:
       effectiveDate: "2024-01-01"
     {{- if or (eq .Values.lokiStack.s3.type "odf") (eq .Values.lokiStack.s3.type "external") }}
     secret:
-      {{- if eq .Values.lokiStack.s3.type "odf" }}
-      name: {{ .Values.lokiStack.s3.odf.bucketName }}
-      {{- else }}
-      name: {{ .Values.lokiStack.name }}-s3
-      {{- end }}
+      name: {{ default (printf "%s-s3" .Values.lokiStack.name) .Values.lokiStack.s3.secretName }}
       type: s3
     {{- end }}
   storageClassName: {{ .Values.lokiStack.storageClassName }}

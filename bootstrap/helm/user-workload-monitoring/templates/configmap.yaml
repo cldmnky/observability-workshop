@@ -4,6 +4,8 @@ kind: ConfigMap
 metadata:
   name: cluster-monitoring-config
   namespace: openshift-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 data:
   config.yaml: |
     enableUserWorkload: true
@@ -40,6 +42,8 @@ kind: ConfigMap
 metadata:
   name: user-workload-monitoring-config
   namespace: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 data:
   config.yaml: |
     prometheus:
