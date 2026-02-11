@@ -1,7 +1,7 @@
 # Cluster Observability Operator Configuration
 operator:
-  # Namespace where the COO operator will be installed
-  namespace: openshift-cluster-observability-operator
+  # Namespace where the COO operator will be installed (must be openshift-operators for AllNamespaces mode)
+  namespace: openshift-operators
   # Operator channel (stable, tech-preview)
   channel: stable
   # Install plan approval (Automatic or Manual)

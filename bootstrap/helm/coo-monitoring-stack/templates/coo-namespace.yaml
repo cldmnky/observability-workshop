@@ -1,3 +1,4 @@
+{{- if ne .Values.operator.namespace "openshift-operators" }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -8,3 +9,4 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+{{- end }}
