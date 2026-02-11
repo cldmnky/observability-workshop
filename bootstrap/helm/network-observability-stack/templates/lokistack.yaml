@@ -1,0 +1,25 @@
+{{- if .Values.lokiStack.enabled }}
+---
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: {{ .Values.lokiStack.name }}
+  namespace: {{ .Values.lokiStack.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  size: {{ .Values.lokiStack.size }}
+  storage:
+    schemas:
+    - version: v13
+      effectiveDate: "2024-04-01"
+    secret:
+      name: {{ .Values.lokiStack.s3.secretName }}
+      type: s3
+  {{- if .Values.lokiStack.storageClassName }}
+  storageClassName: {{ .Values.lokiStack.storageClassName }}
+  {{- end }}
+  tenants:
+    mode: openshift-network  # CRITICAL: Must be openshift-network for Network Observability
+{{- end }}

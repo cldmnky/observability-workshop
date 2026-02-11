@@ -3,6 +3,37 @@ Network Observability Operator has been deployed!
 Operator Namespace: {{ .Values.operator.namespace }}
 FlowCollector: {{ .Values.flowCollector.name }}
 
+{{- if .Values.lokiStack.enabled }}
+
+LokiStack for Network Observability:
+  Name: {{ .Values.lokiStack.name }}
+  Namespace: {{ .Values.lokiStack.namespace }}
+  Tenant Mode: openshift-network
+  Size: {{ .Values.lokiStack.size }}
+
+{{- if eq .Values.lokiStack.s3.type "odf" }}
+IMPORTANT: ODF ObjectBucketClaim requires manual secret creation
+
+After the ObjectBucketClaim is bound, create the LokiStack S3 secret:
+
+  # Get OBC values
+  BUCKET_NAME=$(oc get cm {{ .Values.lokiStack.s3.odf.bucketName }} -n {{ .Values.lokiStack.namespace }} -o jsonpath='{.data.BUCKET_NAME}')
+  ENDPOINT=$(oc get cm {{ .Values.lokiStack.s3.odf.bucketName }} -n {{ .Values.lokiStack.namespace }} -o jsonpath='{.data.BUCKET_HOST}')
+  ACCESS_KEY_ID=$(oc get secret {{ .Values.lokiStack.s3.odf.bucketName }} -n {{ .Values.lokiStack.namespace }} -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+  ACCESS_KEY_SECRET=$(oc get secret {{ .Values.lokiStack.s3.odf.bucketName }} -n {{ .Values.lokiStack.namespace }} -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+
+  # Create LokiStack S3 secret
+  oc create secret generic {{ .Values.lokiStack.s3.secretName }} -n {{ .Values.lokiStack.namespace }} \
+    --from-literal=access_key_id="$ACCESS_KEY_ID" \
+    --from-literal=access_key_secret="$ACCESS_KEY_SECRET" \
+    --from-literal=bucketnames="$BUCKET_NAME" \
+    --from-literal=endpoint="http://$ENDPOINT" \
+    --dry-run=client -o yaml | oc apply -f -
+
+  Note: Use http:// (port 80) for NooBaa to avoid TLS verification issues
+{{- end }}
+{{- end }}
+
 {{- if .Values.flowCollector.loki.enabled }}
 
 Loki Integration:

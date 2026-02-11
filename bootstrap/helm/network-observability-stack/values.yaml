@@ -12,6 +12,46 @@ operator:
   # Source namespace
   sourceNamespace: openshift-marketplace
 
+# LokiStack Configuration for Network Observability
+# Network Observability requires a dedicated LokiStack (do NOT reuse logging LokiStack)
+lokiStack:
+  # Enable LokiStack deployment
+  enabled: true
+  # Name of the LokiStack instance
+  name: netobserv-loki
+  # Namespace (use openshift-netobserv-operator or dedicated namespace)
+  namespace: openshift-netobserv-operator
+  # Size (1x.extra-small, 1x.small, 1x.medium)
+  size: 1x.extra-small
+  # Storage class for Loki components
+  storageClassName: gp3-csi
+  
+  # S3 storage configuration
+  s3:
+    # Secret name for S3 credentials
+    secretName: netobserv-loki-s3
+    # Storage backend type: odf or external
+    type: odf
+    
+    # ODF storage configuration (type: odf)
+    odf:
+      # Enable ObjectBucketClaim creation
+      enabled: true
+      # Bucket name (ObjectBucketClaim name)
+      bucketName: netobserv-loki-bucket
+      # StorageClass for OBC (NooBaa MCG)
+      storageClassName: openshift-storage.noobaa.io
+      # Delete bucket when chart is uninstalled
+      reclaimPolicy: Delete
+    
+    # External S3 storage configuration (type: external)
+    external:
+      endpoint: ""
+      region: ""
+      bucketnames: ""
+      accessKeyId: ""
+      accessKeySecret: ""
+
 # FlowCollector Configuration
 flowCollector:
   # Enable FlowCollector deployment
@@ -27,10 +67,10 @@ flowCollector:
     mode: LokiStack
     # LokiStack configuration
     lokiStack:
-      # Name of the LokiStack instance to use
-      name: logging-loki
-      # Namespace of the LokiStack instance
-      namespace: openshift-logging
+      # Name of the LokiStack instance to use (references lokiStack.name)
+      name: netobserv-loki
+      # Namespace of the LokiStack instance (references lokiStack.namespace)
+      namespace: openshift-netobserv-operator
     # Enable TLS for Loki communication
     tls:
       enabled: true

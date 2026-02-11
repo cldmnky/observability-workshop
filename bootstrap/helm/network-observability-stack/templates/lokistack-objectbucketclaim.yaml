@@ -1,0 +1,17 @@
+{{- if and .Values.lokiStack.enabled .Values.lokiStack.s3.type (eq .Values.lokiStack.s3.type "odf") .Values.lokiStack.s3.odf.enabled }}
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: {{ .Values.lokiStack.s3.odf.bucketName }}
+  namespace: {{ .Values.lokiStack.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  generateBucketName: {{ .Values.lokiStack.s3.odf.bucketName }}
+  storageClassName: {{ .Values.lokiStack.s3.odf.storageClassName }}
+  {{- if .Values.lokiStack.s3.odf.reclaimPolicy }}
+  additionalConfig:
+    bucketclass: noobaa-default-bucket-class
+  {{- end }}
+{{- end }}
