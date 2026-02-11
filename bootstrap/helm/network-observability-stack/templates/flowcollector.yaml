@@ -1,0 +1,88 @@
+{{- if .Values.flowCollector.enabled }}
+---
+apiVersion: flows.netobserv.io/v1beta2
+kind: FlowCollector
+metadata:
+  name: {{ .Values.flowCollector.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  {{- if .Values.flowCollector.loki.enabled }}
+  loki:
+    mode: {{ .Values.flowCollector.loki.mode }}
+    {{- if eq .Values.flowCollector.loki.mode "LokiStack" }}
+    lokiStack:
+      name: {{ .Values.flowCollector.loki.lokiStack.name }}
+      namespace: {{ .Values.flowCollector.loki.lokiStack.namespace }}
+    {{- end }}
+    tls:
+      enable: {{ .Values.flowCollector.loki.tls.enabled }}
+      {{- if .Values.flowCollector.loki.tls.insecureSkipVerify }}
+      insecureSkipVerify: {{ .Values.flowCollector.loki.tls.insecureSkipVerify }}
+      {{- end }}
+    batchSize: {{ .Values.flowCollector.loki.batchSize }}
+    batchWait: {{ .Values.flowCollector.loki.batchWait }}
+    maxBackoff: {{ .Values.flowCollector.loki.maxBackoff }}
+    maxRetries: {{ .Values.flowCollector.loki.maxRetries }}
+    minBackoff: {{ .Values.flowCollector.loki.minBackoff }}
+    {{- if .Values.flowCollector.loki.staticLabels }}
+    staticLabels: {{ toYaml .Values.flowCollector.loki.staticLabels | nindent 6 }}
+    {{- end }}
+    timeout: {{ .Values.flowCollector.loki.timeout }}
+    statusFields: {{ toYaml .Values.flowCollector.loki.statusFields | nindent 6 }}
+    tenantID: {{ .Values.flowCollector.loki.tenantID }}
+  {{- end }}
+
+  agent:
+    type: {{ .Values.flowCollector.agent.type }}
+    {{- if eq .Values.flowCollector.agent.type "eBPF" }}
+    ebpf:
+      sampling: {{ .Values.flowCollector.agent.ebpf.sampling }}
+      imagePullPolicy: {{ .Values.flowCollector.agent.ebpf.imagePullPolicy }}
+      privileged: {{ .Values.flowCollector.agent.ebpf.privileged }}
+      resources: {{ toYaml .Values.flowCollector.agent.ebpf.resources | nindent 8 }}
+      logLevel: info
+      cacheActiveTimeout: {{ .Values.flowCollector.agent.ebpf.cacheActiveTimeout }}
+      cacheMaxFlows: {{ .Values.flowCollector.agent.ebpf.cacheMaxFlows }}
+      {{- if .Values.flowCollector.agent.ebpf.interfaces }}
+      interfaces: {{ toYaml .Values.flowCollector.agent.ebpf.interfaces | nindent 8 }}
+      {{- end }}
+      {{- if .Values.flowCollector.agent.ebpf.excludeInterfaces }}
+      excludeInterfaces: {{ toYaml .Values.flowCollector.agent.ebpf.excludeInterfaces | nindent 8 }}
+      {{- end }}
+    {{- end }}
+
+  processor:
+    logLevel: {{ .Values.flowCollector.processor.logLevel }}
+    resources: {{ toYaml .Values.flowCollector.processor.resources | nindent 6 }}
+    conversationTracking:
+      enable: {{ .Values.flowCollector.processor.conversationTracking.enabled }}
+    conversationHeartbeatInterval: {{ .Values.flowCollector.processor.conversationHeartbeatInterval }}
+    conversationEndTimeout: {{ .Values.flowCollector.processor.conversationEndTimeout }}
+    conversationTerminatingTimeout: {{ .Values.flowCollector.processor.conversationTerminatingTimeout }}
+    logTypes: FLOWS
+    addZone: true
+
+  consolePlugin:
+    enable: {{ .Values.flowCollector.consolePlugin.enabled }}
+    register: {{ .Values.flowCollector.consolePlugin.register }}
+    {{- if .Values.flowCollector.consolePlugin.portNaming }}
+    portNaming: {{ toYaml .Values.flowCollector.consolePlugin.portNaming | nindent 6 }}
+    {{- end }}
+    imagePullPolicy: {{ .Values.flowCollector.consolePlugin.imagePullPolicy }}
+    resources: {{ toYaml .Values.flowCollector.consolePlugin.resources | nindent 6 }}
+    autoscaler: {{ toYaml .Values.flowCollector.consolePlugin.autoscaler | nindent 6 }}
+
+  {{- if .Values.flowCollector.exporters }}
+  exporters: {{ toYaml .Values.flowCollector.exporters | nindent 4 }}
+  {{- end }}
+
+  {{- if .Values.flowCollector.prometheus.enabled }}
+  prometheus:
+    enable: {{ .Values.flowCollector.prometheus.enabled }}
+    {{- if .Values.flowCollector.prometheus.includeLabels }}
+    includeLabels: {{ toYaml .Values.flowCollector.prometheus.includeLabels | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

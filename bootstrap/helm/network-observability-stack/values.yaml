@@ -1,0 +1,157 @@
+# Network Observability Operator Configuration
+operator:
+  # Namespace where the operator will be installed
+  # The operator is automatically installed in openshift-netobserv-operator
+  namespace: openshift-netobserv-operator
+  # Operator channel (stable)
+  channel: stable
+  # Install plan approval (Automatic or Manual)
+  installPlanApproval: Automatic
+  # Source catalog
+  source: redhat-operators
+  # Source namespace
+  sourceNamespace: openshift-marketplace
+
+# FlowCollector Configuration
+flowCollector:
+  # Enable FlowCollector deployment
+  enabled: true
+  # Name of the FlowCollector instance
+  name: cluster
+  
+  # Loki configuration
+  loki:
+    # Enable Loki storage for network flows
+    enabled: true
+    # Mode: LokiStack or Microservices or Monolithic
+    mode: LokiStack
+    # LokiStack configuration
+    lokiStack:
+      # Name of the LokiStack instance to use
+      name: logging-loki
+      # Namespace of the LokiStack instance
+      namespace: openshift-logging
+    # Enable TLS for Loki communication
+    tls:
+      enabled: true
+      # Verify TLS certificates
+      insecureSkipVerify: false
+    # Batch settings
+    batchSize: 10485760  # 10MB
+    batchWait: 1s
+    maxBackoff: 5s
+    maxRetries: 10
+    minBackoff: 1s
+    staticLabels: {}
+    # Timeout for Loki queries
+    timeout: 10s
+    # Enable status fields (source/destination workload status)
+    statusFields:
+      - "SrcK8S_OwnerType"
+      - "DstK8S_OwnerType"
+    # Tenant ID for multi-tenancy
+    tenantID: netobserv
+
+  # Agent configuration (eBPF or IPFIX)
+  agent:
+    # Agent type: eBPF or IPFIX
+    type: eBPF
+    # eBPF configuration
+    ebpf:
+      # Sampling rate (1 = no sampling, 10 = 1 in 10 packets)
+      sampling: 50
+      # Image pull policy
+      imagePullPolicy: IfNotPresent
+      # Enable privileged mode (required for eBPF)
+      privileged: true
+      # Resources for eBPF agent pods
+      resources:
+        requests:
+          cpu: 100m
+          memory: 50Mi
+        limits:
+          cpu: 500m
+          memory: 800Mi
+      # Cache configuration
+      cacheActiveTimeout: 5s
+      cacheMaxFlows: 100000
+      # Interfaces to monitor (empty = all interfaces)
+      interfaces: []
+      # Exclude interfaces
+      excludeInterfaces:
+        - lo
+
+  # Processor configuration (flow enrichment and aggregation)
+  processor:
+    # Log level (trace, debug, info, warn, error)
+    logLevel: info
+    # Resources for processor pods
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        cpu: 1
+        memory: 800Mi
+    # Conversation tracking settings
+    conversationTracking:
+      enabled: true
+    # Enable conversation heartbeat
+    conversationHeartbeatInterval: 30s
+    # Enable conversation end timeout
+    conversationEndTimeout: 10s
+    # Enable conversation terminating timeout
+    conversationTerminatingTimeout: 5s
+
+  # Console plugin configuration
+  consolePlugin:
+    # Enable OpenShift Console plugin
+    enabled: true
+    # Register plugin (automatic in web console)
+    register: true
+    # Port number for the plugin service
+    portNaming:
+      enable: true
+      portNames:
+        "3100": loki
+    # Image pull policy
+    imagePullPolicy: IfNotPresent
+    # Resources for console plugin pods
+    resources:
+      requests:
+        cpu: 100m
+        memory: 50Mi
+      limits:
+        cpu: 500m
+        memory: 100Mi
+    # Autoscaling
+    autoscaler:
+      status: Disabled
+      minReplicas: 1
+      maxReplicas: 3
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 50
+
+  # Exporters configuration (optional)
+  exporters: []
+  # Example Kafka exporter:
+  # - type: Kafka
+  #   kafka:
+  #     address: kafka-cluster-kafka-bootstrap.netobserv
+  #     topic: network-flows
+  #     tls:
+  #       enable: false
+
+  # Metrics configuration
+  prometheus:
+    # Enable Prometheus metrics
+    enabled: true
+    # Include custom labels in metrics
+    includeLabels:
+      - src_namespace
+      - dst_namespace

@@ -51,6 +51,13 @@ spec:
         repoURL: https://github.com/cldmnky/observability-workshop.git
         targetRevision: main
         path: bootstrap/helm/logging-operator
+      
+      # Network Observability Operator with FlowCollector (Workshop Module 5)
+      - name: network-observability-stack
+        namespace: openshift-netobserv-operator
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/network-observability-stack
   template:
     metadata:
       name: '{{name}}'

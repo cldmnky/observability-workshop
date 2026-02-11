@@ -1,0 +1,14 @@
+apiVersion: v2
+name: network-observability-stack
+description: Red Hat Network Observability Operator with FlowCollector for OpenShift network traffic monitoring
+type: application
+version: 1.0.0
+appVersion: "1.8.0"
+keywords:
+  - network
+  - observability
+  - flows
+  - monitoring
+  - openshift
+maintainers:
+  - name: OpenShift Observability Workshop

@@ -1,0 +1,44 @@
+Network Observability Operator has been deployed!
+
+Operator Namespace: {{ .Values.operator.namespace }}
+FlowCollector: {{ .Values.flowCollector.name }}
+
+{{- if .Values.flowCollector.loki.enabled }}
+
+Loki Integration:
+  Mode: {{ .Values.flowCollector.loki.mode }}
+  {{- if eq .Values.flowCollector.loki.mode "LokiStack" }}
+  LokiStack: {{ .Values.flowCollector.loki.lokiStack.name }}
+  Namespace: {{ .Values.flowCollector.loki.lokiStack.namespace }}
+  {{- end }}
+  Tenant ID: {{ .Values.flowCollector.loki.tenantID }}
+{{- end }}
+
+Agent Configuration:
+  Type: {{ .Values.flowCollector.agent.type }}
+  {{- if eq .Values.flowCollector.agent.type "eBPF" }}
+  Sampling: 1 in {{ .Values.flowCollector.agent.ebpf.sampling }} packets
+  {{- end }}
+
+{{- if .Values.flowCollector.consolePlugin.enabled }}
+
+Console Plugin:
+  The Network Observability console plugin has been enabled.
+  Navigate to: Observe → Network Traffic
+  
+  It may take a few minutes for the console plugin to be fully registered and available.
+{{- end }}
+
+To check the status of your FlowCollector:
+  oc get flowcollector {{ .Values.flowCollector.name }}
+
+To view network flows:
+  1. Navigate to OpenShift Console
+  2. Go to Observe → Network Traffic
+  3. Explore network flows, topology, and traffic patterns
+
+To check operator logs:
+  oc logs -n {{ .Values.operator.namespace }} deployment/netobserv-controller-manager
+
+For more information:
+  https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/network_observability
