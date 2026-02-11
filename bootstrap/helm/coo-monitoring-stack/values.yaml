@@ -82,3 +82,12 @@ uiPlugins:
       enabled: true
     incidents:
       enabled: true
+  
+  # Logging plugin - LokiStack logs UI
+  logging:
+    enabled: true
+    lokiStackName: logging-loki
+    lokiStackNamespace: openshift-logging
+    logsLimit: 50
+    timeout: 30s
+    schema: select  # Options: otel, viaq, or select (lets user choose)

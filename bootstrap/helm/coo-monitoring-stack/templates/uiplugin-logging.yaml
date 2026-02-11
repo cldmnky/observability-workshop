@@ -1,0 +1,28 @@
+{{- if and .Values.uiPlugins.enabled .Values.uiPlugins.logging.enabled }}
+---
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: logging
+  namespace: {{ .Values.uiPlugins.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  type: Logging
+  logging:
+    lokiStack:
+      name: {{ .Values.uiPlugins.logging.lokiStackName }}
+      {{- if .Values.uiPlugins.logging.lokiStackNamespace }}
+      namespace: {{ .Values.uiPlugins.logging.lokiStackNamespace }}
+      {{- end }}
+    {{- if .Values.uiPlugins.logging.logsLimit }}
+    logsLimit: {{ .Values.uiPlugins.logging.logsLimit }}
+    {{- end }}
+    {{- if .Values.uiPlugins.logging.timeout }}
+    timeout: {{ .Values.uiPlugins.logging.timeout }}
+    {{- end }}
+    {{- if .Values.uiPlugins.logging.schema }}
+    schema: {{ .Values.uiPlugins.logging.schema }}
+    {{- end }}
+{{- end }}
