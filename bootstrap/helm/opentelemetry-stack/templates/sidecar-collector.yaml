@@ -3,6 +3,9 @@ kind: OpenTelemetryCollector
 metadata:
   name: {{ .Values.sidecarCollector.name }}
   namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # Sidecar mode - injected into application pods
   mode: sidecar

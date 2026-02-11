@@ -80,8 +80,5 @@ uiPlugins:
     enabled: true
     perses:
       enabled: true
-      # Service name and namespace for Perses instance (auto-deployed by COO)
-      serviceName: perses-api-http
-      namespace: perses
     incidents:
       enabled: true

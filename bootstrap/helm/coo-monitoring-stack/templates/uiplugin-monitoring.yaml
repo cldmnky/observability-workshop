@@ -14,12 +14,6 @@ spec:
     {{- if .Values.uiPlugins.monitoring.perses.enabled }}
     perses:
       enabled: true
-      {{- if .Values.uiPlugins.monitoring.perses.serviceName }}
-      serviceName: {{ .Values.uiPlugins.monitoring.perses.serviceName }}
-      {{- end }}
-      {{- if .Values.uiPlugins.monitoring.perses.namespace }}
-      namespace: {{ .Values.uiPlugins.monitoring.perses.namespace }}
-      {{- end }}
     {{- end }}
     {{- if .Values.uiPlugins.monitoring.incidents.enabled }}
     incidents:

@@ -3,6 +3,9 @@ kind: Instrumentation
 metadata:
   name: {{ .Values.instrumentation.name }}
   namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # Exporter configuration - points to sidecar collector
   exporter:
