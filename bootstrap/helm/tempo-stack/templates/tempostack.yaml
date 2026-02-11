@@ -17,7 +17,7 @@ spec:
       {{- end }}
       type: s3
     tls:
-      enabled: true
+      enabled: {{ .Values.storage.tls.enabled }}
   
   # Storage size for each component
   storageSize: {{ .Values.tempoStack.storageSize }}

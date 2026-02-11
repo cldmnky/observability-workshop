@@ -17,6 +17,10 @@ storage:
   # - odf: Use OpenShift Data Foundation (ODF) with ObjectBucketClaim
   # - external: Use external S3 (MinIO, AWS S3, etc.)
   type: odf
+  # TLS settings for object storage
+  tls:
+    # Disable TLS for ODF NooBaa HTTP endpoint (port 80)
+    enabled: false
   
   # ODF storage configuration (type: odf)
   odf:
