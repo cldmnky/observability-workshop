@@ -29,27 +29,23 @@ monitoringStack:
   # Log level (debug, info, warn, error)
   logLevel: info
   
+  # Global resources for all monitoring stack pods (Prometheus, Alertmanager, etc.)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
   # Prometheus configuration
   prometheus:
     replicas: 3
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
   
   # Alertmanager configuration
   alertmanager:
     replicas: 2
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
+
 
 # ThanosQuerier Configuration
 thanosQuerier:

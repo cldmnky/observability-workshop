@@ -15,14 +15,17 @@ spec:
     matchLabels:
       {{- toYaml .Values.monitoringStack.resourceSelector.matchLabels | nindent 6 }}
   
+  # Global resources for all monitoring stack pods
+  {{- if .Values.monitoringStack.resources }}
+  resources:
+    {{- toYaml .Values.monitoringStack.resources | nindent 4 }}
+  {{- end }}
+  
   # Prometheus configuration
   prometheusConfig:
     replicas: {{ .Values.monitoringStack.prometheus.replicas }}
-    resources:
-      {{- toYaml .Values.monitoringStack.prometheus.resources | nindent 6 }}
   
   # Alertmanager configuration
   alertmanagerConfig:
     replicas: {{ .Values.monitoringStack.alertmanager.replicas }}
-    resources:
-      {{- toYaml .Values.monitoringStack.alertmanager.resources | nindent 6 }}
+
