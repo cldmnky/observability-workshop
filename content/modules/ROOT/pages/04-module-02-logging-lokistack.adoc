@@ -96,8 +96,8 @@ oc get lokistack -n openshift-logging
 .Expected output
 [source,text]
 ----
-NAME           AGE   SIZE       MODE      STATUS
-logging-loki   1h    1x.small   static    Ready
+NAME           AGE   SIZE             MODE      STATUS
+logging-loki   1h    1x.extra-small   static    Ready
 ----
 +
 The status should be **Ready**.
@@ -152,7 +152,7 @@ Check that your logging infrastructure is operational:
 **Solution**:
 . Check DaemonSet status: `oc get daemonset -n openshift-logging`
 . View collector logs: `oc logs -n openshift-logging -l component=collector`
-. Verify ClusterLogging resource exists: `oc get clusterlogging -n openshift-logging`
+. Verify ClusterLogForwarder resource exists: `oc get clusterlogforwarder -n openshift-logging`
 
 **Issue**: ClusterLogForwarder not found
 

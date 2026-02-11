@@ -82,7 +82,7 @@ You need to confirm that the OpenTelemetry Operator was deployed via GitOps and 
 +
 [source,bash]
 ----
-oc get pods -n openshift-opentelemetry-operator
+oc get pods -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator
 ----
 +
 .Expected output
@@ -106,43 +106,62 @@ instrumentations              opentelemetry.io               true    Instrumenta
 opentelemetrycollectors       opentelemetry.io               true    OpenTelemetryCollector
 ----
 
-. Verify the collector instance deployed via GitOps:
+. Verify the collector instances deployed via GitOps:
 +
 [source,bash]
 ----
-oc get opentelemetrycollector -n openshift-opentelemetry-operator
+oc get opentelemetrycollector -n observability-demo
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME             MODE         VERSION   READY
-otel-collector   deployment   0.x.0     2/2
+NAME                MODE         VERSION       READY
+central-collector   deployment   0.140.0-2     2/2
+sidecar             sidecar      0.140.0-2     1/1
 ----
++
+Two collectors are deployed: a **central-collector** (deployment mode, 2 replicas) that receives telemetry from applications, and a **sidecar** collector injected into application pods.
 
 . Check collector pods are running:
 +
 [source,bash]
 ----
-oc get pods -n openshift-opentelemetry-operator -l app.kubernetes.io/component=opentelemetry-collector
+oc get pods -n observability-demo -l app.kubernetes.io/component=opentelemetry-collector
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                              READY   STATUS    RESTARTS   AGE
-otel-collector-xxxxx              1/1     Running   0          1h
-otel-collector-xxxxx              1/1     Running   0          1h
+NAME                                          READY   STATUS    RESTARTS   AGE
+central-collector-collector-xxxxx              1/1     Running   0          1h
+central-collector-collector-xxxxx              1/1     Running   0          1h
 ----
 
 . View the collector configuration:
 +
 [source,bash]
 ----
-oc get opentelemetrycollector otel-collector -n openshift-opentelemetry-operator -o yaml
+oc get opentelemetrycollector central-collector -n observability-demo -o yaml
 ----
 +
 Look for the `config` section showing receivers, processors, and exporters.
+
+. Verify the pre-deployed Instrumentation resource:
++
+[source,bash]
+----
+oc get instrumentation -n observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME                   AGE
+demo-instrumentation   1h
+----
++
+This Instrumentation resource enables auto-instrumentation injection for applications deployed in the `observability-demo` namespace.
 
 === Verify
 
@@ -161,22 +180,22 @@ Check that your OpenTelemetry infrastructure is operational:
 **Issue**: OpenTelemetry Operator pod not running
 
 **Solution**:
-. Check operator logs: `oc logs -n openshift-opentelemetry-operator -l app.kubernetes.io/name=opentelemetry-operator`
-. Verify operator deployment: `oc get deployment -n openshift-opentelemetry-operator`
+. Check operator logs: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator`
+. Verify operator deployment: `oc get deployment -n openshift-operators`
 . Check for resource constraints or image pull issues
 
 **Issue**: OpenTelemetryCollector CRD not found
 
 **Solution**:
-. Verify operator installation: `oc get csv -n openshift-opentelemetry-operator`
+. Verify operator installation: `oc get csv -n openshift-operators | grep opentelemetry`
 . Check if CRD was created: `oc get crd | grep opentelemetry`
 . Operator may still be initializing (wait 1-2 minutes)
 
 **Issue**: Collector instance not Ready
 
 **Solution**:
-. View collector status: `oc describe opentelemetrycollector otel-collector -n openshift-opentelemetry-operator`
-. Check collector pod logs: `oc logs -n openshift-opentelemetry-operator -l app.kubernetes.io/component=opentelemetry-collector`
+. View collector status: `oc describe opentelemetrycollector central-collector -n observability-demo`
+. Check collector pod logs: `oc logs -n observability-demo -l app.kubernetes.io/component=opentelemetry-collector`
 . Verify configuration syntax is valid
 
 == Exercise 2: Deploy application with OpenTelemetry SDK
@@ -185,11 +204,11 @@ You'll deploy a sample application instrumented with the OpenTelemetry SDK to em
 
 === Steps
 
-. Create a new project for the OpenTelemetry demo:
+. The `observability-demo` namespace already exists (created by GitOps). Verify it:
 +
 [source,bash]
 ----
-oc new-project otel-demo
+oc project observability-demo
 ----
 
 . Deploy a Python application with OpenTelemetry instrumentation:
@@ -201,7 +220,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dice-roller
-  namespace: otel-demo
+  namespace: observability-demo
   labels:
     app: dice-roller
 spec:
@@ -231,7 +250,7 @@ spec:
         - name: FLASK_APP
           value: dice_roller.py
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://otel-collector-collector.openshift-opentelemetry-operator.svc:4318"
+          value: "http://central-collector-collector.observability-demo.svc:4318"
         - name: OTEL_SERVICE_NAME
           value: "dice-roller"
         - name: OTEL_TRACES_EXPORTER
@@ -254,7 +273,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dice-roller
-  namespace: otel-demo
+  namespace: observability-demo
 spec:
   selector:
     app: dice-roller
@@ -267,7 +286,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: dice-roller
-  namespace: otel-demo
+  namespace: observability-demo
 spec:
   to:
     kind: Service
@@ -286,7 +305,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dice-roller-code
-  namespace: otel-demo
+  namespace: observability-demo
 data:
   dice_roller.py: |
     from flask import Flask
@@ -313,7 +332,7 @@ EOF
 +
 [source,bash]
 ----
-oc get pods -n otel-demo -w
+oc get pods -n observability-demo -w
 ----
 +
 Press Ctrl+C when Running.
@@ -322,7 +341,7 @@ Press Ctrl+C when Running.
 +
 [source,bash]
 ----
-DICE_URL=$(oc get route dice-roller -n otel-demo -o jsonpath='{.spec.host}')
+DICE_URL=$(oc get route dice-roller -n observability-demo -o jsonpath='{.spec.host}')
 curl http://$DICE_URL/roll
 ----
 +
@@ -362,17 +381,17 @@ Check that your OpenTelemetry-instrumented application is running:
 **Issue**: Pod fails to start with "ModuleNotFoundError"
 
 **Solution**:
-. Check if application code is mounted: `oc get configmap dice-roller-code -n otel-demo`
-. Verify volume mount in pod: `oc describe pod -n otel-demo -l app=dice-roller`
-. Check Python dependencies: `oc logs -n otel-demo deployment/dice-roller`
+. Check if application code is mounted: `oc get configmap dice-roller-code -n observability-demo`
+. Verify volume mount in pod: `oc describe pod -n observability-demo -l app=dice-roller`
+. Check Python dependencies: `oc logs -n observability-demo deployment/dice-roller`
 
 **Issue**: curl returns connection refused
 
 **Solution**:
-. Verify route exists: `oc get route dice-roller -n otel-demo`
-. Check service: `oc get svc dice-roller -n otel-demo`
-. Test internally: `oc exec -n otel-demo deployment/dice-roller -- curl localhost:8080/health`
-. View application logs: `oc logs -n otel-demo deployment/dice-roller`
+. Verify route exists: `oc get route dice-roller -n observability-demo`
+. Check service: `oc get svc dice-roller -n observability-demo`
+. Test internally: `oc exec -n observability-demo deployment/dice-roller -- curl localhost:8080/health`
+. View application logs: `oc logs -n observability-demo deployment/dice-roller`
 
 == Exercise 3: Verify telemetry in backends
 
@@ -413,7 +432,7 @@ Query:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="otel-demo"} |= "Rolled a"
+{kubernetes_namespace_name="observability-demo"} |= "Rolled a"
 ----
 +
 You should see log entries like "Rolled a 3", "Rolled a 5", etc.
@@ -424,7 +443,7 @@ Look for trace IDs in the log output:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="otel-demo"} | json | line_format "{{.trace_id}} - {{.message}}"
+{kubernetes_namespace_name="observability-demo"} | json | line_format "{{.trace_id}} - {{.message}}"
 ----
 +
 If trace context propagation is working, logs will include trace IDs.
@@ -435,7 +454,7 @@ The collector itself exposes metrics about telemetry processing:
 +
 [source,promql]
 ----
-otelcol_receiver_accepted_spans{namespace="openshift-opentelemetry-operator"}
+otelcol_receiver_accepted_spans{namespace="observability-demo"}
 ----
 +
 This shows how many spans the collector received.
@@ -457,23 +476,23 @@ Check that telemetry flows end-to-end:
 **Issue**: No traces in Jaeger
 
 **Solution**:
-. Verify collector received traces: Check collector logs `oc logs -n openshift-opentelemetry-operator -l app.kubernetes.io/component=opentelemetry-collector`
-. Check application OTLP endpoint: `oc set env deployment/dice-roller -n otel-demo --list | grep OTLP`
-. Test collector endpoint: `oc exec -n otel-demo deployment/dice-roller -- curl -v otel-collector-collector.openshift-opentelemetry-operator.svc:4318`
+. Verify collector received traces: Check collector logs `oc logs -n observability-demo -l app.kubernetes.io/component=opentelemetry-collector`
+. Check application OTLP endpoint: `oc set env deployment/dice-roller -n observability-demo --list | grep OTLP`
+. Test collector endpoint: `oc exec -n observability-demo deployment/dice-roller -- curl -v central-collector-collector.observability-demo.svc:4318`
 . Verify traces exporter in collector config
 
 **Issue**: No metrics in Prometheus
 
 **Solution**:
-. Check if collector exposes Prometheus endpoint: `oc get svc -n openshift-opentelemetry-operator`
+. Check if collector exposes Prometheus endpoint: `oc get svc -n observability-demo`
 . Verify ServiceMonitor exists for collector
 . Allow time for Prometheus scraping (30-60 seconds)
-. Check metrics endpoint directly: `oc exec -n openshift-opentelemetry-operator deployment/otel-collector -- curl localhost:8889/metrics`
+. Check metrics endpoint directly: `oc exec -n observability-demo deployment/central-collector-collector -- curl localhost:8889/metrics`
 
 **Issue**: No logs in Loki
 
 **Solution**:
-. Verify application is logging: `oc logs -n otel-demo deployment/dice-roller`
+. Verify application is logging: `oc logs -n observability-demo deployment/dice-roller`
 . Check if logs exporter is configured in collector
 . Confirm collector can reach Loki: Collector logs should not show export errors
 . Wait 1-2 minutes for log ingestion
@@ -484,50 +503,33 @@ Writing instrumentation code manually is time-consuming. OpenTelemetry supports 
 
 === Steps
 
-. Create an Instrumentation resource for automatic injection:
+. An Instrumentation resource was already deployed via GitOps. Verify it:
 +
 [source,bash]
 ----
-cat <<EOF | oc apply -f -
-apiVersion: opentelemetry.io/v1alpha1
-kind: Instrumentation
-metadata:
-  name: auto-instrumentation
-  namespace: otel-demo
-spec:
-  exporter:
-    endpoint: http://otel-collector-collector.openshift-opentelemetry-operator.svc:4318
-  propagators:
-    - tracecontext
-    - baggage
-  sampler:
-    type: parentbased_traceidratio
-    argument: "1.0"
-  python:
-    env:
-      - name: OTEL_LOGS_EXPORTER
-        value: otlp
-      - name: OTEL_METRICS_EXPORTER
-        value: otlp
-  java:
-    env:
-      - name: OTEL_LOGS_EXPORTER
-        value: otlp
-EOF
+oc get instrumentation demo-instrumentation -n observability-demo -o yaml
 ----
++
+Notice the configuration includes:
++
+* **Exporter endpoint**: Points to the central collector
+* **Propagators**: W3C Trace Context and Baggage for context propagation
+* **Sampler**: `parentbased_traceidratio` at 100% sampling (`1.0`)
++
+The Instrumentation resource tells the operator how to inject auto-instrumentation into application pods.
 
 . Verify the Instrumentation resource:
 +
 [source,bash]
 ----
-oc get instrumentation -n otel-demo
+oc get instrumentation -n observability-demo
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                    AGE
-auto-instrumentation    10s
+NAME                   AGE
+demo-instrumentation   1h
 ----
 
 . Deploy a Java application with auto-instrumentation annotation:
@@ -539,7 +541,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample-java-app
-  namespace: otel-demo
+  namespace: observability-demo
 spec:
   replicas: 1
   selector:
@@ -563,7 +565,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sample-java-app
-  namespace: otel-demo
+  namespace: observability-demo
 spec:
   selector:
     app: sample-java-app
@@ -579,7 +581,7 @@ The annotation `instrumentation.opentelemetry.io/inject-java: "true"` tells the 
 +
 [source,bash]
 ----
-oc get pods -n otel-demo -w
+oc get pods -n observability-demo -w
 ----
 +
 Note: Auto-instrumentation may take longer to start (downloading Java agent).
@@ -588,7 +590,7 @@ Note: Auto-instrumentation may take longer to start (downloading Java agent).
 +
 [source,bash]
 ----
-oc describe pod -n otel-demo -l app=sample-java-app
+oc describe pod -n observability-demo -l app=sample-java-app
 ----
 +
 Look for init containers added by the operator.
@@ -597,7 +599,7 @@ Look for init containers added by the operator.
 +
 [source,bash]
 ----
-oc exec -n otel-demo deployment/sample-java-app -- curl -s localhost:8080
+oc exec -n observability-demo deployment/sample-java-app -- curl -s localhost:8080
 ----
 
 . Check Jaeger for traces from the auto-instrumented app:
@@ -625,7 +627,7 @@ Check that auto-instrumentation is working:
 **Solution**:
 . Check if CRD exists: `oc api-resources | grep instrumentation`
 . Verify operator supports Instrumentation: Check operator version
-. Ensure operator is running: `oc get pods -n openshift-opentelemetry-operator`
+. Ensure operator is running: `oc get pods -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator`
 
 **Issue**: Auto-instrumentation not injected (no init containers)
 
@@ -633,12 +635,12 @@ Check that auto-instrumentation is working:
 . Verify annotation syntax: `instrumentation.opentelemetry.io/inject-java: "true"`
 . Check annotation is on pod template, not deployment
 . Ensure Instrumentation resource is in same namespace
-. View operator logs: `oc logs -n openshift-opentelemetry-operator -l app.kubernetes.io/name=opentelemetry-operator`
+. View operator logs: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator`
 
 **Issue**: Pod fails to start after injection
 
 **Solution**:
-. Check init container logs: `oc logs -n otel-demo <pod> -c opentelemetry-auto-instrumentation`
+. Check init container logs: `oc logs -n observability-demo <pod> -c opentelemetry-auto-instrumentation`
 . Verify image pull: Init container downloads auto-instrumentation agent
 . Check network connectivity: Init container needs internet access
 . Increase resource limits if pod is OOMKilled
@@ -653,7 +655,7 @@ The OpenTelemetry Collector is highly configurable. You'll customize the collect
 +
 [source,bash]
 ----
-oc get opentelemetrycollector otel-collector -n openshift-opentelemetry-operator -o yaml | less
+oc get opentelemetrycollector central-collector -n observability-demo -o yaml | less
 ----
 
 . Create a custom collector configuration:
@@ -665,7 +667,7 @@ apiVersion: opentelemetry.io/v1alpha1
 kind: OpenTelemetryCollector
 metadata:
   name: custom-collector
-  namespace: otel-demo
+  namespace: observability-demo
 spec:
   mode: deployment
   replicas: 2
@@ -696,7 +698,7 @@ spec:
         loglevel: debug
       
       otlp/tempo:
-        endpoint: tempo-instance-distributor.openshift-tempo-operator.svc:4317
+        endpoint: tempo-tempo-distributor.openshift-tempo-operator.svc:4317
         tls:
           insecure: true
       
@@ -734,30 +736,30 @@ This creates a collector with:
 +
 [source,bash]
 ----
-oc get pods -n otel-demo -l app.kubernetes.io/component=opentelemetry-collector -w
+oc get pods -n observability-demo -l app.kubernetes.io/component=opentelemetry-collector -w
 ----
 
 . Update dice-roller to use the custom collector:
 +
 [source,bash]
 ----
-oc set env deployment/dice-roller -n otel-demo \
-  OTEL_EXPORTER_OTLP_ENDPOINT=http://custom-collector-collector.otel-demo.svc:4318
+oc set env deployment/dice-roller -n observability-demo \
+  OTEL_EXPORTER_OTLP_ENDPOINT=http://custom-collector-collector.observability-demo.svc:4318
 ----
 
 . Restart the application:
 +
 [source,bash]
 ----
-oc rollout restart deployment/dice-roller -n otel-demo
-oc rollout status deployment/dice-roller -n otel-demo
+oc rollout restart deployment/dice-roller -n observability-demo
+oc rollout status deployment/dice-roller -n observability-demo
 ----
 
 . Generate traffic:
 +
 [source,bash]
 ----
-DICE_URL=$(oc get route dice-roller -n otel-demo -o jsonpath='{.spec.host}')
+DICE_URL=$(oc get route dice-roller -n observability-demo -o jsonpath='{.spec.host}')
 for i in {1..30}; do
   curl -s http://$DICE_URL/roll > /dev/null
   sleep 1
@@ -768,7 +770,7 @@ done
 +
 [source,bash]
 ----
-oc logs -n otel-demo -l app.kubernetes.io/component=opentelemetry-collector --tail=50
+oc logs -n observability-demo -l app.kubernetes.io/component=opentelemetry-collector --tail=50
 ----
 +
 You should see debug logs showing spans, metrics, and logs being processed.
@@ -795,17 +797,17 @@ Check that custom collector configuration works:
 **Issue**: Custom collector fails to start
 
 **Solution**:
-. Check configuration syntax: `oc describe opentelemetrycollector custom-collector -n otel-demo`
-. View collector pod logs: `oc logs -n otel-demo -l app.kubernetes.io/component=opentelemetry-collector`
+. Check configuration syntax: `oc describe opentelemetrycollector custom-collector -n observability-demo`
+. View collector pod logs: `oc logs -n observability-demo -l app.kubernetes.io/component=opentelemetry-collector`
 . Validate YAML indentation: Config section must be valid YAML
 . Check exporter endpoints are reachable
 
 **Issue**: No telemetry after switching to custom collector
 
 **Solution**:
-. Verify application endpoint updated: `oc set env deployment/dice-roller -n otel-demo --list | grep OTLP`
-. Test collector endpoint: `oc exec -n otel-demo deployment/dice-roller -- curl -v custom-collector-collector.otel-demo.svc:4318`
-. Check collector service exists: `oc get svc custom-collector-collector -n otel-demo`
+. Verify application endpoint updated: `oc set env deployment/dice-roller -n observability-demo --list | grep OTLP`
+. Test collector endpoint: `oc exec -n observability-demo deployment/dice-roller -- curl -v custom-collector-collector.observability-demo.svc:4318`
+. Check collector service exists: `oc get svc custom-collector-collector -n observability-demo`
 
 **Issue**: Custom attributes not appearing
 

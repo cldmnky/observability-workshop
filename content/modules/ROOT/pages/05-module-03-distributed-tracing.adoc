@@ -106,8 +106,8 @@ oc get tempostack -n openshift-tempo-operator
 .Expected output
 [source,text]
 ----
-NAME             AGE   STATUS
-tempo-instance   1h    Ready
+NAME    AGE   STATUS
+tempo   1h    Ready
 ----
 +
 The status should be **Ready**.
@@ -123,11 +123,11 @@ oc get pods -n openshift-tempo-operator -l app.kubernetes.io/component
 [source,text]
 ----
 NAME                                   READY   STATUS    RESTARTS   AGE
-tempo-instance-compactor-xxxxx         1/1     Running   0          1h
-tempo-instance-distributor-xxxxx       1/1     Running   0          1h
-tempo-instance-ingester-0              1/1     Running   0          1h
-tempo-instance-querier-xxxxx           1/1     Running   0          1h
-tempo-instance-query-frontend-xxxxx    1/1     Running   0          1h
+tempo-tempo-compactor-xxxxx         1/1     Running   0          1h
+tempo-tempo-distributor-xxxxx       1/1     Running   0          1h
+tempo-tempo-ingester-0              1/1     Running   0          1h
+tempo-tempo-querier-xxxxx           1/1     Running   0          1h
+tempo-tempo-query-frontend-xxxxx    1/1     Running   0          1h
 ----
 
 . Check if Jaeger Query UI is exposed:
@@ -141,7 +141,7 @@ oc get route -n openshift-tempo-operator
 [source,text]
 ----
 NAME                     HOST/PORT                                  
-tempo-instance-jaeger    tempo-instance-jaeger-openshift-tempo...
+tempo-tempo-jaeger    tempo-tempo-jaeger-openshift-tempo...
 ----
 
 . Access the Jaeger UI:
@@ -150,7 +150,7 @@ Get the route URL:
 +
 [source,bash]
 ----
-oc get route tempo-instance-jaeger -n openshift-tempo-operator -o jsonpath='{.spec.host}'
+oc get route tempo-tempo-jaeger -n openshift-tempo-operator -o jsonpath='{.spec.host}'
 ----
 +
 Open this URL in your browser (prepend https://)
@@ -172,8 +172,8 @@ Check that your tracing infrastructure is operational:
 **Issue**: TempoStack status shows "Degraded" or "Pending"
 
 **Solution**:
-. Check TempoStack pods: `oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo-instance`
-. Describe TempoStack: `oc describe tempostack tempo-instance -n openshift-tempo-operator`
+. Check TempoStack pods: `oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo`
+. Describe TempoStack: `oc describe tempostack tempo -n openshift-tempo-operator`
 . Check storage configuration: `oc get pvc -n openshift-tempo-operator`
 . View operator logs: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/name=tempo-operator`
 
@@ -182,7 +182,7 @@ Check that your tracing infrastructure is operational:
 **Solution**:
 . Check if Jaeger Query is enabled in TempoStack
 . List all routes: `oc get routes -n openshift-tempo-operator`
-. Verify TempoStack has Jaeger configuration: `oc get tempostack tempo-instance -o yaml | grep jaeger`
+. Verify TempoStack has Jaeger configuration: `oc get tempostack tempo -o yaml | grep jaeger`
 
 **Issue**: Cannot access Jaeger UI in browser
 
@@ -234,9 +234,9 @@ spec:
         - containerPort: 8080
         env:
         - name: JAEGER_ENDPOINT
-          value: "http://tempo-instance-distributor.openshift-tempo-operator.svc:4318/v1/traces"
+          value: "http://tempo-tempo-distributor.openshift-tempo-operator.svc:4318/v1/traces"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://tempo-instance-distributor.openshift-tempo-operator.svc:4318"
+          value: "http://tempo-tempo-distributor.openshift-tempo-operator.svc:4318"
 ---
 apiVersion: v1
 kind: Service
