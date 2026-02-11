@@ -1,0 +1,13 @@
+{{- if and .Values.uiPlugins.enabled .Values.uiPlugins.troubleshootingPanel.enabled }}
+---
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: troubleshooting-panel
+  namespace: {{ .Values.uiPlugins.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  type: TroubleshootingPanel
+{{- end }}

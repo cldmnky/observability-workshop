@@ -7,5 +7,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec: {}
+spec:
+  selector:
+    matchLabels:
+      {{- range $key, $value := .Values.monitoringStack.resourceSelector.matchLabels }}
+      {{ $key }}: {{ $value }}
+      {{- end }}
 {{- end }}

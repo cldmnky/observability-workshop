@@ -6,6 +6,21 @@
 {{- if .Values.thanosQuerier.enabled }}
   - ThanosQuerier CR: {{ .Values.thanosQuerier.name }} for query aggregation
 {{- end }}
+{{- if .Values.uiPlugins.enabled }}
+  - UI Plugins:
+{{- if .Values.uiPlugins.dashboards.enabled }}
+    • Dashboards - Enhanced OpenShift console dashboards
+{{- end }}
+{{- if .Values.uiPlugins.troubleshootingPanel.enabled }}
+    • Troubleshooting Panel - Korrel8r-based correlation
+{{- end }}
+{{- if .Values.uiPlugins.distributedTracing.enabled }}
+    • Distributed Tracing - Tempo traces viewer
+{{- end }}
+{{- if .Values.uiPlugins.monitoring.enabled }}
+    • Monitoring - Perses dashboards{{ if .Values.uiPlugins.monitoring.incidents.enabled }} and incidents{{ end }}
+{{- end }}
+{{- end }}
 
 🔍 Verification commands:
 
@@ -25,6 +40,30 @@
 5. Check ThanosQuerier deployment:
    oc get thanosquerier {{ .Values.thanosQuerier.name }} -n {{ .Values.thanosQuerier.namespace }}
    oc get pods -n {{ .Values.thanosQuerier.namespace }} -l app.kubernetes.io/name=thanos-query
+{{- end }}
+
+{{- if .Values.uiPlugins.enabled }}
+6. Check UI Plugins:
+   oc get uiplugin -n {{ .Values.uiPlugins.namespace }}
+   
+   Access new console features:
+{{- if .Values.uiPlugins.dashboards.enabled }}
+   - Admin > Observe > Dashboards (enhanced with datasources)
+{{- end }}
+{{- if .Values.uiPlugins.troubleshootingPanel.enabled }}
+   - Admin > Observe > Alerts > [Select Alert] (Troubleshooting Panel button)
+{{- end }}
+{{- if .Values.uiPlugins.distributedTracing.enabled }}
+   - Admin > Observe > Traces (Tempo traces viewer)
+{{- end }}
+{{- if .Values.uiPlugins.monitoring.enabled }}
+{{- if .Values.uiPlugins.monitoring.perses.enabled }}
+   - Admin > Observe > Dashboards (Perses) (advanced dashboards)
+{{- end }}
+{{- if .Values.uiPlugins.monitoring.incidents.enabled }}
+   - Admin > Observe > Incidents (cluster health analysis)
+{{- end }}
+{{- end }}
 {{- end }}
 
 🎯 Next steps:

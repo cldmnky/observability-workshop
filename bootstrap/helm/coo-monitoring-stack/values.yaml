@@ -59,3 +59,33 @@ thanosQuerier:
   name: observability-stack
   # Namespace (same as MonitoringStack)
   namespace: observability-demo
+
+# UI Plugins Configuration
+uiPlugins:
+  # Enable UI plugins deployment
+  enabled: true
+  # Namespace for UI plugins
+  namespace: openshift-cluster-observability-operator
+  
+  # Dashboards plugin - Enhanced dashboards with datasource support
+  dashboards:
+    enabled: true
+  
+  # Troubleshooting Panel - Korrel8r-based correlation and troubleshooting
+  troubleshootingPanel:
+    enabled: true
+  
+  # Distributed Tracing plugin - Tempo traces UI
+  distributedTracing:
+    enabled: true
+  
+  # Monitoring plugin - Perses dashboards and incidents
+  monitoring:
+    enabled: true
+    perses:
+      enabled: true
+      # Service name and namespace for Perses instance (auto-deployed by COO)
+      serviceName: perses-api-http
+      namespace: perses
+    incidents:
+      enabled: true

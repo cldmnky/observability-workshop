@@ -1,0 +1,28 @@
+{{- if and .Values.uiPlugins.enabled .Values.uiPlugins.monitoring.enabled }}
+---
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: monitoring
+  namespace: {{ .Values.uiPlugins.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  type: Monitoring
+  monitoring:
+    {{- if .Values.uiPlugins.monitoring.perses.enabled }}
+    perses:
+      enabled: true
+      {{- if .Values.uiPlugins.monitoring.perses.serviceName }}
+      serviceName: {{ .Values.uiPlugins.monitoring.perses.serviceName }}
+      {{- end }}
+      {{- if .Values.uiPlugins.monitoring.perses.namespace }}
+      namespace: {{ .Values.uiPlugins.monitoring.perses.namespace }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.uiPlugins.monitoring.incidents.enabled }}
+    incidents:
+      enabled: true
+    {{- end }}
+{{- end }}

@@ -1,0 +1,13 @@
+{{- if and .Values.uiPlugins.enabled .Values.uiPlugins.distributedTracing.enabled }}
+---
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: distributed-tracing
+  namespace: {{ .Values.uiPlugins.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  type: DistributedTracing
+{{- end }}
