@@ -16,6 +16,8 @@ spec:
       name: {{ .Values.storage.external.secretName }}
       {{- end }}
       type: s3
+    tls:
+      enabled: true
   
   # Storage size for each component
   storageSize: {{ .Values.tempoStack.storageSize }}
