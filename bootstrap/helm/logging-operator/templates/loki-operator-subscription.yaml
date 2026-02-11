@@ -1,0 +1,13 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: loki-operator
+  namespace: {{ .Values.lokiOperator.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  channel: {{ .Values.lokiOperator.channel }}
+  installPlanApproval: {{ .Values.lokiOperator.installPlanApproval }}
+  name: loki-operator
+  source: {{ .Values.lokiOperator.source }}
+  sourceNamespace: {{ .Values.lokiOperator.sourceNamespace }}

@@ -11,6 +11,19 @@ operator:
   # Source namespace
   sourceNamespace: openshift-marketplace
 
+# Loki Operator Configuration (required for LokiStack CRDs)
+lokiOperator:
+  # Install namespace (AllNamespaces mode requires openshift-operators)
+  namespace: openshift-operators
+  # Operator channel
+  channel: stable-6.4
+  # Install plan approval
+  installPlanApproval: Automatic
+  # Source catalog
+  source: redhat-operators
+  # Source namespace
+  sourceNamespace: openshift-marketplace
+
 # LokiStack Configuration
 lokiStack:
   # Enable LokiStack deployment

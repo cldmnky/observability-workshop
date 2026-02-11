@@ -4,6 +4,7 @@
 
 📋 Components installed:
   - Cluster Logging Operator in namespace: {{ .Values.operator.namespace }}
+  - Loki Operator in namespace: {{ .Values.lokiOperator.namespace }}
 {{- if .Values.lokiStack.enabled }}
   - LokiStack: {{ .Values.lokiStack.name }} (size: {{ .Values.lokiStack.size }})
 {{- end }}
