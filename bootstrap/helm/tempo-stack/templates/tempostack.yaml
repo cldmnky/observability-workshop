@@ -11,7 +11,7 @@ spec:
   storage:
     secret:
       {{- if eq .Values.storage.type "odf" }}
-      name: {{ .Values.storage.odf.bucketName }}
+      name: tempo-storage
       {{- else }}
       name: {{ .Values.storage.external.secretName }}
       {{- end }}
@@ -28,6 +28,26 @@ spec:
       tenantId: {{ .Values.tenants.dev.id }}
     - tenantName: prod
       tenantId: {{ .Values.tenants.prod.id }}
+    authorization:
+      roles:
+      - name: read-write
+        permissions:
+        - read
+        - write
+        resources:
+        - logs
+        - metrics
+        - traces
+        tenants:
+        - dev
+        - prod
+      roleBindings:
+      - name: read-write-binding
+        roles:
+        - read-write
+        subjects:
+        - kind: user
+          name: system:serviceaccount:openshift-tempo-operator:tempo-reader
 
   
   # Retention configuration
