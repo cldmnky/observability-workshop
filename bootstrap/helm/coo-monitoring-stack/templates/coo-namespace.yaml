@@ -6,3 +6,5 @@ metadata:
     openshift.io/cluster-monitoring: "true"
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

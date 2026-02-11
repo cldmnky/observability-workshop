@@ -3,6 +3,8 @@ kind: OperatorGroup
 metadata:
   name: cluster-observability-operator
   namespace: {{ .Values.operator.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   targetNamespaces:
   - {{ .Values.operator.namespace }}

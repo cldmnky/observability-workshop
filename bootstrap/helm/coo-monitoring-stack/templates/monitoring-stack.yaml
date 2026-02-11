@@ -3,6 +3,9 @@ kind: MonitoringStack
 metadata:
   name: {{ .Values.monitoringStack.name }}
   namespace: {{ .Values.monitoringStack.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   logLevel: {{ .Values.monitoringStack.logLevel }}
   retention: {{ .Values.monitoringStack.retention }}

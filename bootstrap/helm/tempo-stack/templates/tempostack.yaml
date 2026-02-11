@@ -2,8 +2,9 @@ apiVersion: tempo.grafana.com/v1alpha1
 kind: TempoStack
 metadata:
   name: {{ .Values.tempoStack.name }}
-  namespace: {{ .Values.tempoStack.namespace }}
-spec:
+  namespace: {{ .Values.tempoStack.namespace }}  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=truespec:
   # Storage configuration - S3 backend
   storage:
     secret:

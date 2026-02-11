@@ -5,6 +5,8 @@ kind: ObjectBucketClaim
 metadata:
   name: {{ .Values.storage.odf.bucketName }}
   namespace: {{ .Values.operator.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   generateBucketName: {{ .Values.storage.odf.bucketName }}
   storageClassName: {{ .Values.storage.odf.storageClassName }}

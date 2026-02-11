@@ -4,5 +4,8 @@ kind: ThanosQuerier
 metadata:
   name: {{ .Values.thanosQuerier.name }}
   namespace: {{ .Values.thanosQuerier.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec: {}
 {{- end }}
