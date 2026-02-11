@@ -26,14 +26,9 @@ spec:
     authentication:
     - tenantName: dev
       tenantId: {{ .Values.tenants.dev.id }}
-      oidc:
-        issuerURL: https://kubernetes.default.svc
-        usernameClaim: sub
     - tenantName: prod
       tenantId: {{ .Values.tenants.prod.id }}
-      oidc:
-        issuerURL: https://kubernetes.default.svc
-        usernameClaim: sub
+
   
   # Retention configuration
   retention:
