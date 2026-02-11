@@ -44,7 +44,7 @@ spec:
   resources:
     total:
       limits:
-        cpu: {{ .Values.tempoStack.resources.total.limits.cpu }}
+        cpu: {{ .Values.tempoStack.resources.total.limits.cpu | quote }}
         memory: {{ .Values.tempoStack.resources.total.limits.memory }}
   
   # Ingestion limits
@@ -53,6 +53,8 @@ spec:
       ingestion:
         ingestionBurstSizeBytes: {{ .Values.tempoStack.limits.global.ingestion.ingestionBurstSizeBytes }}
         ingestionRateLimitBytes: {{ .Values.tempoStack.limits.global.ingestion.ingestionRateLimitBytes }}
+      query:
+        maxSearchDuration: {{ .Values.tempoStack.limits.global.query.maxSearchDuration }}
   
   # Template configuration for individual components
   template:

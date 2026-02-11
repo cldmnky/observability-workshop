@@ -58,7 +58,7 @@ tempoStack:
   # Retention configuration
   retention:
     # Global trace retention period
-    global: 48h
+    global: 48h0m0s
   
   # Replication factor (1 for dev/demo, 3 for production)
   replicationFactor: 1
@@ -78,6 +78,9 @@ tempoStack:
         ingestionBurstSizeBytes: 20000000
         # Rate limit in bytes/second
         ingestionRateLimitBytes: 15000000
+      query:
+        # Max search duration (0s = no limit)
+        maxSearchDuration: 0s
   
   # Gateway configuration for authentication and multi-tenancy
   gateway:

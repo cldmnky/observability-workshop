@@ -69,6 +69,18 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
+      ignoreDifferences:
+      - group: tempo.grafana.com
+        kind: TempoStack
+        jsonPointers:
+        - /spec/hashRing
+        - /spec/images
+        - /spec/managementState
+        - /spec/observability
+        - /spec/search
+        - /spec/serviceAccount
+        - /spec/template
+        - /spec/timeout
       syncPolicy:
         automated:
           prune: true
