@@ -22,32 +22,12 @@ spec:
   
   # Multi-tenancy configuration
   tenants:
-    mode: static
+    mode: openshift
     authentication:
     - tenantName: dev
       tenantId: {{ .Values.tenants.dev.id }}
     - tenantName: prod
       tenantId: {{ .Values.tenants.prod.id }}
-    authorization:
-      roles:
-      - name: read-write
-        permissions:
-        - read
-        - write
-        resources:
-        - logs
-        - metrics
-        - traces
-        tenants:
-        - dev
-        - prod
-      roleBindings:
-      - name: read-write-binding
-        roles:
-        - read-write
-        subjects:
-        - kind: user
-          name: system:serviceaccount:openshift-tempo-operator:tempo-reader
 
   
   # Retention configuration
