@@ -30,10 +30,6 @@ spec:
   {{- if .Values.route.tls.enabled }}
   tls:
     termination: {{ .Values.route.tls.termination }}
-    {{- if eq .Values.route.tls.termination "reencrypt" }}
-    destinationCACertificate: |
-      # Placeholder - OAuth proxy will use service-serving cert
-    {{- end }}
     {{- if .Values.route.tls.insecureEdgeTerminationPolicy }}
     insecureEdgeTerminationPolicy: {{ .Values.route.tls.insecureEdgeTerminationPolicy }}
     {{- end }}

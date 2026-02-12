@@ -1,0 +1,89 @@
+{{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled .Values.buildRun.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: user-info-api-buildrun-initial
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    app.kubernetes.io/name: user-info-api-buildrun-initial
+    app.kubernetes.io/component: buildrun
+    app.kubernetes.io/part-of: observability-workshop
+spec:
+  backoffLimit: {{ .Values.buildRun.job.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: user-info-api-buildrun-initial
+        app.kubernetes.io/component: buildrun
+    spec:
+      serviceAccountName: {{ .Values.buildRun.job.serviceAccountName }}
+      restartPolicy: {{ .Values.buildRun.job.restartPolicy }}
+      containers:
+        - name: trigger-build
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Creating BuildRun for Build: user-info-api-build"
+              
+              # Check if Build resource exists
+              until oc get build.shipwright.io user-info-api-build -n {{ .Values.namespace }}; do
+                echo "Waiting for Build resource..."
+                sleep 5
+              done
+              
+              # Create BuildRun
+              cat <<EOF | oc create -f -
+              apiVersion: shipwright.io/v1beta1
+              kind: BuildRun
+              metadata:
+                generateName: user-info-api-build-
+                namespace: {{ .Values.namespace }}
+                labels:
+                  app.kubernetes.io/name: user-info-api-build
+                  app.kubernetes.io/component: buildrun
+                  app.kubernetes.io/part-of: observability-workshop
+              spec:
+                build:
+                  name: user-info-api-build
+              EOF
+              
+              echo "BuildRun created successfully"
+              
+              # Wait for BuildRun to complete
+              echo "Waiting for BuildRun to complete..."
+              sleep 5
+              
+              # Get the latest BuildRun
+              BUILDRUN_NAME=$(oc get buildrun -n {{ .Values.namespace }} -l app.kubernetes.io/name=user-info-api-build --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+              echo "Monitoring BuildRun: $BUILDRUN_NAME"
+              
+              # Wait up to 10 minutes for build to complete
+              for i in {1..60}; do
+                STATUS=$(oc get buildrun $BUILDRUN_NAME -n {{ .Values.namespace }} -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "Unknown")
+                REASON=$(oc get buildrun $BUILDRUN_NAME -n {{ .Values.namespace }} -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].reason}' 2>/dev/null || echo "Unknown")
+                
+                echo "Build status: $STATUS ($REASON)"
+                
+                if [ "$STATUS" == "True" ]; then
+                  echo "Build completed successfully!"
+                  exit 0
+                elif [ "$STATUS" == "False" ]; then
+                  echo "Build failed!"
+                  oc get buildrun $BUILDRUN_NAME -n {{ .Values.namespace }} -o yaml
+                  exit 1
+                fi
+                
+                sleep 10
+              done
+              
+              echo "Build timeout after 10 minutes"
+              exit 1
+{{- end }}
