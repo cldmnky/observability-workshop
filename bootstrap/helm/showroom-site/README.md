@@ -144,7 +144,12 @@ users:
     password: "PASSWORD"
     user: user1
   user2:
-    # ... same structure
+    console_url: "https://console-openshift-console.apps.cluster.example.com"
+    login_command: "oc login -u user2 -p PASSWORD https://api.cluster.example.com:6443"
+    openshift_cluster_ingress_domain: "apps.cluster.example.com"
+    openshift_console_url: "https://console-openshift-console.apps.cluster.example.com"
+    password: "PASSWORD"
+    user: user2
 ```
 
 **Security Note**: `.config/users.yaml` is gitignored. Never commit credentials to git.
