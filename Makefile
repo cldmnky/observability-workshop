@@ -13,7 +13,6 @@ APPSET_FILE ?= bootstrap/argocd/applicationset-observability.yaml
 ARGO_NAMESPACE ?= openshift-gitops
 USERS_FILE ?= .config/users.yaml
 USER_DATA_SECRET ?= workshop-users-secret
-USER_DATA_CONFIGMAP ?= workshop-users
 
 # Colors for output
 GREEN := \033[0;32m
@@ -43,12 +42,6 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 		-n $(NAMESPACE) \
 		--from-file=users.yaml=$(USERS_FILE) \
 		--dry-run=client -o yaml | oc apply -f -
-	@printf '%b\n' "$(GREEN)Ensuring user data ConfigMap $(USER_DATA_CONFIGMAP) exists...$(NC)"
-	@if oc get configmap $(USER_DATA_CONFIGMAP) -n $(NAMESPACE) >/dev/null 2>&1; then \
-		echo "ConfigMap $(USER_DATA_CONFIGMAP) already exists (left unchanged)"; \
-	else \
-		oc create configmap $(USER_DATA_CONFIGMAP) -n $(NAMESPACE) --from-file=users.yaml=$(USERS_FILE); \
-	fi
 	@printf '%b\n' "$(GREEN)Applying ApplicationSet...$(NC)"
 	@oc apply -f $(APPSET_FILE)
 	@printf '%b\n' "$(YELLOW)ArgoCD will sync applications automatically (including showroom-site).$(NC)"

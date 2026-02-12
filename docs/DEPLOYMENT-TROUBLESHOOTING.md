@@ -27,7 +27,6 @@ make refresh
 
 - Ensures namespace `showroom-workshop` exists
 - Creates/updates secret `workshop-users-secret` from `.config/users.yaml`
-- Creates ConfigMap `workshop-users` if it does not exist
 - Applies `bootstrap/argocd/applicationset-observability.yaml`
 
 ## Common Issues
@@ -65,10 +64,7 @@ oc rollout status deployment/showroom-site -n showroom-workshop
 
 ### User data stale after updating `.config/users.yaml`
 
-`make deploy` does not overwrite an existing `workshop-users` ConfigMap by design.
-
 ```bash
-oc delete configmap workshop-users -n showroom-workshop
 make deploy
 make refresh
 ```

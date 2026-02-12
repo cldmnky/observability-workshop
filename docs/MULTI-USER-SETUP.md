@@ -29,7 +29,7 @@ Pod Components:
 │  └────────────────┘  └─────────────────┘  └──────────────┘  │
 │           ↓                   ↓                               │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │ ConfigMap: workshop-users                              │  │
+│  │ Secret: workshop-users-secret                          │  │
 │  │ - user1: {password, console_url, login_command}        │  │
 │  │ - user2: {password, console_url, login_command}        │  │
 │  └────────────────────────────────────────────────────────┘  │
@@ -49,7 +49,7 @@ Pod Components:
 
 - Python Flask application
 - Reads `X-Forwarded-User` header from OAuth proxy
-- Returns user-specific data from ConfigMap
+- Returns user-specific data from Secret-mounted `users.yaml`
 - Endpoints:
   - `GET /api/user-info` - Current user's info
   - `GET /api/users` - List all users
@@ -204,24 +204,23 @@ oc logs -n showroom-workshop -l app.kubernetes.io/name=showroom-site -c oauth-pr
 
 ### User data not found
 
-**Check ConfigMap:**
+**Check Secret:**
 
 ```bash
-oc get configmap workshop-users -n showroom-workshop -o yaml
+oc get secret workshop-users-secret -n showroom-workshop -o yaml
 ```
 
-**Update/recreate user data ConfigMap:**
+**Update user data Secret:**
 
 ```bash
-# Edit .config/users.yaml, then recreate ConfigMap and redeploy
-oc delete configmap workshop-users -n showroom-workshop
+# Edit .config/users.yaml, then redeploy and refresh
 make deploy
 make refresh
 ```
 
 ## Security Considerations
 
-- Passwords are stored in ConfigMap (not encrypted at rest)
+- Passwords are stored in Secret (base64-encoded, encryption at rest depends on cluster config)
 - For production, consider:
   - External secret management (Vault, External Secrets Operator)
   - Set `HIDE_PASSWORDS=true` in user-info-api

@@ -55,8 +55,8 @@ deployment:
 multiUser:
   # Enable multi-user support with OAuth and user-specific data
   enabled: true
-  # User data ConfigMap (managed outside this chart by `make deploy`)
-  userDataConfigMap: workshop-users
+  # User data Secret (managed outside this chart by `make deploy`)
+  userDataSecret: workshop-users-secret
   # User Info API sidecar configuration
   userInfoAPI:
     enabled: true

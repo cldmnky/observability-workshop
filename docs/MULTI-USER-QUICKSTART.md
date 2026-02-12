@@ -45,7 +45,6 @@ This will:
 - Apply `bootstrap/argocd/applicationset-observability.yaml`
 - Ensure namespace `showroom-workshop` exists
 - Create/update secret `workshop-users-secret` from `.config/users.yaml`
-- Create ConfigMap `workshop-users` **if it does not already exist**
 - Let ArgoCD deploy all applications, including `showroom-site`
 
 ### 3. Build Both Containers in Cluster
@@ -207,24 +206,25 @@ oc get route showroom-site -n showroom-workshop -o yaml
 
 ### "User data not found"
 
-**Check ConfigMap:**
+**Check Secret:**
 
 ```bash
-oc get configmap workshop-users -n showroom-workshop -o yaml
+oc get secret workshop-users-secret -n showroom-workshop -o yaml
 
 # Should contain your users with passwords
 ```
 
-If you changed `.config/users.yaml` after first deploy, delete and recreate the ConfigMap:
+If you changed `.config/users.yaml`, rerun deploy to update the secret:
 
 ```bash
-oc delete configmap workshop-users -n showroom-workshop
 make deploy
+make refresh
 ```
 
 ## 🔐 Security Notes
 
 - **Passwords in ConfigMap** are not encrypted at rest
+- **Passwords in Secret** are base64-encoded (not encrypted by default at rest)
 - Keep real credentials only in `.config/users.yaml` (gitignored)
 - For production:
   - Use temporary passwords

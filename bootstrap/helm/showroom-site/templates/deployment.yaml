@@ -136,6 +136,6 @@ spec:
         {{- end }}
         {{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled }}
         - name: user-data
-          configMap:
-            name: {{ .Values.multiUser.userDataConfigMap }}
+          secret:
+            secretName: {{ .Values.multiUser.userDataSecret }}
         {{- end }}
