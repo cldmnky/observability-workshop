@@ -116,3 +116,22 @@ buildRun:
     restartPolicy: OnFailure
     # Service account with build permissions
     serviceAccountName: showroom-builder
+
+# Workshop Users RBAC Configuration
+workshopUsers:
+  # RBAC permissions for workshop participants
+  rbac:
+    # Enable workshop user RBAC permissions
+    # Set to true for multi-user workshops (recommended)
+    # Set to false for single-user deployments or testing scenarios where RBAC is handled externally
+    enabled: true
+    # Namespaces where users have edit access (can create/modify resources)
+    editNamespaces:
+      - observability-demo
+    # Namespaces where users have view access (read-only)
+    viewNamespaces:
+      - openshift-user-workload-monitoring
+      - openshift-tempo-operator
+      - openshift-logging
+      - openshift-netobserv-operator
+      - openshift-cluster-observability-operator
