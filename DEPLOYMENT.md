@@ -217,7 +217,61 @@ Minimum cluster resources for full observability stack:
 
 ### Multi-User Workshops
 
-For workshops with multiple concurrent users:
+For workshops with multiple concurrent users, this repository provides built-in RBAC and multi-user support.
+
+#### User Authentication & Data
+
+The showroom-site deployment includes:
+
+1. **OAuth Proxy**: Authenticates users via OpenShift OAuth
+2. **User Info API**: Sidecar container serving user-specific data
+3. **Dynamic Context Injection**: JavaScript replaces placeholders with user-specific values
+
+**Setup**:
+```bash
+# Create users.yaml with workshop user data
+cp .config/users.yaml.example .config/users.yaml
+# Edit .config/users.yaml with real credentials
+
+# Deploy with user data
+make deploy
+```
+
+This creates a Secret (`workshop-users-secret`) with user data that the API reads at runtime.
+
+#### Workshop User RBAC
+
+The showroom-site Helm chart automatically configures RBAC permissions for authenticated workshop users:
+
+**ClusterRole Permissions** (all authenticated users):
+- Read access to observability CRDs (ServiceMonitors, TempoStacks, Instrumentations)
+- Access to console plugins (monitoring, tracing, logging UIs)
+
+**Namespace-Specific Permissions**:
+- **observability-demo**: Full edit access (create/modify ServiceMonitors, deploy apps)
+- **openshift-user-workload-monitoring**: View only (observe Prometheus pods)
+- **openshift-tempo-operator**: View only (observe Tempo pods)
+- **openshift-logging**: View only (observe Loki pods)
+- **openshift-netobserv-operator**: View only (observe network monitoring)
+- **openshift-cluster-observability-operator**: View only (observe UI plugins)
+
+**Configure RBAC**:
+```yaml
+# In bootstrap/helm/showroom-site/values.yaml
+workshopUsers:
+  rbac:
+    enabled: true  # Enable workshop RBAC (default: true)
+```
+
+**Security Model**:
+- Users have full control in `observability-demo` workspace
+- Users can observe (not modify) operator infrastructure
+- Users cannot access platform monitoring (openshift-monitoring)
+- Users cannot access cluster-admin resources
+
+#### Scaling Considerations
+
+For workshops with many concurrent users:
 
 - Use separate namespaces per user
 - Scale collectors based on expected load
