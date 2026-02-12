@@ -1,0 +1,213 @@
+{{- if .Values.workshopUsers.rbac.enabled }}
+---
+# Workshop User RBAC Configuration
+# 
+# This template grants authenticated workshop users appropriate permissions
+# to complete observability workshop exercises:
+#
+# 1. ClusterRole with read-only access to observability CRDs and console plugins
+# 2. Edit access to observability-demo namespace (create ServiceMonitors, deploy apps)
+# 3. View access to operator namespaces (observe monitoring/logging/tracing infrastructure)
+#
+# RBAC follows principle of least privilege:
+# - Full edit in observability-demo (workshop workspace)
+# - View-only in operator namespaces (learn infrastructure without breaking it)
+# - No access to platform monitoring (openshift-monitoring) or cluster-admin resources
+#
+# Sync wave 2: Deploys after namespaces (wave 0) and operators (wave 1) exist
+---
+# ClusterRole for workshop users to access observability resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: workshop-observability-access
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+rules:
+# Access to observability UI plugins
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - consoleplugins
+  verbs:
+  - get
+  - list
+# Access to monitoring dashboards and queries
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheusrules
+  - servicemonitors
+  - podmonitors
+  verbs:
+  - get
+  - list
+  - watch
+# Access to Tempo traces (read-only at cluster level)
+- apiGroups:
+  - tempo.grafana.com
+  resources:
+  - tempostacks
+  verbs:
+  - get
+  - list
+# Access to OpenTelemetry instrumentation (read-only at cluster level)
+- apiGroups:
+  - opentelemetry.io
+  resources:
+  - instrumentations
+  - opentelemetrycollectors
+  verbs:
+  - get
+  - list
+---
+# ClusterRoleBinding for workshop users (all authenticated users)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: workshop-observability-access
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: workshop-observability-access
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+---
+# RoleBinding for observability-demo namespace (full edit access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-observability-demo-edit
+  namespace: observability-demo
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+---
+# RoleBinding for openshift-user-workload-monitoring namespace (view access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-uwm-view
+  namespace: openshift-user-workload-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+---
+# RoleBinding for openshift-tempo-operator namespace (view access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-tempo-view
+  namespace: openshift-tempo-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+---
+# RoleBinding for openshift-logging namespace (view access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-logging-view
+  namespace: openshift-logging
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+---
+# RoleBinding for openshift-netobserv-operator namespace (view access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-netobserv-view
+  namespace: openshift-netobserv-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+---
+# RoleBinding for openshift-cluster-observability-operator namespace (view access for UI plugins)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-coo-view
+  namespace: openshift-cluster-observability-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+{{- end }}
