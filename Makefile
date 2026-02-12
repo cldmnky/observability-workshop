@@ -150,10 +150,12 @@ clean: ## Delete old BuildRuns (keeps last 5)
 
 install-chart: ## Install Helm chart directly (not via ArgoCD)
 	@echo "$(GREEN)Installing Helm chart...$(NC)"
+	@echo "$(YELLOW)Ensuring namespace exists...$(NC)"
+	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
 		--namespace $(NAMESPACE) \
-		--create-namespace \
-		--values $(CHART_PATH)/values.yaml
+		--values $(CHART_PATH)/values.yaml \
+		--set createNamespace=false
 	@echo "$(GREEN)Chart installed. Initial build may take a few minutes.$(NC)"
 	@echo "Run 'make deploy-status' to check progress."
 
@@ -164,11 +166,13 @@ install-chart-with-users: ## Install Helm chart with users.yaml (gitignored file
 		exit 1; \
 	fi
 	@echo "$(GREEN)Installing Helm chart with users from users.yaml...$(NC)"
+	@echo "$(YELLOW)Ensuring namespace exists...$(NC)"
+	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
 		--namespace $(NAMESPACE) \
-		--create-namespace \
 		--values $(CHART_PATH)/values.yaml \
-		--values $(CHART_PATH)/users.yaml
+		--values $(CHART_PATH)/users.yaml \
+		--set createNamespace=false
 	@echo "$(GREEN)Chart installed with custom users.$(NC)"
 	@echo "Run 'make deploy-status' to check progress."
 
@@ -179,11 +183,13 @@ deploy-multiuser: ## Deploy multi-user version (requires users.yaml)
 		exit 1; \
 	fi
 	@echo "$(GREEN)Deploying multi-user workshop...$(NC)"
+	@echo "$(YELLOW)Ensuring namespace exists...$(NC)"
+	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
 		--namespace $(NAMESPACE) \
-		--create-namespace \
 		--values $(CHART_PATH)/values.yaml \
 		--values $(CHART_PATH)/users.yaml \
+		--set createNamespace=false \
 		--set multiUser.enabled=true \
 		--set multiUser.userInfoAPI.enabled=true \
 		--set multiUser.oauthProxy.enabled=true

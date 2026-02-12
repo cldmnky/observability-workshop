@@ -1,4 +1,4 @@
-{{- if ne .Values.namespace "default" }}
+{{- if and .Values.createNamespace (ne .Values.namespace "default") }}
 ---
 apiVersion: v1
 kind: Namespace

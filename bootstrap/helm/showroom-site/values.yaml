@@ -1,6 +1,10 @@
 # Namespace Configuration
 namespace: showroom-workshop
 
+# Set to false when deploying via Makefile to avoid conflicts with existing namespace
+# Set to true when deploying via ArgoCD/GitOps
+createNamespace: false
+
 # Build Configuration
 build:
   # Name of the Build resource
