@@ -58,62 +58,62 @@ build: ## Trigger builds for both site and API (default)
 	@$(MAKE) build-all
 
 build-site: ## Trigger showroom-site build
-	@echo "$(GREEN)Triggering showroom-site build...$(NC)"
+	@printf '%b\n' "$(GREEN)Triggering showroom-site build...$(NC)"
 	@printf 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_SITE)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_SITE)\n' | oc create -f -
-	@echo "$(GREEN)Site BuildRun created.$(NC)"
+	@printf '%b\n' "$(GREEN)Site BuildRun created.$(NC)"
 
 build-api: ## Trigger user-info-api build
-	@echo "$(BLUE)Triggering user-info-api build...$(NC)"
+	@printf '%b\n' "$(BLUE)Triggering user-info-api build...$(NC)"
 	@printf 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_API)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_API)\n' | oc create -f -
-	@echo "$(BLUE)API BuildRun created.$(NC)"
+	@printf '%b\n' "$(BLUE)API BuildRun created.$(NC)"
 
 build-all: ## Trigger both builds
-	@echo "$(GREEN)Triggering both builds...$(NC)"
+	@printf '%b\n' "$(GREEN)Triggering both builds...$(NC)"
 	@$(MAKE) build-site
 	@$(MAKE) build-api
 
 refresh: ## Build site+API images and restart deployment on latest images
-	@echo "$(GREEN)Building latest images and refreshing deployment...$(NC)"
+	@printf '%b\n' "$(GREEN)Building latest images and refreshing deployment...$(NC)"
 	@$(MAKE) build-wait BUILD_NAME=$(BUILD_NAME_SITE)
 	@$(MAKE) build-wait BUILD_NAME=$(BUILD_NAME_API)
-	@echo "$(YELLOW)Restarting deployment $(DEPLOYMENT_NAME)...$(NC)"
+	@printf '%b\n' "$(YELLOW)Restarting deployment $(DEPLOYMENT_NAME)...$(NC)"
 	@oc rollout restart deployment/$(DEPLOYMENT_NAME) -n $(NAMESPACE)
 	@oc rollout status deployment/$(DEPLOYMENT_NAME) -n $(NAMESPACE) --timeout=300s
-	@echo "$(GREEN)Refresh complete: deployment is running latest built images.$(NC)"
+	@printf '%b\n' "$(GREEN)Refresh complete: deployment is running latest built images.$(NC)"
 
 build-wait: ## Trigger a new build and wait for completion
-	@echo "$(GREEN)Triggering new build...$(NC)"
+	@printf '%b\n' "$(GREEN)Triggering new build...$(NC)"
 	@BUILDRUN=$$(oc create -f - <<< 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME)' | cut -d' ' -f1 | cut -d'/' -f2); \
-	echo "$(YELLOW)BuildRun: $$BUILDRUN$(NC)"; \
-	echo "$(YELLOW)Waiting for build to complete...$(NC)"; \
+	printf '%b\n' "$(YELLOW)BuildRun: $$BUILDRUN$(NC)"; \
+	printf '%b\n' "$(YELLOW)Waiting for build to complete...$(NC)"; \
 	for i in {1..120}; do \
 		STATUS=$$(oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "Unknown"); \
 		REASON=$$(oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].reason}' 2>/dev/null || echo "Unknown"); \
 		echo "  Status: $$STATUS ($$REASON)"; \
 		if [ "$$STATUS" == "True" ]; then \
-			echo "$(GREEN)✓ Build completed successfully!$(NC)"; \
+			printf '%b\n' "$(GREEN)✓ Build completed successfully!$(NC)"; \
 			exit 0; \
 		elif [ "$$STATUS" == "False" ]; then \
-			echo "$(RED)✗ Build failed!$(NC)"; \
+			printf '%b\n' "$(RED)✗ Build failed!$(NC)"; \
 			oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o yaml; \
 			exit 1; \
 		fi; \
 		sleep 5; \
 	done; \
-	echo "$(RED)Build timeout after 10 minutes$(NC)"; \
+	printf '%b\n' "$(RED)Build timeout after 10 minutes$(NC)"; \
 	exit 1
 
 build-logs: ## Follow logs from the latest showroom-site build
-	@echo "$(YELLOW)Finding latest showroom-site BuildRun...$(NC)"
+	@printf '%b\n' "$(YELLOW)Finding latest showroom-site BuildRun...$(NC)"
 	@BUILDRUN=$$(oc get buildrun -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_SITE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$BUILDRUN" ]; then \
-		echo "$(RED)No BuildRuns found in namespace $(NAMESPACE)$(NC)"; \
+		printf '%b\n' "$(RED)No BuildRuns found in namespace $(NAMESPACE)$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)Following logs for: $$BUILDRUN$(NC)"; \
+	printf '%b\n' "$(GREEN)Following logs for: $$BUILDRUN$(NC)"; \
 	POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_SITE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$POD" ]; then \
-		echo "$(YELLOW)Build pod not yet created, waiting...$(NC)"; \
+		printf '%b\n' "$(YELLOW)Build pod not yet created, waiting...$(NC)"; \
 		sleep 5; \
 		POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_SITE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}'); \
 	fi; \
@@ -121,16 +121,16 @@ build-logs: ## Follow logs from the latest showroom-site build
 	oc logs -f $$POD -n $(NAMESPACE) 2>&1
 
 build-logs-api: ## Follow logs from the latest user-info-api build
-	@echo "$(YELLOW)Finding latest user-info-api BuildRun...$(NC)"
+	@printf '%b\n' "$(YELLOW)Finding latest user-info-api BuildRun...$(NC)"
 	@BUILDRUN=$$(oc get buildrun -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$BUILDRUN" ]; then \
-		echo "$(RED)No API BuildRuns found$(NC)"; \
+		printf '%b\n' "$(RED)No API BuildRuns found$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(BLUE)Following logs for: $$BUILDRUN$(NC)"; \
+	printf '%b\n' "$(BLUE)Following logs for: $$BUILDRUN$(NC)"; \
 	POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$POD" ]; then \
-		echo "$(YELLOW)Build pod not yet created, waiting...$(NC)"; \
+		printf '%b\n' "$(YELLOW)Build pod not yet created, waiting...$(NC)"; \
 		sleep 5; \
 		POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}'); \
 	fi; \
@@ -138,38 +138,38 @@ build-logs-api: ## Follow logs from the latest user-info-api build
 	oc logs -f $$POD -n $(NAMESPACE) 2>&1
 
 deploy-status: ## Check deployment and pod status
-	@echo "$(GREEN)=== Showroom Site Build ===$(NC)"
-	@oc get build.shipwright.io $(BUILD_NAME_SITE) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)Site build not found$(NC)"
+	@printf '%b\n' "$(GREEN)=== Showroom Site Build ===$(NC)"
+	@oc get build.shipwright.io $(BUILD_NAME_SITE) -n $(NAMESPACE) 2>/dev/null || printf '%b\n' "$(RED)Site build not found$(NC)"
 	@echo ""
-	@echo "$(BLUE)=== User Info API Build ===$(NC)"
-	@oc get build.shipwright.io $(BUILD_NAME_API) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)API build not found$(NC)"
+	@printf '%b\n' "$(BLUE)=== User Info API Build ===$(NC)"
+	@oc get build.shipwright.io $(BUILD_NAME_API) -n $(NAMESPACE) 2>/dev/null || printf '%b\n' "$(RED)API build not found$(NC)"
 	@echo ""
-	@echo "$(GREEN)=== Recent BuildRuns ===$(NC)"
-	@oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -8 || echo "$(RED)No BuildRuns found$(NC)"
+	@printf '%b\n' "$(GREEN)=== Recent BuildRuns ===$(NC)"
+	@oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -8 || printf '%b\n' "$(RED)No BuildRuns found$(NC)"
 	@echo ""
-	@echo "$(GREEN)=== ImageStream ===$(NC)"
-	@oc get imagestream $(ROUTE_NAME) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)ImageStream not found$(NC)"
+	@printf '%b\n' "$(GREEN)=== ImageStream ===$(NC)"
+	@oc get imagestream $(ROUTE_NAME) -n $(NAMESPACE) 2>/dev/null || printf '%b\n' "$(RED)ImageStream not found$(NC)"
 	@echo ""
-	@echo "$(GREEN)=== Deployment ===$(NC)"
-	@oc get deployment $(DEPLOYMENT_NAME) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)Deployment not found$(NC)"
+	@printf '%b\n' "$(GREEN)=== Deployment ===$(NC)"
+	@oc get deployment $(DEPLOYMENT_NAME) -n $(NAMESPACE) 2>/dev/null || printf '%b\n' "$(RED)Deployment not found$(NC)"
 	@echo ""
-	@echo "$(GREEN)=== Pods ===$(NC)"
-	@oc get pods -n $(NAMESPACE) -l app.kubernetes.io/name=$(DEPLOYMENT_NAME) 2>/dev/null || echo "$(RED)No pods found$( NC)"
+	@printf '%b\n' "$(GREEN)=== Pods ===$(NC)"
+	@oc get pods -n $(NAMESPACE) -l app.kubernetes.io/name=$(DEPLOYMENT_NAME) 2>/dev/null || printf '%b\n' "$(RED)No pods found$( NC)"
 	@echo ""
-	@echo "$(GREEN)=== Route ===$(NC)"
-	@oc get route $(ROUTE_NAME) -n $(NAMESPACE) -o jsonpath='URL: https://{.spec.host}{"\n"}' 2>/dev/null || echo "$(RED)Route not found$(NC)"
+	@printf '%b\n' "$(GREEN)=== Route ===$(NC)"
+	@oc get route $(ROUTE_NAME) -n $(NAMESPACE) -o jsonpath='URL: https://{.spec.host}{"\n"}' 2>/dev/null || printf '%b\n' "$(RED)Route not found$(NC)"
 
 url: ## Get the route URL for the site
 	@URL=$$(oc get route $(ROUTE_NAME) -n $(NAMESPACE) -o jsonpath='{.spec.host}' 2>/dev/null); \
 	if [ -z "$$URL" ]; then \
-		echo "$(RED)Route not found in namespace $(NAMESPACE)$(NC)"; \
+		printf '%b\n' "$(RED)Route not found in namespace $(NAMESPACE)$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)Showroom Site URL:$(NC)"; \
+	printf '%b\n' "$(GREEN)Showroom Site URL:$(NC)"; \
 	echo "  https://$$URL"
 
 rebuild: ## Complete rebuild workflow (build + wait + status)
-	@echo "$(GREEN)Starting complete rebuild workflow...$(NC)"
+	@printf '%b\n' "$(GREEN)Starting complete rebuild workflow...$(NC)"
 	@$(MAKE) build-wait
 	@sleep 10
 	@$(MAKE) deploy-status
@@ -177,51 +177,51 @@ rebuild: ## Complete rebuild workflow (build + wait + status)
 	@$(MAKE) url
 
 clean: ## Delete old BuildRuns (keeps last 5)
-	@echo "$(YELLOW)Cleaning old BuildRuns (keeping last 5)...$(NC)"
+	@printf '%b\n' "$(YELLOW)Cleaning old BuildRuns (keeping last 5)...$(NC)"
 	@BUILDRUNS=$$(oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | head -n -5); \
 	if [ -z "$$BUILDRUNS" ]; then \
-		echo "$(GREEN)No old BuildRuns to clean$(NC)"; \
+		printf '%b\n' "$(GREEN)No old BuildRuns to clean$(NC)"; \
 	else \
 		echo "$$BUILDRUNS" | xargs -I {} oc delete buildrun {} -n $(NAMESPACE); \
-		echo "$(GREEN)Cleanup complete$(NC)"; \
+		printf '%b\n' "$(GREEN)Cleanup complete$(NC)"; \
 	fi
 
 install-chart: ## Install Helm chart directly (not via ArgoCD)
-	@echo "$(GREEN)Installing Helm chart...$(NC)"
-	@echo "$(YELLOW)Ensuring namespace exists...$(NC)"
+	@printf '%b\n' "$(GREEN)Installing Helm chart...$(NC)"
+	@printf '%b\n' "$(YELLOW)Ensuring namespace exists...$(NC)"
 	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
 		--namespace $(NAMESPACE) \
 		--values $(CHART_PATH)/values.yaml \
 		--set createNamespace=false
-	@echo "$(GREEN)Chart installed. Initial build may take a few minutes.$(NC)"
-	@echo "Run 'make deploy-status' to check progress."
+	@printf '%b\n' "$(GREEN)Chart installed. Initial build may take a few minutes.$(NC)"
+	@printf '%s\n' "Run 'make deploy-status' to check progress."
 
 install-chart-with-users: ## Install Helm chart with users.yaml (gitignored file with real credentials)
 	@if [ ! -f "$(CHART_PATH)/users.yaml" ]; then \
-		echo "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
-		echo "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
+		printf '%b\n' "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
+		printf '%b\n' "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Installing Helm chart with users from users.yaml...$(NC)"
-	@echo "$(YELLOW)Ensuring namespace exists...$(NC)"
+	@printf '%b\n' "$(GREEN)Installing Helm chart with users from users.yaml...$(NC)"
+	@printf '%b\n' "$(YELLOW)Ensuring namespace exists...$(NC)"
 	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
 		--namespace $(NAMESPACE) \
 		--values $(CHART_PATH)/values.yaml \
 		--values $(CHART_PATH)/users.yaml \
 		--set createNamespace=false
-	@echo "$(GREEN)Chart installed with custom users.$(NC)"
-	@echo "Run 'make deploy-status' to check progress."
+	@printf '%b\n' "$(GREEN)Chart installed with custom users.$(NC)"
+	@printf '%s\n' "Run 'make deploy-status' to check progress."
 
 deploy-multiuser: ## Deploy multi-user version (requires users.yaml)
 	@if [ ! -f "$(CHART_PATH)/users.yaml" ]; then \
-		echo "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
-		echo "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
+		printf '%b\n' "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
+		printf '%b\n' "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Deploying multi-user workshop...$(NC)"
-	@echo "$(YELLOW)Ensuring namespace exists...$(NC)"
+	@printf '%b\n' "$(GREEN)Deploying multi-user workshop...$(NC)"
+	@printf '%b\n' "$(YELLOW)Ensuring namespace exists...$(NC)"
 	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
 		--namespace $(NAMESPACE) \
@@ -231,28 +231,28 @@ deploy-multiuser: ## Deploy multi-user version (requires users.yaml)
 		--set multiUser.enabled=true \
 		--set multiUser.userInfoAPI.enabled=true \
 		--set multiUser.oauthProxy.enabled=true
-	@echo "$(GREEN)Multi-user deployment complete!$(NC)"
+	@printf '%b\n' "$(GREEN)Multi-user deployment complete!$(NC)"
 	@sleep 5
 	@$(MAKE) deploy-status
 	@echo ""
 	@$(MAKE) url
 
 uninstall-chart: ## Uninstall Helm chart
-	@echo "$(YELLOW)Uninstalling Helm chart...$(NC)"
+	@printf '%b\n' "$(YELLOW)Uninstalling Helm chart...$(NC)"
 	@helm uninstall $(CHART_RELEASE) --namespace $(NAMESPACE) || echo "$(YELLOW)Chart not found$(NC)"
-	@echo "$(YELLOW)Deleting namespace...$(NC)"
+	@printf '%b\n' "$(YELLOW)Deleting namespace...$(NC)"
 	@oc delete namespace $(NAMESPACE) --ignore-not-found
-	@echo "$(GREEN)Cleanup complete$(NC)"
+	@printf '%b\n' "$(GREEN)Cleanup complete$(NC)"
 
 sync-argo: ## Apply ApplicationSet and sync ArgoCD application
 	@$(MAKE) deploy
 
 # Development targets
 dev-build: ## Quick dev build (local docker/podman test)
-	@echo "$(YELLOW)Building container locally for testing...$(NC)"
+	@printf '%b\n' "$(YELLOW)Building container locally for testing...$(NC)"
 	@podman build -t localhost/showroom-site:test -f Containerfile .
-	@echo "$(GREEN)Test with: podman run -p 8080:8080 localhost/showroom-site:test$(NC)"
+	@printf '%b\n' "$(GREEN)Test with: podman run -p 8080:8080 localhost/showroom-site:test$(NC)"
 
 dev-run: ## Run locally built container
-	@echo "$(GREEN)Starting local container on http://localhost:8080$(NC)"
+	@printf '%b\n' "$(GREEN)Starting local container on http://localhost:8080$(NC)"
 	@podman run --rm -p 8080:8080 localhost/showroom-site:test
