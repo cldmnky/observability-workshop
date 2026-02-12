@@ -78,17 +78,19 @@ multiUser:
         memory: 64Mi
 
 # Workshop Users
-# Add your workshop users here - will be loaded into ConfigMap
+# DO NOT COMMIT REAL PASSWORDS!
+# Use users.yaml file (gitignored) for real credentials
+# See users.yaml.example for format
 users:
   user1:
     console_url: "https://console-openshift-console.apps.cluster.example.com"
-    password: "changeme"
-    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p changeme https://api.cluster.example.com:6443"
+    password: "XXX"
+    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p XXX https://api.cluster.example.com:6443"
     openshift_cluster_ingress_domain: "apps.cluster.example.com"
   # user2:
   #   console_url: "https://console-openshift-console.apps.cluster.example.com"
-  #   password: "changeme"
-  #   login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p changeme https://api.cluster.example.com:6443"
+  #   password: "XXX"
+  #   login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p XXX https://api.cluster.example.com:6443"
   #   openshift_cluster_ingress_domain: "apps.cluster.example.com"
 
 # Service Configuration

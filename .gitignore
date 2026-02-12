@@ -24,6 +24,10 @@ www/
 # Ignore sensitive or private information
 secrets.json
 
+# Ignore workshop users file with real credentials
+users.yaml
+bootstrap/helm/showroom-site/users.yaml
+
 # Ignore compiled binaries or executables
 *.exe
 *.dll

@@ -1,4 +1,4 @@
-.PHONY: help build build-site build-api build-all build-wait build-logs build-logs-api deploy-status url rebuild clean install-chart uninstall-chart sync-argo
+.PHONY: help build build-site build-api build-all build-wait build-logs build-logs-api deploy-status url rebuild clean install-chart install-chart-with-users deploy-multiuser uninstall-chart sync-argo
 
 # Configuration
 NAMESPACE ?= showroom-workshop
@@ -156,6 +156,42 @@ install-chart: ## Install Helm chart directly (not via ArgoCD)
 		--values $(CHART_PATH)/values.yaml
 	@echo "$(GREEN)Chart installed. Initial build may take a few minutes.$(NC)"
 	@echo "Run 'make deploy-status' to check progress."
+
+install-chart-with-users: ## Install Helm chart with users.yaml (gitignored file with real credentials)
+	@if [ ! -f "$(CHART_PATH)/users.yaml" ]; then \
+		echo "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
+		echo "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Installing Helm chart with users from users.yaml...$(NC)"
+	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
+		--namespace $(NAMESPACE) \
+		--create-namespace \
+		--values $(CHART_PATH)/values.yaml \
+		--values $(CHART_PATH)/users.yaml
+	@echo "$(GREEN)Chart installed with custom users.$(NC)"
+	@echo "Run 'make deploy-status' to check progress."
+
+deploy-multiuser: ## Deploy multi-user version (requires users.yaml)
+	@if [ ! -f "$(CHART_PATH)/users.yaml" ]; then \
+		echo "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
+		echo "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Deploying multi-user workshop...$(NC)"
+	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
+		--namespace $(NAMESPACE) \
+		--create-namespace \
+		--values $(CHART_PATH)/values.yaml \
+		--values $(CHART_PATH)/users.yaml \
+		--set multiUser.enabled=true \
+		--set multiUser.userInfoAPI.enabled=true \
+		--set multiUser.oauthProxy.enabled=true
+	@echo "$(GREEN)Multi-user deployment complete!$(NC)"
+	@sleep 5
+	@$(MAKE) deploy-status
+	@echo ""
+	@$(MAKE) url
 
 uninstall-chart: ## Uninstall Helm chart
 	@echo "$(YELLOW)Uninstalling Helm chart...$(NC)"

@@ -1,0 +1,19 @@
+# Workshop Users Configuration
+# Copy this file to users.yaml and fill in real credentials
+# The users.yaml file is gitignored and will not be committed
+
+users:
+  user1:
+    console_url: "https://console-openshift-console.apps.cluster.example.com"
+    password: "XXX"
+    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p XXX https://api.cluster.example.com:6443"
+    openshift_cluster_ingress_domain: "apps.cluster.example.com"
+    openshift_console_url: "https://console-openshift-console.apps.cluster.example.com"
+    user: "user1"
+  user2:
+    console_url: "https://console-openshift-console.apps.cluster.example.com"
+    password: "XXX"
+    login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p XXX https://api.cluster.example.com:6443"
+    openshift_cluster_ingress_domain: "apps.cluster.example.com"
+    openshift_console_url: "https://console-openshift-console.apps.cluster.example.com"
+    user: "user2"

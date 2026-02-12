@@ -35,12 +35,12 @@ users:
   user1:
     console_url: "https://console-openshift-console.apps.cluster-pdhs8.dynamic.redhatworkshops.io"
     password: "XXX"
-    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p jiSphC0SjNVIm2iF https://api.cluster-pdhs8.dynamic.redhatworkshops.io:6443"
+    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p XXX https://api.cluster-pdhs8.dynamic.redhatworkshops.io:6443"
     openshift_cluster_ingress_domain: "apps.cluster-pdhs8.dynamic.redhatworkshops.io"
   user2:
     console_url: "https://console-openshift-console.apps.cluster-pdhs8.dynamic.redhatworkshops.io"
     password: "XXX"
-    login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p QjcbhgnyiYj4sauy https://api.cluster-pdhs8.dynamic.redhatworkshops.io:6443"
+    login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p XXX https://api.cluster-pdhs8.dynamic.redhatworkshops.io:6443"
     openshift_cluster_ingress_domain: "apps.cluster-pdhs8.dynamic.redhatworkshops.io"
 ```
 
@@ -106,7 +106,7 @@ curl -H "X-Forwarded-User: user1" http://localhost:8081/api/user-info
 # {
 #   "user": "user1",
 #   "console_url": "https://console-openshift-console.apps...",
-#   "password": "jiSphC0SjNVIm2iF",
+#   "password": "XXX",
 #   "login_command": "oc login...",
 #   "openshift_cluster_ingress_domain": "apps..."
 # }
