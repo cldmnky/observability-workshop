@@ -55,7 +55,7 @@ deployment:
 multiUser:
   # Enable multi-user support with OAuth and user-specific data
   enabled: true
-  # User data ConfigMap (will be created from users section below)
+  # User data ConfigMap (managed outside this chart by `make deploy`)
   userDataConfigMap: workshop-users
   # User Info API sidecar configuration
   userInfoAPI:
@@ -80,22 +80,6 @@ multiUser:
       requests:
         cpu: 50m
         memory: 64Mi
-
-# Workshop Users
-# DO NOT COMMIT REAL PASSWORDS!
-# Use users.yaml file (gitignored) for real credentials
-# See users.yaml.example for format
-users:
-  user1:
-    console_url: "https://console-openshift-console.apps.cluster.example.com"
-    password: "XXX"
-    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p XXX https://api.cluster.example.com:6443"
-    openshift_cluster_ingress_domain: "apps.cluster.example.com"
-  # user2:
-  #   console_url: "https://console-openshift-console.apps.cluster.example.com"
-  #   password: "XXX"
-  #   login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p XXX https://api.cluster.example.com:6443"
-  #   openshift_cluster_ingress_domain: "apps.cluster.example.com"
 
 # Service Configuration
 service:

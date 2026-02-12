@@ -27,6 +27,7 @@ secrets.json
 # Ignore workshop users file with real credentials
 users.yaml
 bootstrap/helm/showroom-site/users.yaml
+.config/users.yaml
 
 # Ignore compiled binaries or executables
 *.exe

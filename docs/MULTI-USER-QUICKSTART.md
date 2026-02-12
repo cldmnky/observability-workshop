@@ -10,7 +10,7 @@ You now have a **complete multi-user workshop solution** with:
 
 ## 🏗️ Architecture
 
-```
+```text
 User → Route (OAuth) → OAuth Proxy → nginx (Antora site)
                            ↓
                     User Info API
@@ -23,58 +23,68 @@ User → Route (OAuth) → OAuth Proxy → nginx (Antora site)
 
 ## 🚀 Deployment Steps
 
-### 1. Configure Users in values.yaml
+### 1. Create `.config/users.yaml`
 
-Edit `bootstrap/helm/showroom-site/values.yaml`:
-
-```yaml
-multiUser:
-  enabled: true  # Turn on multi-user support
-
-users:
-  user1:
-    console_url: "https://console-openshift-console.apps.cluster-pdhs8.dynamic.redhatworkshops.io"
-    password: "XXX"
-    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p XXX https://api.cluster-pdhs8.dynamic.redhatworkshops.io:6443"
-    openshift_cluster_ingress_domain: "apps.cluster-pdhs8.dynamic.redhatworkshops.io"
-  user2:
-    console_url: "https://console-openshift-console.apps.cluster-pdhs8.dynamic.redhatworkshops.io"
-    password: "XXX"
-    login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p XXX https://api.cluster-pdhs8.dynamic.redhatworkshops.io:6443"
-    openshift_cluster_ingress_domain: "apps.cluster-pdhs8.dynamic.redhatworkshops.io"
-```
-
-### 2. Build Both Containers
+Copy and edit the users file (gitignored):
 
 ```bash
-# Trigger builds for both showroom-site and user-info-api
-make rebuild
+cp .config/users.yaml.example .config/users.yaml
+```
 
-# This will:
-# 1. Build the showroom-site container (Antora + nginx)
-# 2. Build the user-info-api container (Python Flask)
-# 3. Wait for both builds to complete
-# 4. Show deployment status
+Then update credentials in `.config/users.yaml`.
 
-# To build individually:
+### 2. Bootstrap the Cluster with ArgoCD
+
+```bash
+# Applies ApplicationSet and bootstraps users secret/configmap
+make deploy
+```
+
+This will:
+
+- Apply `bootstrap/argocd/applicationset-observability.yaml`
+- Ensure namespace `showroom-workshop` exists
+- Create/update secret `workshop-users-secret` from `.config/users.yaml`
+- Create ConfigMap `workshop-users` **if it does not already exist**
+- Let ArgoCD deploy all applications, including `showroom-site`
+
+### 3. Build Both Containers in Cluster
+
+```bash
+# Rebuild showroom-site and user-info-api images
+make build
+```
+
+To build individually:
+
+```bash
 make build-site      # Just the showroom site
 make build-api       # Just the user-info-api
+```
 
-# To follow logs:
+To follow logs:
+
+```bash
 make build-logs      # Showroom site logs
 make build-logs-api  # User-info-api logs
 ```
 
-### 3. Redeploy with Multi-User
+### 4. Refresh Deployment to Latest Built Images
 
 ```bash
-# Deploy updated chart with OAuth proxy and user-info-api
-helm upgrade showroom-site bootstrap/helm/showroom-site \
-  --namespace showroom-workshop \
-  --values bootstrap/helm/showroom-site/values.yaml
+# Builds both images and restarts deployment rollout
+make refresh
+```
 
-# Or use the Makefile:
-make install-chart
+`make refresh` will build both images, restart the deployment, and wait for rollout completion.
+
+### 5. Multi-User Flags in Chart Values
+
+Keep multi-user enabled in `bootstrap/helm/showroom-site/values.yaml`:
+
+```yaml
+multiUser:
+  enabled: true
 ```
 
 ## 🧪 Testing
@@ -143,6 +153,7 @@ Login via CLI:
 ```
 
 **Supported placeholders:**
+
 - `{user}` - Current username (user1, user2, etc.)
 - `{password}` - User's password
 - `{openshift_console_url}` or `{console_url}` - Console URL
@@ -154,6 +165,7 @@ Login via CLI:
 ### "Placeholders still showing"
 
 **Check JavaScript console:**
+
 ```bash
 # From browser DevTools
 [User Context] Initializing...
@@ -162,6 +174,7 @@ Login via CLI:
 ```
 
 **If errors:**
+
 ```bash
 # Check user-info-api logs
 oc logs -n showroom-workshop -l app.kubernetes.io/name=showroom-site -c user-info-api
@@ -174,6 +187,7 @@ oc exec -n showroom-workshop deployment/showroom-site -c showroom-site -- \
 ### "OAuth login not working"
 
 **Check ServiceAccount:**
+
 ```bash
 oc describe sa showroom-site-oauth -n showroom-workshop
 
@@ -182,6 +196,7 @@ oc describe sa showroom-site-oauth -n showroom-workshop
 ```
 
 **Check Route:**
+
 ```bash
 oc get route showroom-site -n showroom-workshop -o yaml
 
@@ -193,15 +208,24 @@ oc get route showroom-site -n showroom-workshop -o yaml
 ### "User data not found"
 
 **Check ConfigMap:**
+
 ```bash
 oc get configmap workshop-users -n showroom-workshop -o yaml
 
 # Should contain your users with passwords
 ```
 
+If you changed `.config/users.yaml` after first deploy, delete and recreate the ConfigMap:
+
+```bash
+oc delete configmap workshop-users -n showroom-workshop
+make deploy
+```
+
 ## 🔐 Security Notes
 
 - **Passwords in ConfigMap** are not encrypted at rest
+- Keep real credentials only in `.config/users.yaml` (gitignored)
 - For production:
   - Use temporary passwords
   - Set `HIDE_PASSWORDS: "true"` in user-info-api deployment

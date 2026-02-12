@@ -1,4 +1,4 @@
-.PHONY: help build build-site build-api build-all build-wait build-logs build-logs-api deploy-status url rebuild clean install-chart install-chart-with-users deploy-multiuser uninstall-chart sync-argo
+.PHONY: help deploy build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean install-chart install-chart-with-users deploy-multiuser uninstall-chart sync-argo
 
 # Configuration
 NAMESPACE ?= showroom-workshop
@@ -9,6 +9,11 @@ DEPLOYMENT_NAME ?= showroom-site
 ROUTE_NAME ?= showroom-site
 CHART_PATH ?= bootstrap/helm/showroom-site
 CHART_RELEASE ?= showroom-site
+APPSET_FILE ?= bootstrap/argocd/applicationset-observability.yaml
+ARGO_NAMESPACE ?= openshift-gitops
+USERS_FILE ?= .config/users.yaml
+USER_DATA_SECRET ?= workshop-users-secret
+USER_DATA_CONFIGMAP ?= workshop-users
 
 # Colors for output
 GREEN := \033[0;32m
@@ -24,6 +29,30 @@ help: ## Show this help message
 	@echo ""
 	@echo "Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
+
+deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
+	@if [ ! -f "$(USERS_FILE)" ]; then \
+		printf '%b\n' "$(RED)Error: $(USERS_FILE) not found$(NC)"; \
+		printf '%b\n' "$(YELLOW)Create $(USERS_FILE) with your workshop users data (see .config/users.yaml.example)$(NC)"; \
+		exit 1; \
+	fi
+	@printf '%b\n' "$(GREEN)Ensuring namespace $(NAMESPACE) exists...$(NC)"
+	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
+	@printf '%b\n' "$(GREEN)Creating/updating users secret $(USER_DATA_SECRET)...$(NC)"
+	@oc create secret generic $(USER_DATA_SECRET) \
+		-n $(NAMESPACE) \
+		--from-file=users.yaml=$(USERS_FILE) \
+		--dry-run=client -o yaml | oc apply -f -
+	@printf '%b\n' "$(GREEN)Ensuring user data ConfigMap $(USER_DATA_CONFIGMAP) exists...$(NC)"
+	@if oc get configmap $(USER_DATA_CONFIGMAP) -n $(NAMESPACE) >/dev/null 2>&1; then \
+		echo "ConfigMap $(USER_DATA_CONFIGMAP) already exists (left unchanged)"; \
+	else \
+		oc create configmap $(USER_DATA_CONFIGMAP) -n $(NAMESPACE) --from-file=users.yaml=$(USERS_FILE); \
+	fi
+	@printf '%b\n' "$(GREEN)Applying ApplicationSet...$(NC)"
+	@oc apply -f $(APPSET_FILE)
+	@printf '%b\n' "$(YELLOW)ArgoCD will sync applications automatically (including showroom-site).$(NC)"
+	@printf '%s\n' "Run 'make deploy-status' to verify showroom-site resources once synced."
 
 build: ## Trigger builds for both site and API (default)
 	@$(MAKE) build-all
@@ -42,6 +71,15 @@ build-all: ## Trigger both builds
 	@echo "$(GREEN)Triggering both builds...$(NC)"
 	@$(MAKE) build-site
 	@$(MAKE) build-api
+
+refresh: ## Build site+API images and restart deployment on latest images
+	@echo "$(GREEN)Building latest images and refreshing deployment...$(NC)"
+	@$(MAKE) build-wait BUILD_NAME=$(BUILD_NAME_SITE)
+	@$(MAKE) build-wait BUILD_NAME=$(BUILD_NAME_API)
+	@echo "$(YELLOW)Restarting deployment $(DEPLOYMENT_NAME)...$(NC)"
+	@oc rollout restart deployment/$(DEPLOYMENT_NAME) -n $(NAMESPACE)
+	@oc rollout status deployment/$(DEPLOYMENT_NAME) -n $(NAMESPACE) --timeout=300s
+	@echo "$(GREEN)Refresh complete: deployment is running latest built images.$(NC)"
 
 build-wait: ## Trigger a new build and wait for completion
 	@echo "$(GREEN)Triggering new build...$(NC)"
@@ -207,18 +245,7 @@ uninstall-chart: ## Uninstall Helm chart
 	@echo "$(GREEN)Cleanup complete$(NC)"
 
 sync-argo: ## Apply ApplicationSet and sync ArgoCD application
-	@echo "$(GREEN)Applying ApplicationSet...$(NC)"
-	@oc apply -f bootstrap/argocd/applicationset-observability.yaml
-	@echo "$(YELLOW)Waiting for application to be created...$(NC)"
-	@sleep 5
-	@if command -v argocd >/dev/null 2>&1; then \
-		echo "$(GREEN)Syncing ArgoCD application...$(NC)"; \
-		argocd app sync $(CHART_RELEASE); \
-	else \
-		echo "$(YELLOW)argocd CLI not found. ArgoCD will auto-sync within its sync interval.$(NC)"; \
-		echo "Or manually sync via UI: https://openshift-gitops-server-openshift-gitops.apps.cluster/"; \
-	fi
-	@echo "$(GREEN)ArgoCD configured$(NC)"
+	@$(MAKE) deploy
 
 # Development targets
 dev-build: ## Quick dev build (local docker/podman test)

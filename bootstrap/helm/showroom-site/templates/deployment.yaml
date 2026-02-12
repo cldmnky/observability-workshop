@@ -30,10 +30,6 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Values.deployment.name }}
         app.kubernetes.io/component: web
-      annotations:
-        {{- if and .Values.multiUser.enabled .Values.multiUser.userDataConfigMap }}
-        checksum/users: {{ include (print $.Template.BasePath "/user-data-configmap.yaml") . | sha256sum }}
-        {{- end }}
     spec:
       {{- if and .Values.multiUser.enabled .Values.multiUser.oauthProxy.enabled }}
       serviceAccountName: {{ .Values.deployment.name }}-oauth

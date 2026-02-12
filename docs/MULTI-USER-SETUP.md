@@ -4,7 +4,7 @@ This directory contains the implementation for multi-user workshop support with 
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ User Browser                                                 │
 │  ↓                                                           │
@@ -39,12 +39,14 @@ Pod Components:
 ## Components
 
 ### 1. Client-Side JavaScript (`user-context.js`)
+
 - Loaded on every page via supplemental-ui
 - Fetches `/api/user-info` endpoint
 - Replaces placeholders: `{user}`, `{password}`, `{console_url}`, `{login_command}`
 - Shows user badge in header
 
 ### 2. User Info API Server (`user-info-api/`)
+
 - Python Flask application
 - Reads `X-Forwarded-User` header from OAuth proxy
 - Returns user-specific data from ConfigMap
@@ -54,13 +56,15 @@ Pod Components:
   - `GET /healthz` - Health check
 
 ### 3. OAuth Proxy Sidecar
+
 - OpenShift origin-oauth-proxy
 - Enforces OpenShift authentication
 - Injects `X-Forwarded-User` header
 - Terminates TLS
 
 ### 4. Helm Chart Templates
-- `user-data-configmap.yaml` - User data from values.yaml
+
+- User data ConfigMap is managed outside the chart via `make deploy`
 - `user-info-api-build.yaml` - Builds user-info-api container
 - `oauth-serviceaccount.yaml` - ServiceAccount for OAuth
 - `oauth-tls-secret.yaml` - TLS secret for OAuth proxy
@@ -82,45 +86,29 @@ multiUser:
   
   oauthProxy:
     enabled: true
-
-users:
-  user1:
-    console_url: "https://console-openshift-console.apps.cluster.example.com"
-    password: "user1password"
-    login_command: "oc login -u user1 -p user1password https://api.cluster.example.com:6443"
-    openshift_cluster_ingress_domain: "apps.cluster.example.com"
-  user2:
-    console_url: "https://console-openshift-console.apps.cluster.example.com"
-    password: "user2password"
-    login_command: "oc login -u user2 -p user2password https://api.cluster.example.com:6443"
-    openshift_cluster_ingress_domain: "apps.cluster.example.com"
 ```
+
+Create user data in `.config/users.yaml` (gitignored):
+
+```bash
+cp .config/users.yaml.example .config/users.yaml
+```
+
+Then update users in `.config/users.yaml`.
 
 ## Deployment
 
 ### With Multi-User Enabled
 
 ```bash
-# 1. Build user-info-api (first time only)
-oc create -f - <<EOF
-apiVersion: shipwright.io/v1beta1
-kind: BuildRun
-metadata:
-  generateName: user-info-api-build-
-  namespace: showroom-workshop
-spec:
-  build:
-    name: user-info-api-build
-EOF
+# 1. Bootstrap ArgoCD and users data
+make deploy
 
-# 2. Wait for user-info-api image build
-oc logs -f -n showroom-workshop $(oc get pods -n showroom-workshop -l build.shipwright.io/name=user-info-api-build --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+# 2. Build both images in cluster
+make build
 
-# 3. Deploy/upgrade chart
-helm upgrade --install showroom-site bootstrap/helm/showroom-site \
-  --namespace showroom-workshop \
-  --create-namespace \
-  --values bootstrap/helm/showroom-site/values.yaml
+# 3. Refresh deployment with latest images
+make refresh
 
 # 4. Check deployment
 oc get pods -n showroom-workshop
@@ -148,6 +136,7 @@ In Antora content (`.adoc` files), use these placeholders:
 - `{api_url}` - OpenShift API URL
 
 Example:
+
 ```asciidoc
 Login to OpenShift:
 
@@ -163,7 +152,7 @@ Or via CLI: `{login_command}`
 ```bash
 # Run user-info-api locally
 cd user-info-api
-export USER_DATA_FILE=../bootstrap/helm/showroom-site/values.yaml
+export USER_DATA_FILE=../.config/users.yaml
 pip install -r requirements.txt
 python app.py &
 
@@ -180,6 +169,7 @@ curl -H "X-Forwarded-User: user2" http://localhost:8081/api/user-info
 ### Users see placeholders instead of real values
 
 **Check:**
+
 1. Browser console for JavaScript errors
 2. `/api/user-info` endpoint is accessible
 3. OAuth proxy is injecting `X-Forwarded-User` header
@@ -196,6 +186,7 @@ oc exec -n showroom-workshop deployment/showroom-site -c showroom-site -- \
 ### OAuth authentication not working
 
 **Check:**
+
 1. ServiceAccount has OAuth annotation
 2. Route uses reencrypt termination
 3. TLS secret exists
@@ -214,16 +205,18 @@ oc logs -n showroom-workshop -l app.kubernetes.io/name=showroom-site -c oauth-pr
 ### User data not found
 
 **Check ConfigMap:**
+
 ```bash
 oc get configmap workshop-users -n showroom-workshop -o yaml
 ```
 
-**Trigger ConfigMap reload:**
+**Update/recreate user data ConfigMap:**
+
 ```bash
-# Edit values.yaml and upgrade chart
-helm upgrade showroom-site bootstrap/helm/showroom-site \
-  --namespace showroom-workshop \
-  --values bootstrap/helm/showroom-site/values.yaml
+# Edit .config/users.yaml, then recreate ConfigMap and redeploy
+oc delete configmap workshop-users -n showroom-workshop
+make deploy
+make refresh
 ```
 
 ## Security Considerations
@@ -237,13 +230,9 @@ helm upgrade showroom-site bootstrap/helm/showroom-site \
 
 ## Integration with RHDP/AgnosticV
 
-When deploying via showroom-deployer on RHDP, the user data can be injected from AgnosticV variables:
+When deploying via showroom-deployer on RHDP, generate `.config/users.yaml` from AgnosticV variables before running `make deploy`.
 
 ```yaml
 # In AgnosticV output_vars
 showroom_users: "{{ users | to_json }}"
-
-# Chart values can reference this
-users:
-  {{ showroom_users }}
 ```
