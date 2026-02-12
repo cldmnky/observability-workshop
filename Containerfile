@@ -22,6 +22,9 @@ FROM registry.access.redhat.com/ubi9/nginx-124:latest
 # Copy built site from builder stage
 COPY --from=builder /workspace/www /opt/app-root/src
 
+# Copy runtime user context script served directly by nginx
+COPY content/supplemental-ui/js/user-context.js /opt/app-root/src/user-context.js
+
 # Copy custom nginx configuration with sub_filter for JavaScript injection
 # UBI nginx includes /opt/app-root/etc/nginx.default.d/*.conf, not /etc/nginx/conf.d/
 COPY nginx.conf /opt/app-root/etc/nginx.default.d/showroom-sub_filter.conf
