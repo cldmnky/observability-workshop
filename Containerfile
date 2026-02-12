@@ -22,6 +22,9 @@ FROM registry.access.redhat.com/ubi9/nginx-124:latest
 # Copy built site from builder stage
 COPY --from=builder /workspace/www /opt/app-root/src
 
+# Copy custom nginx configuration with sub_filter for JavaScript injection
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 # nginx runs on port 8080 by default in UBI
 EXPOSE 8080
 
