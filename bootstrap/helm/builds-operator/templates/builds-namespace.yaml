@@ -1,0 +1,8 @@
+{{- if ne .Values.operator.namespace "openshift-operators" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.operator.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}

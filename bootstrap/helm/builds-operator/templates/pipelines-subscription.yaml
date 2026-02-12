@@ -1,0 +1,15 @@
+{{- if .Values.pipelines.enabled }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-pipelines-operator-rh
+  namespace: {{ .Values.pipelines.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  channel: {{ .Values.pipelines.channel }}
+  installPlanApproval: {{ .Values.pipelines.installPlanApproval }}
+  name: openshift-pipelines-operator-rh
+  source: {{ .Values.pipelines.source }}
+  sourceNamespace: {{ .Values.pipelines.sourceNamespace }}
+{{- end }}

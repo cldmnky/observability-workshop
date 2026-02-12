@@ -1,0 +1,10 @@
+{{- if ne .Values.operator.namespace "openshift-operators" }}
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-builds-operator
+  namespace: {{ .Values.operator.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec: {}
+{{- end }}

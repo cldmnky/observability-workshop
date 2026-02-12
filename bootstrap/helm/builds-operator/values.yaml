@@ -1,0 +1,29 @@
+# Builds for Red Hat OpenShift Operator Configuration
+operator:
+  # Namespace where the Builds operator will be installed
+  # Builds supports AllNamespaces mode with default namespace openshift-builds
+  namespace: openshift-builds
+  # Operator channel (latest or builds-<version>, e.g. builds-1.7)
+  channel: latest
+  # Install plan approval (Automatic or Manual)
+  installPlanApproval: Automatic
+  # Source catalog
+  source: redhat-operators
+  # Source namespace
+  sourceNamespace: openshift-marketplace
+
+# Red Hat OpenShift Pipelines prerequisite
+# Builds requires OpenShift Pipelines to be installed.
+pipelines:
+  # Install Pipelines operator subscription as prerequisite
+  enabled: true
+  # Pipelines operator subscription namespace (AllNamespaces mode)
+  namespace: openshift-operators
+  # Operator channel
+  channel: latest
+  # Install plan approval (Automatic or Manual)
+  installPlanApproval: Automatic
+  # Source catalog
+  source: redhat-operators
+  # Source namespace
+  sourceNamespace: openshift-marketplace

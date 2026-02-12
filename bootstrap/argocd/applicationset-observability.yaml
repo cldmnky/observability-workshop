@@ -58,6 +58,13 @@ spec:
         repoURL: https://github.com/cldmnky/observability-workshop.git
         targetRevision: main
         path: bootstrap/helm/network-observability-stack
+
+      # Builds for Red Hat OpenShift (Workshop Module 6)
+      - name: builds-operator
+        namespace: openshift-builds
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/builds-operator
   template:
     metadata:
       name: '{{name}}'

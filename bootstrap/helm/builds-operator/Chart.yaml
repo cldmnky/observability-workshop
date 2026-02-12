@@ -1,0 +1,15 @@
+apiVersion: v2
+name: builds-operator
+description: Builds for Red Hat OpenShift operator installation
+type: application
+version: 0.1.0
+appVersion: "1.7"
+keywords:
+  - builds
+  - shipwright
+  - ci
+  - openshift
+maintainers:
+  - name: Red Hat
+sources:
+  - https://docs.redhat.com/en/documentation/builds_for_red_hat_openshift/1.7/html/install/installing-builds
