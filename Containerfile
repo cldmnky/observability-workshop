@@ -9,12 +9,12 @@ RUN npm install -g @antora/cli@3.1 @antora/site-generator@3.1
 
 # Copy site configuration and content
 WORKDIR /workspace
-COPY site.yml .
+COPY site-container.yml .
 COPY ui-config.yml .
 COPY content/ ./content/
 
 # Build the Antora site
-RUN antora site.yml
+RUN antora site-container.yml
 
 # Stage 2: Serve with nginx
 FROM registry.access.redhat.com/ubi9/nginx-124:latest
