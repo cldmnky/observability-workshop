@@ -21,6 +21,12 @@ spec:
       authentication:
         token:
           from: serviceAccount
+    {{- if .Values.clusterLogging.output.lokiStack.tls.enabled }}
+    tls:
+      ca:
+        configMapName: {{ .Values.clusterLogging.output.lokiStack.tls.ca.configMapName }}
+        key: {{ .Values.clusterLogging.output.lokiStack.tls.ca.key }}
+    {{- end }}
   pipelines:
   - name: default
     inputRefs:

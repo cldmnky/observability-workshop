@@ -3,7 +3,7 @@ name: logging-operator
 description: OpenShift Logging Operator with LokiStack for centralized logging (Workshop Module 2)
 type: application
 version: 0.1.0
-appVersion: "6.2"
+appVersion: "6.4"
 keywords:
   - logging
   - loki

@@ -90,6 +90,18 @@ clusterLogging:
   # ServiceAccount used by the collector
   serviceAccount:
     name: logging-collector
+  # Output configuration
+  output:
+    lokiStack:
+      # TLS settings for collector -> LokiStack gateway communication
+      tls:
+        # Enable explicit CA trust bundle reference (recommended)
+        enabled: true
+        ca:
+          # ConfigMap containing service serving CA bundle
+          configMapName: openshift-service-ca.crt
+          # Key inside ConfigMap with PEM content
+          key: service-ca.crt
   # Collection configuration
   collection:
     # Log types to collect
