@@ -260,7 +260,7 @@ The showroom-site Helm chart automatically configures RBAC permissions for authe
 # In bootstrap/helm/showroom-site/values.yaml
 workshopUsers:
   rbac:
-    enabled: true  # Enable workshop RBAC (default: true)
+    enabled: true  # Enable workshop RBAC (recommended for multi-user workshops)
 ```
 
 **Security Model**:

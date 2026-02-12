@@ -122,6 +122,8 @@ workshopUsers:
   # RBAC permissions for workshop participants
   rbac:
     # Enable workshop user RBAC permissions
+    # Set to true for multi-user workshops (recommended)
+    # Set to false for single-user deployments or testing scenarios where RBAC is handled externally
     enabled: true
     # Namespaces where users have edit access (can create/modify resources)
     editNamespaces:

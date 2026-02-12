@@ -90,7 +90,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: workshop-users-{{ . | replace "." "-" | replace "_" "-" }}-edit
+  name: workshop-users-{{ include "showroom-site.sanitize-namespace" . }}-edit
   namespace: {{ . }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -113,7 +113,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: workshop-users-{{ . | replace "." "-" | replace "_" "-" }}-view
+  name: workshop-users-{{ include "showroom-site.sanitize-namespace" . }}-view
   namespace: {{ . }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
