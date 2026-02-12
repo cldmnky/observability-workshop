@@ -23,7 +23,8 @@ FROM registry.access.redhat.com/ubi9/nginx-124:latest
 COPY --from=builder /workspace/www /opt/app-root/src
 
 # Copy custom nginx configuration with sub_filter for JavaScript injection
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# UBI nginx includes /opt/app-root/etc/nginx.default.d/*.conf, not /etc/nginx/conf.d/
+COPY nginx.conf /opt/app-root/etc/nginx.default.d/showroom-sub_filter.conf
 
 # nginx runs on port 8080 by default in UBI
 EXPOSE 8080
