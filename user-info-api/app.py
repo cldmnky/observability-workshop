@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 User Info API Server for Multi-User Workshops
-Reads OAuth user from X-Forwarded-User header and returns user-specific data
+Reads OAuth user from _oauth_proxy cookie and returns user-specific data
 """
 
 import os
 import json
 import yaml
+import base64
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -71,16 +72,35 @@ def healthz():
 def user_info():
     """Return user-specific information based on authenticated user"""
     
-    # Get username from OAuth proxy header
-    username = request.headers.get('X-Forwarded-User')
+    username = None
     
-    # Fallback to other common headers
+    # Parse OAuth proxy cookie: format is base64(email)|timestamp|signature
+    oauth_cookie = request.cookies.get('_oauth_proxy', '')
+    if oauth_cookie:
+        try:
+            # Split by pipe and get the first part (base64 encoded email)
+            parts = oauth_cookie.split('|')
+            if parts:
+                # Decode base64
+                decoded = base64.b64decode(parts[0]).decode('utf-8')
+                # Extract username from email format (user1@cluster.local -> user1)
+                if '@' in decoded:
+                    username = decoded.split('@')[0]
+                else:
+                    username = decoded
+                print(f"Extracted username from cookie: {username}")
+        except Exception as e:
+            print(f"Error parsing OAuth cookie: {e}")
+    
+    # Fallback to headers (for testing/development)
+    if not username:
+        username = request.headers.get('X-Forwarded-User')
     if not username:
         username = request.headers.get('X-Auth-Request-User')
     if not username:
         username = request.headers.get('X-Forwarded-Preferred-Username')
     
-    # For development/testing without OAuth
+    # Fallback for testing without OAuth
     if not username:
         username = request.args.get('user', 'user1')
     
