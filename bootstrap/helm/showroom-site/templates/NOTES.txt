@@ -1,0 +1,76 @@
+Showroom Site Deployment Successful!
+
+The Antora workshop site has been built and deployed using Builds for Red Hat OpenShift.
+
+Resources Created:
+==================
+
+Namespace: {{ .Values.namespace }}
+Build: {{ .Values.build.name }}
+{{- if .Values.buildRun.enabled }}
+BuildRun Job: {{ .Values.buildRun.name }} (triggers initial build)
+{{- end }}
+Deployment: {{ .Values.deployment.name }}
+Service: {{ .Values.service.name }}
+Route: {{ .Values.route.name }}
+
+Access Your Site:
+=================
+
+Get the route URL:
+  oc get route {{ .Values.route.name }} -n {{ .Values.namespace }} -o jsonpath='{.spec.host}'
+
+Or visit directly:
+  https://$(oc get route {{ .Values.route.name }} -n {{ .Values.namespace }} -o jsonpath='{.spec.host}')
+
+Monitor Build Status:
+======================
+
+Check Build resource:
+  oc get build {{ .Values.build.name }} -n {{ .Values.namespace }}
+
+List BuildRuns:
+  oc get buildrun -n {{ .Values.namespace }}
+
+Watch latest BuildRun:
+  oc get buildrun -n {{ .Values.namespace }} --sort-by=.metadata.creationTimestamp -o name | tail -1 | xargs oc logs -f -n {{ .Values.namespace }}
+
+Check deployment status:
+  oc get deployment {{ .Values.deployment.name }} -n {{ .Values.namespace }}
+  oc get pods -n {{ .Values.namespace }}
+
+Trigger New Build:
+==================
+
+To rebuild the site after content changes:
+
+  oc create -f - <<EOF
+  apiVersion: shipwright.io/v1beta1
+  kind: BuildRun
+  metadata:
+    generateName: {{ .Values.build.name }}-
+    namespace: {{ .Values.namespace }}
+  spec:
+    build:
+      name: {{ .Values.build.name }}
+  EOF
+
+Or use the shp CLI:
+  shp build run {{ .Values.build.name }} -n {{ .Values.namespace }} --follow
+
+Troubleshooting:
+================
+
+Check Build logs:
+  BUILDRUN=$(oc get buildrun -n {{ .Values.namespace }} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+  oc logs -f -n {{ .Values.namespace }} $BUILDRUN
+
+Check pod logs:
+  oc logs -n {{ .Values.namespace }} -l app.kubernetes.io/name={{ .Values.deployment.name }}
+
+Verify image in registry:
+  oc get imagestream showroom-site -n {{ .Values.namespace }}
+  oc describe imagestream showroom-site -n {{ .Values.namespace }}
+
+For more information:
+  https://docs.redhat.com/en/documentation/builds_for_red_hat_openshift/1.7/

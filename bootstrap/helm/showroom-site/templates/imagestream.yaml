@@ -1,0 +1,15 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: showroom-site
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: showroom-site
+    app.kubernetes.io/component: imagestream
+    app.kubernetes.io/part-of: observability-workshop
+spec:
+  lookupPolicy:
+    local: true

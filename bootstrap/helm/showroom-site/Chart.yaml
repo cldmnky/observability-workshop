@@ -1,0 +1,16 @@
+apiVersion: v2
+name: showroom-site
+description: Helm chart for building and deploying Antora workshop site using Builds for OpenShift
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - antora
+  - showroom
+  - workshop
+  - builds
+  - openshift
+sources:
+  - https://github.com/rhpds/showroom_template_nookbag
+maintainers:
+  - name: OpenShift Observability Workshop

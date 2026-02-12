@@ -1,0 +1,42 @@
+---
+apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: {{ .Values.build.name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: {{ .Values.build.name }}
+    app.kubernetes.io/component: build
+    app.kubernetes.io/part-of: observability-workshop
+spec:
+  source:
+    type: {{ .Values.build.source.type }}
+    {{- if eq .Values.build.source.type "Git" }}
+    git:
+      url: {{ .Values.build.source.git.url }}
+      {{- if .Values.build.source.git.revision }}
+      revision: {{ .Values.build.source.git.revision }}
+      {{- end }}
+    {{- if .Values.build.source.contextDir }}
+    contextDir: {{ .Values.build.source.contextDir }}
+    {{- end }}
+    {{- end }}
+  strategy:
+    name: {{ .Values.build.strategy.name }}
+    kind: {{ .Values.build.strategy.kind }}
+  paramValues:
+    - name: dockerfile
+      value: {{ .Values.build.dockerfile }}
+  output:
+    image: {{ .Values.build.output.image }}
+  {{- if .Values.build.retention }}
+  retention:
+    {{- if .Values.build.retention.succeededLimit }}
+    succeededLimit: {{ .Values.build.retention.succeededLimit }}
+    {{- end }}
+    {{- if .Values.build.retention.failedLimit }}
+    failedLimit: {{ .Values.build.retention.failedLimit }}
+    {{- end }}
+  {{- end }}

@@ -65,6 +65,13 @@ spec:
         repoURL: https://github.com/cldmnky/observability-workshop.git
         targetRevision: main
         path: bootstrap/helm/builds-operator
+
+      # Showroom Workshop Site (Built with Builds for OpenShift)
+      - name: showroom-site
+        namespace: showroom-workshop
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/showroom-site
   template:
     metadata:
       name: '{{name}}'

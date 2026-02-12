@@ -1,0 +1,12 @@
+{{- if ne .Values.namespace "default" }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: {{ .Values.namespace }}
+    app.kubernetes.io/part-of: observability-workshop
+{{- end }}

@@ -1,0 +1,83 @@
+# Namespace Configuration
+namespace: showroom-workshop
+
+# Build Configuration
+build:
+  # Name of the Build resource
+  name: showroom-site-build
+  # Git source configuration
+  source:
+    type: Git
+    git:
+      url: https://github.com/cldmnky/observability-workshop.git
+      revision: main
+    contextDir: .
+  # Build strategy
+  strategy:
+    name: buildah
+    kind: ClusterBuildStrategy
+  # Output image configuration
+  output:
+    # Use internal OpenShift registry
+    image: image-registry.openshift-image-registry.svc:5000/showroom-workshop/showroom-site:latest
+  # Containerfile location
+  dockerfile: Containerfile
+  # Trigger builds automatically on changes
+  retention:
+    # Keep last 5 successful builds
+    succeededLimit: 5
+    # Keep last 2 failed builds
+    failedLimit: 2
+
+# Deployment Configuration
+deployment:
+  name: showroom-site
+  replicas: 1
+  image:
+    # Pull policy
+    pullPolicy: Always
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  # Port configuration
+  port: 8080
+
+# Service Configuration
+service:
+  name: showroom-site
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Route Configuration
+route:
+  name: showroom-site
+  # TLS configuration
+  tls:
+    enabled: true
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  # Custom hostname (optional, leave empty for auto-generated)
+  host: ""
+  # Path (optional)
+  path: "/"
+
+# BuildRun Configuration
+buildRun:
+  # Enable automatic initial build via Job
+  enabled: true
+  # Name of the BuildRun
+  name: showroom-site-buildrun-initial
+  # Job configuration for triggering build
+  job:
+    # Backoff limit for failed builds
+    backoffLimit: 3
+    # Restart policy
+    restartPolicy: OnFailure
+    # Service account with build permissions
+    serviceAccountName: showroom-builder
