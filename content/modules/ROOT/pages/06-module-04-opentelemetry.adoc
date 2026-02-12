@@ -121,7 +121,7 @@ central-collector   deployment   0.140.0-2     2/2
 sidecar             sidecar      0.140.0-2     1/1
 ----
 +
-Two collectors are deployed: a **central-collector** (deployment mode, 2 replicas) that receives telemetry from applications, and a **sidecar** collector injected into application pods.
+2 collectors are deployed: a **central-collector** (deployment mode, 2 replicas) that receives telemetry from applications, and a **sidecar** collector injected into application pods.
 
 . Check collector pods are running:
 +
@@ -439,14 +439,14 @@ You should see log entries like "Rolled a 3", "Rolled a 5", etc.
 
 . **Verify trace context in logs**:
 +
-Look for trace IDs in the log output:
+Search for trace context markers in the log output:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"} | json | line_format "{{.trace_id}} - {{.message}}"
+{kubernetes_namespace_name="observability-demo"} |= "trace_id"
 ----
 +
-If trace context propagation is working, logs will include trace IDs.
+If trace context propagation is working, some log lines include trace ID metadata.
 
 . **Check OpenTelemetry Collector metrics**:
 +
@@ -663,7 +663,7 @@ oc get opentelemetrycollector central-collector -n observability-demo -o yaml | 
 [source,bash]
 ----
 cat <<EOF | oc apply -f -
-apiVersion: opentelemetry.io/v1alpha1
+apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: custom-collector

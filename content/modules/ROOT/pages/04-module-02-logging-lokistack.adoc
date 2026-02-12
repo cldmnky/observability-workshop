@@ -151,7 +151,7 @@ Check that your logging infrastructure is operational:
 
 **Solution**:
 . Check DaemonSet status: `oc get daemonset -n openshift-logging`
-. View collector logs: `oc logs -n openshift-logging -l component=collector`
+. View collector logs: `oc logs -n openshift-logging -l app.kubernetes.io/component=collector --tail=100`
 . Verify ClusterLogForwarder resource exists: `oc get clusterlogforwarder -n openshift-logging`
 
 **Issue**: ClusterLogForwarder not found
@@ -354,10 +354,10 @@ This calculates the rate of 404 errors per second over the last 5 minutes.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"} | json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
+{kubernetes_namespace_name="observability-demo"} | line_format "{{.kubernetes_pod_name}}: {{ __line__ }}"
 ----
 +
-This formats output to show which pod generated each log line.
+This formats output to show which pod generated each log line and works for plain-text logs.
 
 === Verify
 
@@ -378,7 +378,7 @@ Check that you can query logs effectively:
 **Solution**:
 . Wait 1-2 minutes for logs to be ingested by Loki
 . Verify pods are running: `oc get pods -n observability-demo`
-. Check collector is forwarding logs: `oc logs -n openshift-logging -l component=collector`
+. Check collector is forwarding logs: `oc logs -n openshift-logging -l app.kubernetes.io/component=collector --tail=100`
 . Verify time range in query interface (expand to last 1 hour)
 
 **Issue**: Query returns "Error: parse error"

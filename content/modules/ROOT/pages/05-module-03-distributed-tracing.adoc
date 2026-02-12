@@ -5,7 +5,7 @@
 
 Armed with metrics from Module 1 and centralized logging from Module 2, your team at Red Hat Observability Inc. can now detect issues and understand what went wrong. But there's still a challenge: "When customers report slow response times, we can see that the API is slow, but we don't know which of our 12 microservices is causing the bottleneck," explains your lead architect. "We need to trace requests end-to-end."
 
-Red Hat Observability Inc.'s application is a complex mesh of microservices. A single customer request might touch 5-8 different services. When performance degrades, metrics show overall slowness, and logs show individual service behavior, but neither reveals where in the chain the delay occurs.
+Red Hat Observability Inc.'s application is a complex mesh of microservices. 1 customer request might touch 5-8 different services. When performance degrades, metrics show overall slowness, and logs show individual service behavior, but neither reveals where in the chain the delay occurs.
 
 In this module, you'll implement distributed tracing with Tempo, enabling you to visualize complete request flows and pinpoint exactly where performance bottlenecks occur.
 
@@ -31,9 +31,9 @@ Before implementing tracing, you need to understand how distributed tracing work
 
 * Example: User clicks "checkout" → API gateway → auth service → inventory service → payment service → order service
 
-**Span**: Single operation within a trace
+**Span**: 1 operation within a trace
 
-* Example: "Query inventory database" (one step in the checkout trace)
+* Example: "Query inventory database" (1 step in the checkout trace)
 * Contains: operation name, start time, duration, status, metadata
 
 **Context propagation**: Passing trace ID through service calls
@@ -130,7 +130,7 @@ tempo-tempo-querier-xxxxx           1/1     Running   0          1h
 tempo-tempo-query-frontend-xxxxx    1/1     Running   0          1h
 ----
 
-. Check if Jaeger Query UI is exposed:
+. Check if the tracing gateway route is exposed:
 +
 [source,bash]
 ----
@@ -141,7 +141,7 @@ oc get route -n openshift-tempo-operator
 [source,text]
 ----
 NAME                     HOST/PORT                                  
-tempo-tempo-jaeger    tempo-tempo-jaeger-openshift-tempo...
+tempo-tempo-gateway   tempo-tempo-gateway-openshift-tempo...
 ----
 
 . Access the Jaeger UI:
@@ -150,7 +150,7 @@ Get the route URL:
 +
 [source,bash]
 ----
-oc get route tempo-tempo-jaeger -n openshift-tempo-operator -o jsonpath='{.spec.host}'
+oc get route -n openshift-tempo-operator -l app.kubernetes.io/component=gateway -o jsonpath='{.items[0].spec.host}'
 ----
 +
 Open this URL in your browser (prepend https://)
@@ -180,9 +180,8 @@ Check that your tracing infrastructure is operational:
 **Issue**: Jaeger UI route not found
 
 **Solution**:
-. Check if Jaeger Query is enabled in TempoStack
 . List all routes: `oc get routes -n openshift-tempo-operator`
-. Verify TempoStack has Jaeger configuration: `oc get tempostack tempo -o yaml | grep jaeger`
+. Find the gateway route by label: `oc get route -n openshift-tempo-operator -l app.kubernetes.io/component=gateway`
 
 **Issue**: Cannot access Jaeger UI in browser
 

@@ -1,6 +1,6 @@
-= OpenShift Observability Workshop
+= OpenShift observability workshop
 
-Welcome to the OpenShift Observability Workshop!
+Welcome to the OpenShift observability workshop!
 
 == What you'll learn
 
