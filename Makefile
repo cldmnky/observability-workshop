@@ -1,4 +1,4 @@
-.PHONY: help deploy build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean install-chart install-chart-with-users deploy-multiuser uninstall-chart sync-argo
+.PHONY: help deploy build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean uninstall-chart sync-argo
 
 # Configuration
 NAMESPACE ?= showroom-workshop
@@ -185,57 +185,6 @@ clean: ## Delete old BuildRuns (keeps last 5)
 		echo "$$BUILDRUNS" | xargs -I {} oc delete buildrun {} -n $(NAMESPACE); \
 		printf '%b\n' "$(GREEN)Cleanup complete$(NC)"; \
 	fi
-
-install-chart: ## Install Helm chart directly (not via ArgoCD)
-	@printf '%b\n' "$(GREEN)Installing Helm chart...$(NC)"
-	@printf '%b\n' "$(YELLOW)Ensuring namespace exists...$(NC)"
-	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
-	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
-		--namespace $(NAMESPACE) \
-		--values $(CHART_PATH)/values.yaml \
-		--set createNamespace=false
-	@printf '%b\n' "$(GREEN)Chart installed. Initial build may take a few minutes.$(NC)"
-	@printf '%s\n' "Run 'make deploy-status' to check progress."
-
-install-chart-with-users: ## Install Helm chart with users.yaml (gitignored file with real credentials)
-	@if [ ! -f "$(CHART_PATH)/users.yaml" ]; then \
-		printf '%b\n' "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
-		printf '%b\n' "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
-		exit 1; \
-	fi
-	@printf '%b\n' "$(GREEN)Installing Helm chart with users from users.yaml...$(NC)"
-	@printf '%b\n' "$(YELLOW)Ensuring namespace exists...$(NC)"
-	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
-	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
-		--namespace $(NAMESPACE) \
-		--values $(CHART_PATH)/values.yaml \
-		--values $(CHART_PATH)/users.yaml \
-		--set createNamespace=false
-	@printf '%b\n' "$(GREEN)Chart installed with custom users.$(NC)"
-	@printf '%s\n' "Run 'make deploy-status' to check progress."
-
-deploy-multiuser: ## Deploy multi-user version (requires users.yaml)
-	@if [ ! -f "$(CHART_PATH)/users.yaml" ]; then \
-		printf '%b\n' "$(RED)Error: $(CHART_PATH)/users.yaml not found$(NC)"; \
-		printf '%b\n' "$(YELLOW)Copy users.yaml.example to users.yaml and fill in real credentials$(NC)"; \
-		exit 1; \
-	fi
-	@printf '%b\n' "$(GREEN)Deploying multi-user workshop...$(NC)"
-	@printf '%b\n' "$(YELLOW)Ensuring namespace exists...$(NC)"
-	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
-	@helm upgrade --install $(CHART_RELEASE) $(CHART_PATH) \
-		--namespace $(NAMESPACE) \
-		--values $(CHART_PATH)/values.yaml \
-		--values $(CHART_PATH)/users.yaml \
-		--set createNamespace=false \
-		--set multiUser.enabled=true \
-		--set multiUser.userInfoAPI.enabled=true \
-		--set multiUser.oauthProxy.enabled=true
-	@printf '%b\n' "$(GREEN)Multi-user deployment complete!$(NC)"
-	@sleep 5
-	@$(MAKE) deploy-status
-	@echo ""
-	@$(MAKE) url
 
 uninstall-chart: ## Uninstall Helm chart
 	@printf '%b\n' "$(YELLOW)Uninstalling Helm chart...$(NC)"

@@ -5,7 +5,10 @@ metadata:
   name: {{ .Values.service.name }}
   namespace: {{ .Values.namespace }}
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "2"
+    {{- if and .Values.multiUser.enabled .Values.multiUser.oauthProxy.enabled }}
+    service.beta.openshift.io/serving-cert-secret-name: {{ .Values.route.name }}-tls
+    {{- end }}
   labels:
     app.kubernetes.io/name: {{ .Values.service.name }}
     app.kubernetes.io/component: web
