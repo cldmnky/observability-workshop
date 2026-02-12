@@ -25,49 +25,49 @@ help: ## Show this help message
 	@echo "Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
 
-build: build-all ## Trigger builds for both site and API (default)
+build: ## Trigger builds for both site and API (default)
+	@$(MAKE) build-all
 
-build-site: ## Trigger showroom-site build (non-blocking)
+build-site: ## Trigger showroom-site build
 	@echo "$(GREEN)Triggering showroom-site build...$(NC)"
-	@oc create -f - <<< 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_SITE)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_SITE)'
-	@echo "$(GREEN)BuildRuboth builds and wait for completion
-	@echo "$(GREEN)Triggering both builds and waiting for completion...$(NC)"
-	@echo "$(GREEN)Starting showroom-site build...$(NC)"
-	@BUILDRUN_SITE=$$(oc create -f - <<< 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_SITE)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_SITE)' | cut -d' ' -f1 | cut -d'/' -f2); \
-	echo "$(YELLOW)Site BuildRun: $$BUILDRUN_SITE$(NC)"; \
-	echo "$(BLUE)Starting user-info-api build...$(NC)"; \
-	BUILDRUN_API=$$(oc create -f - <<< 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_API)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_API)' | cut -d' ' -f1 | cut -d'/' -f2); \
-	echo "$(YELLOW)API BuildRun: $$BUILDRUN_API$(NC)"; \
-	echo "$(YELLOW)Waiting for builds to complete...$(NC)"; \
-	SITE_DONE=false; \
-	API_DONE=false; \
+	@printf 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_SITE)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_SITE)\n' | oc create -f -
+	@echo "$(GREEN)Site BuildRun created.$(NC)"
+
+build-api: ## Trigger user-info-api build
+	@echo "$(BLUE)Triggering user-info-api build...$(NC)"
+	@printf 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME_API)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME_API)\n' | oc create -f -
+	@echo "$(BLUE)API BuildRun created.$(NC)"
+
+build-all: ## Trigger both builds
+	@echo "$(GREEN)Triggering both builds...$(NC)"
+	@$(MAKE) build-site
+	@$(MAKE) build-api
+
+build-wait: ## Trigger a new build and wait for completion
+	@echo "$(GREEN)Triggering new build...$(NC)"
+	@BUILDRUN=$$(oc create -f - <<< 'apiVersion: shipwright.io/v1beta1\nkind: BuildRun\nmetadata:\n  generateName: $(BUILD_NAME)-\n  namespace: $(NAMESPACE)\nspec:\n  build:\n    name: $(BUILD_NAME)' | cut -d' ' -f1 | cut -d'/' -f2); \
+	echo "$(YELLOW)BuildRun: $$BUILDRUN$(NC)"; \
+	echo "$(YELLOW)Waiting for build to complete...$(NC)"; \
 	for i in {1..120}; do \
-		if [ "$$SITE_DONE" != "true" ]; then \
-			STATUS_SITE=$$(oc get buildrun $$BUILDRUN_SITE -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "Unknown"); \
-			REASON_SITE=$$(oc get buildrun $$BUILDRUN_SITE -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].reason}' 2>/dev/null || echo "Unknown"); \
-			echo "  [SITE] Status: $$STATUS_SITE ($$REASON_SITE)"; \
-			if [ "$$STATUS_SITE" == "True" ]; then \
-				echo "$(GREEN)✓ Site build completed successfully!$(NC)"; \
-				SITE_DONE=true; \
-			elif [ "$$STATUS_SITE" == "False" ]; then \
-				echo "$(RED)✗ Site build failed!$(NC)"; \
-				exit 1; \
-			fi; \
+		STATUS=$$(oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "Unknown"); \
+		REASON=$$(oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].reason}' 2>/dev/null || echo "Unknown"); \
+		echo "  Status: $$STATUS ($$REASON)"; \
+		if [ "$$STATUS" == "True" ]; then \
+			echo "$(GREEN)✓ Build completed successfully!$(NC)"; \
+			exit 0; \
+		elif [ "$$STATUS" == "False" ]; then \
+			echo "$(RED)✗ Build failed!$(NC)"; \
+			oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o yaml; \
+			exit 1; \
 		fi; \
-		if [ "$$API_DONE" != "true" ]; then \
-			STATUS_API=$$(oc get buildrun $$BUILDRUN_API -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].status}' 2>/dev/null || echo "Unknown"); \
-			REASON_API=$$(oc get buildrun $$BUILDRUN_API -n $(NAMESPACE) -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].reason}' 2>/dev/null || echo "Unknown"); \
-			echo "  [API ] Status: $$STATUS_API ($$REASON_API)"; \
-			if [ "$$STATUS_API" == "True" ]; then \
-				echo "$(BLUE)✓ API build completed successfully!$(NC)"; \
-				API_DONE=true; \
-			elif [ "$$STATUS_API" == "False" ]; then \
-				echo "$(RED)✗ API build failed!$(NC)"; \
-				exit 1; \
-			fi; \
-		fi; \showroom-site build
+		sleep 5; \
+	done; \
+	echo "$(RED)Build timeout after 10 minutes$(NC)"; \
+	exit 1
+
+build-logs: ## Follow logs from the latest showroom-site build
 	@echo "$(YELLOW)Finding latest showroom-site BuildRun...$(NC)"
-	@BUILDRUN=$$(oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
+	@BUILDRUN=$$(oc get buildrun -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_SITE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$BUILDRUN" ]; then \
 		echo "$(RED)No BuildRuns found in namespace $(NAMESPACE)$(NC)"; \
 		exit 1; \
@@ -83,54 +83,31 @@ build-site: ## Trigger showroom-site build (non-blocking)
 	oc logs -f $$POD -n $(NAMESPACE) 2>&1
 
 build-logs-api: ## Follow logs from the latest user-info-api build
-	@echo "$(YELLOW)FinShowroom Site Build Status ===$(NC)"
-	@oc get build.shipwright.io $(BUILD_NAME_SITE) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)Site build resource not found$(NC)"
-	@echo ""
-	@echo "$(BLUE)=== User Info API Build Status ===$(NC)"
-	@oc get build.shipwright.io $(BUILD_NAME_API) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)API build resource not found$(NC)"
-	@echo ""
-	@echo "$(GREEN)=== Recent BuildRuns ===$(NC)"
-	@oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -8 || echo "$(RED)No BuildRuns found$(NC)"
-	@echo ""
-	@echo "$(GREEN)=== ImageStreams ===$(NC)"
-	@oc get imagestream -n $(NAMESPACE) 2>/dev/null || echo "$(RED)ImageStreamsby=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
-	if [ -z "$$POD" ]; then \
-		echo "$(YELLOW)Build pod not yet created, waiting...$(NC)"; \
-		sleep 5; \
-		POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API
-		elif [ "$$STATUS" == "False" ]; then \
-			echo "$(RED)✗ Build failed!$(NC)"; \
-			oc get buildrun $$BUILDRUN -n $(NAMESPACE) -o yaml; \
-			exit 1; \
-		fi; \
-		sleep 5; \
-	done; \
-	echo "$(RED)Build timeout after 10 minutes$(NC)"; \
-	exit 1
-
-build-logs: ## Follow logs from the latest build
-	@echo "$(YELLOW)Finding latest BuildRun...$(NC)"
-	@BUILDRUN=$$(oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
+	@echo "$(YELLOW)Finding latest user-info-api BuildRun...$(NC)"
+	@BUILDRUN=$$(oc get buildrun -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$BUILDRUN" ]; then \
-		echo "$(RED)No BuildRuns found in namespace $(NAMESPACE)$(NC)"; \
+		echo "$(RED)No API BuildRuns found$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)Following logs for: $$BUILDRUN$(NC)"; \
-	POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
+	echo "$(BLUE)Following logs for: $$BUILDRUN$(NC)"; \
+	POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null); \
 	if [ -z "$$POD" ]; then \
 		echo "$(YELLOW)Build pod not yet created, waiting...$(NC)"; \
 		sleep 5; \
-		POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}'); \
+		POD=$$(oc get pods -n $(NAMESPACE) -l build.shipwright.io/name=$(BUILD_NAME_API) --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}'); \
 	fi; \
 	oc logs -f $$POD -n $(NAMESPACE) -c step-build-and-push 2>&1 || \
 	oc logs -f $$POD -n $(NAMESPACE) 2>&1
 
 deploy-status: ## Check deployment and pod status
-	@echo "$(GREEN)=== Build Status ===$(NC)"
-	@oc get build.shipwright.io $(BUILD_NAME) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)Build resource not found$(NC)"
+	@echo "$(GREEN)=== Showroom Site Build ===$(NC)"
+	@oc get build.shipwright.io $(BUILD_NAME_SITE) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)Site build not found$(NC)"
+	@echo ""
+	@echo "$(BLUE)=== User Info API Build ===$(NC)"
+	@oc get build.shipwright.io $(BUILD_NAME_API) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)API build not found$(NC)"
 	@echo ""
 	@echo "$(GREEN)=== Recent BuildRuns ===$(NC)"
-	@oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -5 || echo "$(RED)No BuildRuns found$(NC)"
+	@oc get buildrun -n $(NAMESPACE) --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -8 || echo "$(RED)No BuildRuns found$(NC)"
 	@echo ""
 	@echo "$(GREEN)=== ImageStream ===$(NC)"
 	@oc get imagestream $(ROUTE_NAME) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)ImageStream not found$(NC)"
@@ -139,7 +116,7 @@ deploy-status: ## Check deployment and pod status
 	@oc get deployment $(DEPLOYMENT_NAME) -n $(NAMESPACE) 2>/dev/null || echo "$(RED)Deployment not found$(NC)"
 	@echo ""
 	@echo "$(GREEN)=== Pods ===$(NC)"
-	@oc get pods -n $(NAMESPACE) -l app.kubernetes.io/name=$(DEPLOYMENT_NAME) 2>/dev/null || echo "$(RED)No pods found$(NC)"
+	@oc get pods -n $(NAMESPACE) -l app.kubernetes.io/name=$(DEPLOYMENT_NAME) 2>/dev/null || echo "$(RED)No pods found$( NC)"
 	@echo ""
 	@echo "$(GREEN)=== Route ===$(NC)"
 	@oc get route $(ROUTE_NAME) -n $(NAMESPACE) -o jsonpath='URL: https://{.spec.host}{"\n"}' 2>/dev/null || echo "$(RED)Route not found$(NC)"
