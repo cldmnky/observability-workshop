@@ -1,0 +1,34 @@
+{{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled }}
+---
+apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: user-info-api-build
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: user-info-api-build
+    app.kubernetes.io/component: build
+    app.kubernetes.io/part-of: observability-workshop
+spec:
+  source:
+    type: Git
+    git:
+      url: {{ .Values.build.source.git.url }}
+      {{- if .Values.build.source.git.revision }}
+      revision: {{ .Values.build.source.git.revision }}
+      {{- end }}
+    contextDir: user-info-api
+  strategy:
+    name: buildah
+    kind: ClusterBuildStrategy
+  paramValues:
+    - name: dockerfile
+      value: Containerfile
+  output:
+    image: {{ .Values.multiUser.userInfoAPI.image }}
+  retention:
+    succeededLimit: 3
+    failedLimit: 2
+{{- end }}

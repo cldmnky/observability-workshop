@@ -1,0 +1,24 @@
+{{- if .Values.multiUser.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.multiUser.userDataConfigMap }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-users
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: observability-workshop
+data:
+  users.yaml: |
+    users:
+{{- range $username, $userdata := .Values.users }}
+      {{ $username }}:
+        console_url: {{ $userdata.console_url | quote }}
+        password: {{ $userdata.password | quote }}
+        login_command: {{ $userdata.login_command | quote }}
+        openshift_cluster_ingress_domain: {{ $userdata.openshift_cluster_ingress_domain | quote }}
+{{- end }}
+{{- end }}

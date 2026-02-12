@@ -30,8 +30,81 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Values.deployment.name }}
         app.kubernetes.io/component: web
+      annotations:
+        {{- if and .Values.multiUser.enabled .Values.multiUser.userDataConfigMap }}
+        checksum/users: {{ include (print $.Template.BasePath "/user-data-configmap.yaml") . | sha256sum }}
+        {{- end }}
     spec:
+      {{- if and .Values.multiUser.enabled .Values.multiUser.oauthProxy.enabled }}
+      serviceAccountName: {{ .Values.deployment.name }}-oauth
+      {{- end }}
       containers:
+        {{- if and .Values.multiUser.enabled .Values.multiUser.oauthProxy.enabled }}
+        # OAuth Proxy sidecar
+        - name: oauth-proxy
+          image: quay.io/openshift/origin-oauth-proxy:4.15
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: oauth-proxy
+              containerPort: {{ .Values.multiUser.oauthProxy.port }}
+              protocol: TCP
+          args:
+            - --https-address=:{{ .Values.multiUser.oauthProxy.port }}
+            - --provider=openshift
+            - --openshift-service-account={{ .Values.deployment.name }}-oauth
+            - --upstream=http://localhost:{{ .Values.deployment.port }}
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret=SECRET
+            - --pass-access-token=false
+            - --pass-user-bearer-token=false
+            - --pass-basic-auth=false
+            - --pass-user-headers=true
+            - --skip-auth-regex=^/api/user-info
+          {{- if .Values.multiUser.oauthProxy.resources }}
+          resources:
+            {{- toYaml .Values.multiUser.oauthProxy.resources | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: oauth-tls
+        {{- end }}
+        {{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled }}
+        # User Info API sidecar
+        - name: user-info-api
+          image: {{ .Values.multiUser.userInfoAPI.image }}
+          imagePullPolicy: Always
+          ports:
+            - name: api
+              containerPort: {{ .Values.multiUser.userInfoAPI.port }}
+              protocol: TCP
+          env:
+            - name: USER_DATA_FILE
+              value: /etc/user-data/users.yaml
+            - name: PORT
+              value: "{{ .Values.multiUser.userInfoAPI.port }}"
+          {{- if .Values.multiUser.userInfoAPI.resources }}
+          resources:
+            {{- toYaml .Values.multiUser.userInfoAPI.resources | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: user-data
+              mountPath: /etc/user-data
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+        {{- end }}
+        # Main showroom site container
         - name: showroom-site
           image: {{ .Values.build.output.image }}
           imagePullPolicy: {{ .Values.deployment.image.pullPolicy }}
@@ -59,3 +132,14 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
+      volumes:
+        {{- if and .Values.multiUser.enabled .Values.multiUser.oauthProxy.enabled }}
+        - name: oauth-tls
+          secret:
+            secretName: {{ .Values.route.name }}-tls
+        {{- end }}
+        {{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled }}
+        - name: user-data
+          configMap:
+            name: {{ .Values.multiUser.userDataConfigMap }}
+        {{- end }}

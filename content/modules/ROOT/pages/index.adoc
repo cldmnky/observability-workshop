@@ -33,11 +33,13 @@ This workshop provides a fully configured OpenShift 4.21 multi-node cluster with
 
 You will have access to:
 
-* OpenShift cluster: {openshift_cluster_console_url}
-* Username: {openshift_cluster_admin_username}
-* Password: {openshift_cluster_admin_password}
+* OpenShift Console: {openshift_console_url}
+* Your Username: {user}
+* Your Password: {password}
 
-NOTE: All environment details and credentials are available in the lab interface. The observability stack (Prometheus, Loki, Tempo, OpenTelemetry Operator) is already configured and ready for you to use.
+TIP: To login from the command line, use: `{login_command}`
+
+NOTE: All environment details and credentials are specific to your user session. The observability stack (Prometheus, Loki, Tempo, OpenTelemetry Operator) is already configured and ready for you to use.
 
 == Estimated time
 

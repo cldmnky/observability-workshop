@@ -1,0 +1,29 @@
+FROM registry.access.redhat.com/ubi9/python-311:latest
+
+USER root
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY app.py .
+
+# Create directory for user data
+RUN mkdir -p /etc/user-data && chown -R 1001:0 /app /etc/user-data
+
+# Switch to non-root user
+USER 1001
+
+# Expose port
+EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/healthz')"
+
+# Run with gunicorn for production
+CMD ["gunicorn", "--bind", "0.0.0.0:8081", "--workers", "2", "--threads", "4", "--worker-class", "gthread", "--access-logfile", "-", "--error-logfile", "-", "app:app"]

@@ -15,7 +15,20 @@ spec:
   selector:
     app.kubernetes.io/name: {{ .Values.deployment.name }}
   ports:
+    {{- if and .Values.multiUser.enabled .Values.multiUser.oauthProxy.enabled }}
+    - name: oauth-proxy
+      port: {{ .Values.multiUser.oauthProxy.port }}
+      targetPort: oauth-proxy
+      protocol: TCP
+    {{- else }}
     - name: http
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
+    {{- end }}
+    {{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled }}
+    - name: api
+      port: {{ .Values.multiUser.userInfoAPI.port }}
+      targetPort: api
+      protocol: TCP
+    {{- end }}

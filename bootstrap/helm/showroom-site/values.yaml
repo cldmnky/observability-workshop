@@ -47,6 +47,50 @@ deployment:
   # Port configuration
   port: 8080
 
+# Multi-User Workshop Configuration
+multiUser:
+  # Enable multi-user support with OAuth and user-specific data
+  enabled: true
+  # User data ConfigMap (will be created from users section below)
+  userDataConfigMap: workshop-users
+  # User Info API sidecar configuration
+  userInfoAPI:
+    enabled: true
+    image: image-registry.openshift-image-registry.svc:5000/showroom-workshop/user-info-api:latest
+    port: 8081
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  # OAuth Proxy configuration
+  oauthProxy:
+    enabled: true
+    port: 8443
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# Workshop Users
+# Add your workshop users here - will be loaded into ConfigMap
+users:
+  user1:
+    console_url: "https://console-openshift-console.apps.cluster.example.com"
+    password: "changeme"
+    login_command: "oc login --insecure-skip-tls-verify=false -u user1 -p changeme https://api.cluster.example.com:6443"
+    openshift_cluster_ingress_domain: "apps.cluster.example.com"
+  # user2:
+  #   console_url: "https://console-openshift-console.apps.cluster.example.com"
+  #   password: "changeme"
+  #   login_command: "oc login --insecure-skip-tls-verify=false -u user2 -p changeme https://api.cluster.example.com:6443"
+  #   openshift_cluster_ingress_domain: "apps.cluster.example.com"
+
 # Service Configuration
 service:
   name: showroom-site
@@ -60,8 +104,9 @@ route:
   # TLS configuration
   tls:
     enabled: true
-    termination: edge
+    termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect
+  # OAuth annotations (when multiUser.oauthProxy.enabled)
   # Custom hostname (optional, leave empty for auto-generated)
   host: ""
   # Path (optional)
