@@ -84,13 +84,14 @@ NOTE: In this workshop, you'll primarily use the **RED method** for monitoring t
 
 === OpenShift monitoring architecture
 
-OpenShift provides 2 distinct monitoring stacks:
+OpenShift provides multiple monitoring approaches to serve different use cases:
 
 **Platform monitoring** (managed by cluster admins):
 
 * Monitors OpenShift infrastructure and control plane components
 * Includes: etcd, API server, scheduler, controller manager
 * Namespace: `openshift-monitoring`
+* Scope: Cluster-wide infrastructure metrics
 
 **User workload monitoring** (for your applications):
 
@@ -98,8 +99,23 @@ OpenShift provides 2 distinct monitoring stacks:
 * You configure what to monitor via ServiceMonitor resources
 * Namespace: `openshift-user-workload-monitoring`
 * Uses Prometheus, Thanos Querier, and Alertmanager
+* Scope: Cluster-wide application metrics (any namespace)
 
-In this workshop, you'll focus on **user workload monitoring** to track your application metrics.
+**Cluster Observability Operator (COO)** (for team-scoped monitoring):
+
+* Namespace-scoped monitoring with MonitoringStack custom resource
+* Label-based ServiceMonitor discovery (e.g., `monitoring.rhobs/stack: observability-stack`)
+* Namespace: `observability-demo` (or any namespace you deploy the stack to)
+* Uses Prometheus, Thanos Querier, and Perses dashboards
+* Scope: Team or application-specific metrics with custom visualizations
+
+**When to use each**:
+
+* Use **platform monitoring** for cluster infrastructure (managed by admins, you can't modify it)
+* Use **user workload monitoring** for simple application metrics without custom dashboards
+* Use **COO** when you need custom Perses dashboards, namespace isolation, or team-scoped monitoring
+
+In this workshop, you'll use **both user workload monitoring** (Exercises 1-3) and **COO** (Exercise 4 onward) to understand the full range of monitoring options available in OpenShift.
 
 == Exercise 1: Explore the monitoring stack
 
