@@ -47,6 +47,41 @@ Comprehensive observability relies on 3 complementary signal types:
 * Use **logs** to understand what went wrong (specific error messages)
 * Apply **traces** to find where the problem occurred (which service caused the delay)
 
+=== Observability methodologies
+
+Beyond the 3 pillars, different methodologies help structure which metrics to collect:
+
+**RED Method** (Request-driven services):
+
+* **Rate**: Number of requests per second
+* **Errors**: Number of failed requests per second
+* **Duration**: Time taken to process requests (latency)
+
+Best for: Microservices, APIs, web applications
+
+Example: "Our checkout API has 500 req/s, 2% error rate, and p95 latency of 250ms"
+
+**USE Method** (Resources):
+
+* **Utilization**: Percentage of time the resource is busy
+* **Saturation**: Degree of queued work (e.g., CPU run queue)
+* **Errors**: Error count from the resource
+
+Best for: Infrastructure components (CPU, memory, disk, network)
+
+Example: "Database server has 85% CPU utilization, 10 connections queued, 0 disk errors"
+
+**Golden Signals** (Google SRE):
+
+* **Latency**: Time to service requests
+* **Traffic**: Demand on your system
+* **Errors**: Rate of failed requests
+* **Saturation**: How "full" your service is
+
+Best for: Comprehensive service monitoring combining request and resource metrics
+
+NOTE: In this workshop, you'll primarily use the **RED method** for monitoring the sample application's HTTP requests (rate, errors, duration). The Prometheus metrics `http_requests_total` and `http_request_duration_seconds` directly support this methodology.
+
 === OpenShift monitoring architecture
 
 OpenShift provides 2 distinct monitoring stacks:
