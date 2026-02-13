@@ -149,13 +149,9 @@ Check that your monitoring stack is operational:
 
 === Troubleshooting
 
-**Issue**: No pods in `openshift-user-workload-monitoring` namespace
-
-**Solution**: User workload monitoring may not be enabled. Check the cluster-monitoring-config ConfigMap and verify `enableUserWorkload: true` exists. If not, contact your cluster administrator.
-
 **Issue**: PromQL query returns no data
 
-**Solution**: Allow a few minutes for Prometheus to scrape targets. Check that the namespace exists: `oc get ns openshift-user-workload-monitoring`
+**Solution**: Allow a few minutes for Prometheus to scrape targets. Prometheus scrapes metrics every 30 seconds.
 
 == Exercise 2: Deploy a sample application with metrics
 
@@ -565,14 +561,14 @@ cat <<EOF | oc apply -f -
 apiVersion: perses.dev/v1alpha1
 kind: PersesDatasource
 metadata:
-  name: observability-demo-prometheus
-  namespace: observability-demo
+  name: {user}-prometheus
+  namespace: {user}-observability-demo
   labels:
     monitoring.rhobs/stack: observability-stack
 spec:
   default: true
   display:
-    name: "Observability Demo - Prometheus"
+    name: "{user} - Prometheus"
     description: "Direct connection to Prometheus in observability-demo MonitoringStack"
   plugin:
     kind: PrometheusDatasource
@@ -625,7 +621,7 @@ spec:
                 spec:
                   datasource:
                     kind: PrometheusDatasource
-                    name: observability-demo-prometheus
+                    name: {user}-prometheus
                   query: sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
     totalRequests:
       kind: Panel
@@ -646,7 +642,7 @@ spec:
                 spec:
                   datasource:
                     kind: PrometheusDatasource
-                    name: observability-demo-prometheus
+                    name: {user}-prometheus
                   query: sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
   layouts:
     - kind: Grid
@@ -677,10 +673,7 @@ This creates a Perses dashboard with 2 panels that reference the shared datasour
 +
 [source,bash]
 ----
-for i in {1..100}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
-  sleep 0.1
-done
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c 'for i in {1..100}; do curl -s localhost:8080 > /dev/null; sleep 0.1; done'
 ----
 
 . Access your custom dashboard in the OpenShift console:
@@ -721,22 +714,14 @@ Check that your COO dashboard is working:
 **Solution**:
 . Verify the label: `oc get servicemonitor sample-app-coo -n {user}-observability-demo --show-labels`
 . Must have: `monitoring.rhobs/stack=observability-stack`
-. Check MonitoringStack has namespaceSelector to discover resources in other namespaces:
-+
-[source,bash]
-----
-oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.spec.namespaceSelector}'
-----
-+
-Should return `{}` (empty selector = all namespaces). If it returns nothing, the MonitoringStack only watches its own namespace.
-. Check MonitoringStack resourceSelector: `oc get monitoringstack observability-stack -n observability-demo -o yaml | grep -A5 resourceSelector`
+. Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor after creation
 
 **Issue**: Dashboard not visible in console
 
 **Solution**:
 . Verify PersesDashboard exists: `oc get persesdashboard -n {user}-observability-demo`
 . Check for errors: `oc describe persesdashboard sample-app-dashboard -n {user}-observability-demo`
-. Verify UI plugin is enabled: `oc get uiplugins.observability.openshift.io dashboards -o yaml`
+. Wait 1-2 minutes for the dashboard to appear in the console after creation
 
 **Issue**: Dashboard shows "No data"
 
