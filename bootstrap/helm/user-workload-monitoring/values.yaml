@@ -15,7 +15,7 @@ monitoring:
     # Volume claim template for Prometheus storage
     volumeClaimTemplate:
       spec:
-        storageClassName: gp3-csi
+        storageClassName: ocs-external-storagecluster-ceph-rbd
         resources:
           requests:
             storage: 10Gi

@@ -26,7 +26,7 @@ lokiStack:
   # Size (1x.extra-small, 1x.small, 1x.medium)
   size: 1x.extra-small
   # Storage class for Loki components
-  storageClassName: gp3-csi
+  storageClassName: ocs-external-storagecluster-ceph-rbd
   
   # S3 storage configuration
   s3:
