@@ -364,10 +364,7 @@ sample-app-monitor   10s
 +
 [source,bash]
 ----
-for i in {1..50}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
-  echo "Request $i completed"
-done
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c 'for i in {1..50}; do curl -s localhost:8080 > /dev/null; done'
 ----
 +
 This sends 50 HTTP requests to the application using the debug sidecar, which will increment the `http_requests_total` metric.
@@ -420,80 +417,6 @@ Check that Prometheus is collecting your application metrics:
 **Issue**: Metrics show 0 requests
 
 **Solution**: Generate traffic (run the curl loop again) and wait for Prometheus to scrape the updated values.
-
-[[rbac-troubleshooting]]
-**Issue**: Permission denied when creating ServiceMonitor
-
-**Error message**:
-[source,text]
-----
-servicemonitors.monitoring.coreos.com "sample-app-monitor" is forbidden: 
-User "userX" cannot create resource "servicemonitors" in API group "monitoring.coreos.com"
-----
-
-**Solution**: This requires special permissions beyond the standard OpenShift roles.
-
-**If using the GitOps deployment** (recommended):
-
-The `make deploy` command creates:
-
-1. A `workshop-user-monitoring` ClusterRole with ServiceMonitor/PrometheusRule permissions
-2. RoleBindings in each user's namespace to grant these permissions
-
-Verify the RoleBinding exists:
-
-[source,bash]
-----
-oc get rolebinding workshop-user-monitoring -n {user}-observability-demo
-----
-+
-.Expected output
-[source,text]
-----
-NAME                        ROLE                                    AGE
-workshop-user-monitoring    ClusterRole/workshop-user-monitoring    10m
-----
-
-If missing, re-run:
-
-[source,bash]
-----
-make deploy
-----
-
-**If deploying manually**:
-
-A cluster administrator needs to grant monitoring permissions. The admin can either:
-
-**Option 1**: Grant the pre-created monitoring ClusterRole:
-
-[source,bash]
-----
-oc adm policy add-cluster-role-to-user workshop-user-monitoring {user} -n {user}-observability-demo
-----
-
-**Option 2**: Create and bind a custom ClusterRole:
-
-[source,bash]
-----
-# Create ClusterRole (once)
-cat <<EOF | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: workshop-user-monitoring
-rules:
-- apiGroups: [monitoring.coreos.com]
-  resources: [servicemonitors, prometheusrules, podmonitors]
-  verbs: [create, delete, get, list, patch, update, watch]
-EOF
-
-# Grant to user
-oc create rolebinding workshop-user-monitoring \
-  --clusterrole=workshop-user-monitoring \
-  --user={user} \
-  -n {user}-observability-demo
-----
 
 == Exercise 4: Create custom dashboards with COO
 
@@ -590,7 +513,9 @@ EOF
 +
 Note the `monitoring.rhobs/stack: observability-stack` label - this tells COO to scrape this service.
 
-. Verify the ServiceMonitor is picked up by checking Prometheus targets:
+. Verify the COO Prometheus stack has picked up your ServiceMonitor:
++
+First, check that Prometheus pods are running:
 +
 [source,bash]
 ----
@@ -606,7 +531,23 @@ prometheus-observability-stack-1    2/2     Running   0          1h
 prometheus-observability-stack-2    2/2     Running   0          1h
 ----
 +
-Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor.
+Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify it's being scraped:
++
+[source,bash]
+----
+oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- \
+  sh -c 'wget -q -O - http://localhost:9090/api/v1/targets' | \
+  grep -o '"namespace":"[^"]*observability-demo"' | head -5
+----
++
+.Expected output (showing your namespace is being monitored)
+[source,text]
+----
+"namespace":"user1-observability-demo"
+"namespace":"user1-observability-demo"
+----
++
+If you see your namespace listed, the COO Prometheus has successfully discovered and is scraping your ServiceMonitor.
 
 . Create a Perses dashboard to visualize your metrics:
 +
