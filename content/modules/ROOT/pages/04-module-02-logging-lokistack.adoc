@@ -168,7 +168,7 @@ To practice querying logs, you need an application that generates diverse log en
 +
 [source,bash]
 ----
-oc get pods -n observability-demo
+oc get pods -n {user}-observability-demo
 ----
 +
 If the pods aren't running, redeploy:
@@ -180,7 +180,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample-app
-  namespace: observability-demo
+  namespace: {user}-observability-demo
   labels:
     app: sample-app
 spec:
@@ -208,10 +208,10 @@ EOF
 ----
 for i in {1..50}; do
   # Successful requests
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
   
   # Failed requests (404 errors)
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/nonexistent > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/nonexistent > /dev/null
   
   echo "Completed request pair $i"
   sleep 0.5
@@ -224,7 +224,7 @@ This generates a mix of 200 (success) and 404 (error) responses, creating varied
 +
 [source,bash]
 ----
-oc logs -n observability-demo deployment/sample-app --tail=20
+oc logs -n {user}-observability-demo deployment/sample-app --tail=20
 ----
 +
 .Sample output
@@ -245,7 +245,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-backend
-  namespace: observability-demo
+  namespace: {user}-observability-demo
   labels:
     app: api-backend
 spec:
@@ -275,7 +275,7 @@ EOF
 [source,bash]
 ----
 for i in {1..20}; do
-  oc exec -n observability-demo deployment/api-backend -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/api-backend -- curl -s localhost:8080 > /dev/null
   sleep 1
 done
 ----
@@ -307,18 +307,18 @@ This opens the log query interface powered by Loki.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"}
+{kubernetes_namespace_name="{user}-observability-demo"}
 ----
 +
 Click **Run query**
 +
-You should see log entries from all pods in the observability-demo namespace.
+You should see log entries from all pods in the {user}-observability-demo namespace.
 
 . Filter logs to show only error responses (404):
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"} |= "404"
+{kubernetes_namespace_name="{user}-observability-demo"} |= "404"
 ----
 +
 The `|=` operator filters for log lines containing "404".
@@ -327,7 +327,7 @@ The `|=` operator filters for log lines containing "404".
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo", kubernetes_pod_name=~"sample-app.*"}
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"sample-app.*"}
 ----
 +
 The `=~` operator matches a regular expression.
@@ -336,7 +336,7 @@ The `=~` operator matches a regular expression.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo", kubernetes_pod_name=~"sample-app.*"} |= "200" != "404"
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"sample-app.*"} |= "200" != "404"
 ----
 +
 This shows lines containing "200" but not "404".
@@ -345,7 +345,7 @@ This shows lines containing "200" but not "404".
 +
 [source,logql]
 ----
-sum(rate({kubernetes_namespace_name="observability-demo"} |= "404" [5m]))
+sum(rate({kubernetes_namespace_name="{user}-observability-demo"} |= "404" [5m]))
 ----
 +
 This calculates the rate of 404 errors per second over the last 5 minutes.
@@ -354,7 +354,7 @@ This calculates the rate of 404 errors per second over the last 5 minutes.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"} | line_format "{{.kubernetes_pod_name}}: {{ __line__ }}"
+{kubernetes_namespace_name="{user}-observability-demo"} | line_format "{{.kubernetes_pod_name}}: {{ __line__ }}"
 ----
 +
 This formats output to show which pod generated each log line and works for plain-text logs.
@@ -363,7 +363,7 @@ This formats output to show which pod generated each log line and works for plai
 
 Check that you can query logs effectively:
 
-* ✓ Logs from observability-demo namespace are visible
+* ✓ Logs from {user}-observability-demo namespace are visible
 * ✓ Filter queries return only matching log lines
 * ✓ Pod-specific queries work with regex patterns
 * ✓ Rate calculations show error frequency
@@ -377,7 +377,7 @@ Check that you can query logs effectively:
 
 **Solution**:
 . Wait 1-2 minutes for logs to be ingested by Loki
-. Verify pods are running: `oc get pods -n observability-demo`
+. Verify pods are running: `oc get pods -n {user}-observability-demo`
 . Check collector is forwarding logs: `oc logs -n openshift-logging -l app.kubernetes.io/component=collector --tail=100`
 . Verify time range in query interface (expand to last 1 hour)
 
@@ -386,7 +386,7 @@ Check that you can query logs effectively:
 **Solution**:
 . Check LogQL syntax (labels in braces, filters with pipes)
 . Ensure label names are correct: `kubernetes_namespace_name` not `namespace`
-. Use quotes around label values: `{kubernetes_namespace_name="observability-demo"}`
+. Use quotes around label values: `{kubernetes_namespace_name="{user}-observability-demo"}`
 
 **Issue**: Rate queries return no data
 
@@ -406,7 +406,7 @@ The real power of observability comes from correlating different signals. You'll
 [source,bash]
 ----
 for i in {1..100}; do
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
   sleep 0.1
 done
 ----
@@ -419,7 +419,7 @@ Query:
 +
 [source,promql]
 ----
-rate(http_requests_total{namespace="observability-demo", code="404"}[5m])
+rate(http_requests_total{namespace="{user}-observability-demo", code="404"}[5m])
 ----
 +
 You should see a spike in the error rate.
@@ -428,7 +428,7 @@ You should see a spike in the error rate.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"} |= "404" |= "error"
+{kubernetes_namespace_name="{user}-observability-demo"} |= "404" |= "error"
 ----
 +
 This shows the actual error log messages during the spike.
@@ -443,7 +443,7 @@ Compare the timestamp of log entries with the metric spike time.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="observability-demo"} 
+{kubernetes_namespace_name="{user}-observability-demo"} 
   |= "404" 
   | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*(?P<method>\w+).*(?P<status>\d{3})`
   | line_format "{{.timestamp}} - {{.method}} {{.status}}"
@@ -476,7 +476,7 @@ Check that you can correlate metrics and logs:
 
 **Solution**:
 . Verify log format matches regex pattern
-. View raw logs first: `{kubernetes_namespace_name="observability-demo"}`
+. View raw logs first: `{kubernetes_namespace_name="{user}-observability-demo"}`
 . Test regex pattern against actual log samples
 . Use simpler filters first, then add complexity
 
@@ -506,14 +506,14 @@ spec:
     rules:
     - alert: HighApplicationErrorRate
       expr: |
-        sum(rate({kubernetes_namespace_name="observability-demo"} |= "404" [5m])) > 0.5
+        sum(rate({kubernetes_namespace_name="{user}-observability-demo"} |= "404" [5m])) > 0.5
       for: 2m
       labels:
         severity: warning
         team: platform
       annotations:
-        summary: "High error rate in observability-demo namespace"
-        description: "Application in observability-demo is producing more than 0.5 errors/second for 2 minutes."
+        summary: "High error rate in {user}-observability-demo namespace"
+        description: "Application in {user}-observability-demo is producing more than 0.5 errors/second for 2 minutes."
 EOF
 ----
 +
@@ -531,7 +531,7 @@ oc get alertingrule -n openshift-logging
 [source,bash]
 ----
 for i in {1..200}; do
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
   sleep 0.5
 done
 ----

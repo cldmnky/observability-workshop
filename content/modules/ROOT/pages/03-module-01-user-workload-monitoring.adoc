@@ -157,7 +157,7 @@ To practice monitoring, you need an application that exposes metrics. You'll dep
 +
 [source,bash]
 ----
-oc new-project observability-demo
+oc new-project {user}-observability-demo
 ----
 
 . Deploy a sample application that exposes metrics:
@@ -169,7 +169,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample-app
-  namespace: observability-demo
+  namespace: {user}-observability-demo
   labels:
     app: sample-app
 spec:
@@ -193,7 +193,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sample-app
-  namespace: observability-demo
+  namespace: {user}-observability-demo
   labels:
     app: sample-app
 spec:
@@ -212,7 +212,7 @@ This creates a deployment with 2 replicas and a service to expose the applicatio
 +
 [source,bash]
 ----
-oc get pods -n observability-demo
+oc get pods -n {user}-observability-demo
 ----
 +
 .Expected output
@@ -227,7 +227,7 @@ sample-app-xxxxx-xxxxx        1/1     Running   0          30s
 +
 [source,bash]
 ----
-oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080/metrics | head -20
+oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/metrics | head -20
 ----
 +
 .Sample output
@@ -248,7 +248,7 @@ The application exposes metrics like `http_requests_total`, `version`, and other
 
 Check that your sample application is ready for monitoring:
 
-* ✓ 2 pods running in observability-demo namespace
+* ✓ 2 pods running in {user}-observability-demo namespace
 * ✓ Service exposing port 8080
 * ✓ Metrics endpoint returns Prometheus-formatted data
 * ✓ Metrics include `http_requests_total` counter
@@ -270,7 +270,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: sample-app-monitor
-  namespace: observability-demo
+  namespace: {user}-observability-demo
   labels:
     app: sample-app
 spec:
@@ -295,7 +295,7 @@ This ServiceMonitor tells Prometheus to:
 +
 [source,bash]
 ----
-oc get servicemonitor -n observability-demo
+oc get servicemonitor -n {user}-observability-demo
 ----
 +
 .Expected output
@@ -310,7 +310,7 @@ sample-app-monitor   10s
 [source,bash]
 ----
 for i in {1..50}; do
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
   echo "Request $i completed"
 done
 ----
@@ -325,7 +325,7 @@ Enter this PromQL query:
 +
 [source,promql]
 ----
-http_requests_total{namespace="observability-demo"}
+http_requests_total{namespace="{user}-observability-demo"}
 ----
 +
 Click **Run Queries**
@@ -336,7 +336,7 @@ You should see results showing the counter values for each pod.
 +
 [source,promql]
 ----
-rate(http_requests_total{namespace="observability-demo"}[5m])
+rate(http_requests_total{namespace="{user}-observability-demo"}[5m])
 ----
 +
 This shows requests per second averaged over 5 minutes.
@@ -345,7 +345,7 @@ This shows requests per second averaged over 5 minutes.
 
 Check that Prometheus is collecting your application metrics:
 
-* ✓ ServiceMonitor exists in observability-demo namespace
+* ✓ ServiceMonitor exists in {user}-observability-demo namespace
 * ✓ PromQL query `http_requests_total` returns data
 * ✓ Multiple time series (one per pod) are visible
 * ✓ Rate query shows request rate calculation
@@ -358,9 +358,9 @@ Check that Prometheus is collecting your application metrics:
 
 **Solution**: 
 . Wait 1-2 minutes for Prometheus to scrape metrics
-. Verify ServiceMonitor exists: `oc get servicemonitor -n observability-demo`
+. Verify ServiceMonitor exists: `oc get servicemonitor -n {user}-observability-demo`
 . Check that service labels match ServiceMonitor selector
-. Verify pods are running and exposing metrics: `oc exec -n observability-demo deployment/sample-app -- curl localhost:8080/metrics`
+. Verify pods are running and exposing metrics: `oc exec -n {user}-observability-demo deployment/sample-app -- curl localhost:8080/metrics`
 
 **Issue**: Metrics show 0 requests
 
@@ -383,7 +383,7 @@ Querying metrics via PromQL is powerful, but visualizing trends over time is mor
 +
 [source,promql]
 ----
-sum(rate(http_requests_total{namespace="observability-demo"}[5m])) by (pod)
+sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
 ----
 +
 This sums the request rate per pod.
@@ -395,7 +395,7 @@ This sums the request rate per pod.
 +
 [source,promql]
 ----
-sum(http_requests_total{namespace="observability-demo"}) by (pod)
+sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
 ----
 
 . Generate more traffic to see the dashboard update:
@@ -403,7 +403,7 @@ sum(http_requests_total{namespace="observability-demo"}) by (pod)
 [source,bash]
 ----
 for i in {1..100}; do
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
   sleep 0.1
 done
 ----
@@ -438,7 +438,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: sample-app-alerts
-  namespace: observability-demo
+  namespace: {user}-observability-demo
   labels:
     app: sample-app
 spec:
@@ -447,7 +447,7 @@ spec:
     interval: 30s
     rules:
     - alert: LowRequestRate
-      expr: sum(rate(http_requests_total{namespace="observability-demo"}[5m])) < 0.1
+      expr: sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) < 0.1
       for: 2m
       labels:
         severity: warning
@@ -463,7 +463,7 @@ This alert fires if request rate drops below 0.1 requests/second for more than 2
 +
 [source,bash]
 ----
-oc get prometheusrule -n observability-demo
+oc get prometheusrule -n {user}-observability-demo
 ----
 
 . Check alert status in the console:
@@ -483,7 +483,7 @@ Wait 2-3 minutes without generating any traffic. The alert should transition fro
 [source,bash]
 ----
 for i in {1..200}; do
-  oc exec -n observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
   sleep 0.5
 done
 ----
@@ -494,7 +494,7 @@ After a few minutes, the alert should transition back to **Inactive**.
 
 Check that your alerting rules are working:
 
-* ✓ PrometheusRule exists in observability-demo namespace
+* ✓ PrometheusRule exists in {user}-observability-demo namespace
 * ✓ Alert appears in **Observe** → **Alerting** → **Alerting rules**
 * ✓ Alert transitions through states: Inactive → Pending → Firing
 * ✓ Alert resolves when traffic increases
@@ -506,7 +506,7 @@ Check that your alerting rules are working:
 **Issue**: Alert not visible in console
 
 **Solution**:
-. Verify PrometheusRule exists: `oc get prometheusrule -n observability-demo`
+. Verify PrometheusRule exists: `oc get prometheusrule -n {user}-observability-demo`
 . Check syntax errors in PromQL expression
 . Wait 1-2 minutes for Prometheus to reload configuration
 

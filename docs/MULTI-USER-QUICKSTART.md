@@ -36,7 +36,7 @@ Then update credentials in `.config/users.yaml`.
 ### 2. Bootstrap the Cluster with ArgoCD
 
 ```bash
-# Applies ApplicationSet and bootstraps users secret/configmap
+# Applies ApplicationSet and bootstraps users secret + RBAC
 make deploy
 ```
 
@@ -45,6 +45,10 @@ This will:
 - Apply `bootstrap/argocd/applicationset-observability.yaml`
 - Ensure namespace `showroom-workshop` exists
 - Create/update secret `workshop-users-secret` from `.config/users.yaml`
+- Create/update OpenShift group `workshop-users` with all users from `.config/users.yaml`
+- Grant `view` access for `workshop-users` in operator namespaces (logging, tempo, monitoring, etc.)
+- Create per-user exercise namespaces like `user1-observability-demo` and `user1-tracing-demo`
+- Grant each user `edit` access in their own exercise namespaces
 - Let ArgoCD deploy all applications, including `showroom-site`
 
 ### 3. Build Both Containers in Cluster
@@ -159,6 +163,11 @@ Login via CLI:
 - `{login_command}` - Full oc login command
 - `{openshift_cluster_ingress_domain}` - Cluster domain
 
+Namespace behavior in exercises:
+
+- Workshop pages automatically adapt exercise namespaces for each logged-in user.
+- Static examples using `observability-demo` or `tracing-demo` render as `<user>-observability-demo` and `<user>-tracing-demo`.
+
 ## 🔧 Troubleshooting
 
 ### "Placeholders still showing"
@@ -223,7 +232,6 @@ make refresh
 
 ## 🔐 Security Notes
 
-- **Passwords in ConfigMap** are not encrypted at rest
 - **Passwords in Secret** are base64-encoded (not encrypted by default at rest)
 - Keep real credentials only in `.config/users.yaml` (gitignored)
 - For production:

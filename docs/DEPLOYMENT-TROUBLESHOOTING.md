@@ -27,6 +27,9 @@ make refresh
 
 - Ensures namespace `showroom-workshop` exists
 - Creates/updates secret `workshop-users-secret` from `.config/users.yaml`
+- Creates/updates OpenShift group `workshop-users` from `.config/users.yaml` user list
+- Creates view RoleBindings for `workshop-users` in operator namespaces
+- Creates per-user exercise namespaces (`<user>-observability-demo`, `<user>-tracing-demo`) and grants each user `edit` in their own namespaces
 - Applies `bootstrap/argocd/applicationset-observability.yaml`
 
 ## Common Issues

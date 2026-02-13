@@ -1,4 +1,4 @@
-.PHONY: help deploy build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean uninstall-chart sync-argo
+.PHONY: help deploy verify-rbac build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean uninstall-chart sync-argo
 
 # Configuration
 NAMESPACE ?= showroom-workshop
@@ -13,6 +13,9 @@ APPSET_FILE ?= bootstrap/argocd/applicationset-observability.yaml
 ARGO_NAMESPACE ?= openshift-gitops
 USERS_FILE ?= .config/users.yaml
 USER_DATA_SECRET ?= workshop-users-secret
+WORKSHOP_USERS_GROUP ?= workshop-users
+OPERATOR_VIEW_NAMESPACES ?= openshift-logging openshift-tempo-operator openshift-operators openshift-monitoring openshift-user-workload-monitoring openshift-netobserv-operator openshift-builds
+EXERCISE_NAMESPACE_SUFFIXES ?= observability-demo tracing-demo
 
 # Colors for output
 GREEN := \033[0;32m
@@ -35,6 +38,12 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 		printf '%b\n' "$(YELLOW)Create $(USERS_FILE) with your workshop users data (see .config/users.yaml.example)$(NC)"; \
 		exit 1; \
 	fi
+	@USER_LIST=$$(awk '/^users:/{in_users=1; next} in_users && /^[^[:space:]]/{in_users=0} in_users && /^  [A-Za-z0-9._-]+:/{gsub(":", "", $$1); print $$1}' $(USERS_FILE)); \
+	if [ -z "$$USER_LIST" ]; then \
+		printf '%b\n' "$(RED)Error: no users found under 'users:' in $(USERS_FILE)$(NC)"; \
+		exit 1; \
+	fi; \
+	printf '%b\n' "$(GREEN)Workshop users discovered: $$USER_LIST$(NC)"
 	@printf '%b\n' "$(GREEN)Ensuring namespace $(NAMESPACE) exists...$(NC)"
 	@oc create namespace $(NAMESPACE) 2>/dev/null || echo "Namespace already exists"
 	@printf '%b\n' "$(GREEN)Creating/updating users secret $(USER_DATA_SECRET)...$(NC)"
@@ -42,10 +51,143 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 		-n $(NAMESPACE) \
 		--from-file=users.yaml=$(USERS_FILE) \
 		--dry-run=client -o yaml | oc apply -f -
+	@printf '%b\n' "$(GREEN)Creating/updating OpenShift group $(WORKSHOP_USERS_GROUP)...$(NC)"
+	@USER_LIST=$$(awk '/^users:/{in_users=1; next} in_users && /^[^[:space:]]/{in_users=0} in_users && /^  [A-Za-z0-9._-]+:/{gsub(":", "", $$1); print $$1}' $(USERS_FILE)); \
+	{ \
+		echo "apiVersion: user.openshift.io/v1"; \
+		echo "kind: Group"; \
+		echo "metadata:"; \
+		echo "  name: $(WORKSHOP_USERS_GROUP)"; \
+		echo "users:"; \
+		for user in $$USER_LIST; do echo "- $$user"; done; \
+	} | oc apply -f -
+	@printf '%b\n' "$(GREEN)Granting group view access in operator namespaces...$(NC)"
+	@for ns in $(OPERATOR_VIEW_NAMESPACES); do \
+		if oc get namespace $$ns >/dev/null 2>&1; then \
+			printf '%s\n' \
+				'apiVersion: rbac.authorization.k8s.io/v1' \
+				'kind: RoleBinding' \
+				'metadata:' \
+				'  name: $(WORKSHOP_USERS_GROUP)-view' \
+				"  namespace: $$ns" \
+				'roleRef:' \
+				'  apiGroup: rbac.authorization.k8s.io' \
+				'  kind: ClusterRole' \
+				'  name: view' \
+				'subjects:' \
+				'- kind: Group' \
+				'  apiGroup: rbac.authorization.k8s.io' \
+				'  name: $(WORKSHOP_USERS_GROUP)' | oc apply -f -; \
+		else \
+			printf '%b\n' "$(YELLOW)Skipping missing namespace $$ns for view RoleBinding$(NC)"; \
+		fi; \
+	done
+	@printf '%b\n' "$(GREEN)Creating/updating per-user exercise namespaces and edit access...$(NC)"
+	@USER_LIST=$$(awk '/^users:/{in_users=1; next} in_users && /^[^[:space:]]/{in_users=0} in_users && /^  [A-Za-z0-9._-]+:/{gsub(":", "", $$1); print $$1}' $(USERS_FILE)); \
+	for user in $$USER_LIST; do \
+		for suffix in $(EXERCISE_NAMESPACE_SUFFIXES); do \
+			user_ns=$${user}-$${suffix}; \
+			oc create namespace $$user_ns 2>/dev/null || true; \
+			printf '%s\n' \
+				'apiVersion: rbac.authorization.k8s.io/v1' \
+				'kind: RoleBinding' \
+				'metadata:' \
+				'  name: workshop-user-edit' \
+				"  namespace: $$user_ns" \
+				'roleRef:' \
+				'  apiGroup: rbac.authorization.k8s.io' \
+				'  kind: ClusterRole' \
+				'  name: edit' \
+				'subjects:' \
+				'- kind: User' \
+				'  apiGroup: rbac.authorization.k8s.io' \
+				"  name: $$user" | oc apply -f -; \
+		done; \
+	done
 	@printf '%b\n' "$(GREEN)Applying ApplicationSet...$(NC)"
 	@oc apply -f $(APPSET_FILE)
 	@printf '%b\n' "$(YELLOW)ArgoCD will sync applications automatically (including showroom-site).$(NC)"
 	@printf '%s\n' "Run 'make deploy-status' to verify showroom-site resources once synced."
+
+verify-rbac: ## Verify workshop group, operator view bindings, and user namespace edit bindings
+	@if [ ! -f "$(USERS_FILE)" ]; then \
+		printf '%b\n' "$(RED)Error: $(USERS_FILE) not found$(NC)"; \
+		exit 1; \
+	fi
+	@USER_LIST=$$(awk '/^users:/{in_users=1; next} in_users && /^[^[:space:]]/{in_users=0} in_users && /^  [A-Za-z0-9._-]+:/{gsub(":", "", $$1); print $$1}' $(USERS_FILE)); \
+	if [ -z "$$USER_LIST" ]; then \
+		printf '%b\n' "$(RED)Error: no users found under 'users:' in $(USERS_FILE)$(NC)"; \
+		exit 1; \
+	fi; \
+	FAIL=0; \
+	printf '%b\n' "$(GREEN)Verifying OpenShift group $(WORKSHOP_USERS_GROUP)...$(NC)"; \
+	if oc get group $(WORKSHOP_USERS_GROUP) >/dev/null 2>&1; then \
+		printf '%b\n' "$(GREEN)✓ Group exists: $(WORKSHOP_USERS_GROUP)$(NC)"; \
+		GROUP_USERS=$$(oc get group $(WORKSHOP_USERS_GROUP) -o jsonpath='{.users[*]}' 2>/dev/null); \
+		for user in $$USER_LIST; do \
+			if echo " $$GROUP_USERS " | grep -q " $$user "; then \
+				printf '%b\n' "$(GREEN)  ✓ Group contains user: $$user$(NC)"; \
+			else \
+				printf '%b\n' "$(RED)  ✗ Group missing user: $$user$(NC)"; \
+				FAIL=1; \
+			fi; \
+		done; \
+	else \
+		printf '%b\n' "$(RED)✗ Group not found: $(WORKSHOP_USERS_GROUP)$(NC)"; \
+		FAIL=1; \
+	fi; \
+	printf '%b\n' "$(GREEN)Verifying group view RoleBindings in operator namespaces...$(NC)"; \
+	for ns in $(OPERATOR_VIEW_NAMESPACES); do \
+		if oc get namespace $$ns >/dev/null 2>&1; then \
+			if oc get rolebinding $(WORKSHOP_USERS_GROUP)-view -n $$ns >/dev/null 2>&1; then \
+				RB_ROLE=$$(oc get rolebinding $(WORKSHOP_USERS_GROUP)-view -n $$ns -o jsonpath='{.roleRef.name}' 2>/dev/null); \
+				RB_GROUPS=$$(oc get rolebinding $(WORKSHOP_USERS_GROUP)-view -n $$ns -o jsonpath='{.subjects[?(@.kind=="Group")].name}' 2>/dev/null); \
+				if [ "$$RB_ROLE" = "view" ] && echo " $$RB_GROUPS " | grep -q " $(WORKSHOP_USERS_GROUP) "; then \
+					printf '%b\n' "$(GREEN)  ✓ $$ns: $(WORKSHOP_USERS_GROUP)-view$(NC)"; \
+				else \
+					printf '%b\n' "$(RED)  ✗ $$ns: $(WORKSHOP_USERS_GROUP)-view has unexpected roleRef/subject$(NC)"; \
+					FAIL=1; \
+				fi; \
+			else \
+				printf '%b\n' "$(RED)  ✗ $$ns: missing RoleBinding $(WORKSHOP_USERS_GROUP)-view$(NC)"; \
+				FAIL=1; \
+			fi; \
+		else \
+			printf '%b\n' "$(YELLOW)  - Skipping missing namespace $$ns$(NC)"; \
+		fi; \
+	done; \
+	printf '%b\n' "$(GREEN)Verifying per-user exercise namespaces and edit RoleBindings...$(NC)"; \
+	for user in $$USER_LIST; do \
+		for suffix in $(EXERCISE_NAMESPACE_SUFFIXES); do \
+			user_ns=$${user}-$${suffix}; \
+			if oc get namespace $$user_ns >/dev/null 2>&1; then \
+				printf '%b\n' "$(GREEN)  ✓ Namespace exists: $$user_ns$(NC)"; \
+			else \
+				printf '%b\n' "$(RED)  ✗ Namespace missing: $$user_ns$(NC)"; \
+				FAIL=1; \
+				continue; \
+			fi; \
+			if oc get rolebinding workshop-user-edit -n $$user_ns >/dev/null 2>&1; then \
+				RB_ROLE=$$(oc get rolebinding workshop-user-edit -n $$user_ns -o jsonpath='{.roleRef.name}' 2>/dev/null); \
+				RB_USERS=$$(oc get rolebinding workshop-user-edit -n $$user_ns -o jsonpath='{.subjects[?(@.kind=="User")].name}' 2>/dev/null); \
+				if [ "$$RB_ROLE" = "edit" ] && echo " $$RB_USERS " | grep -q " $$user "; then \
+					printf '%b\n' "$(GREEN)  ✓ $$user_ns: workshop-user-edit for $$user$(NC)"; \
+				else \
+					printf '%b\n' "$(RED)  ✗ $$user_ns: workshop-user-edit has unexpected roleRef/subject$(NC)"; \
+					FAIL=1; \
+				fi; \
+			else \
+				printf '%b\n' "$(RED)  ✗ $$user_ns: missing RoleBinding workshop-user-edit$(NC)"; \
+				FAIL=1; \
+			fi; \
+		done; \
+	done; \
+	if [ $$FAIL -eq 0 ]; then \
+		printf '%b\n' "$(GREEN)RBAC verification passed.$(NC)"; \
+	else \
+		printf '%b\n' "$(RED)RBAC verification failed.$(NC)"; \
+		exit 1; \
+	fi
 
 build: ## Trigger builds for both site and API (default)
 	@$(MAKE) build-all

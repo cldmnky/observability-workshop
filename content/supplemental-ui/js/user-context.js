@@ -15,6 +15,34 @@
     '{openshift_api_url}': 'api_url'
   };
 
+  // Namespace literals used in workshop exercises that must be user-specific
+  const EXERCISE_NAMESPACE_LITERALS = {
+    'observability-demo': (user) => `${user}-observability-demo`,
+    'tracing-demo': (user) => `${user}-tracing-demo`
+  };
+
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function buildReplacementPairs(userData) {
+    const pairs = [];
+
+    for (const [placeholder, key] of Object.entries(PLACEHOLDERS)) {
+      if (userData[key]) {
+        pairs.push([placeholder, userData[key]]);
+      }
+    }
+
+    if (userData.user) {
+      for (const [literal, mapper] of Object.entries(EXERCISE_NAMESPACE_LITERALS)) {
+        pairs.push([literal, mapper(userData.user)]);
+      }
+    }
+
+    return pairs;
+  }
+
   // Fetch user info from the API endpoint
   async function fetchUserInfo() {
     try {
@@ -38,13 +66,13 @@
   }
 
   // Replace placeholders in text nodes
-  function replaceInTextNode(node, userData) {
+  function replaceInTextNode(node, replacementPairs) {
     let text = node.textContent;
     let replaced = false;
 
-    for (const [placeholder, key] of Object.entries(PLACEHOLDERS)) {
-      if (text.includes(placeholder) && userData[key]) {
-        text = text.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), userData[key]);
+    for (const [findText, replaceText] of replacementPairs) {
+      if (text.includes(findText)) {
+        text = text.replace(new RegExp(escapeRegExp(findText), 'g'), replaceText);
         replaced = true;
       }
     }
@@ -55,7 +83,7 @@
   }
 
   // Replace placeholders in attribute values (href, value, etc.)
-  function replaceInAttributes(element, userData) {
+  function replaceInAttributes(element, replacementPairs) {
     const attributes = ['href', 'value', 'data-url', 'content'];
     
     attributes.forEach(attr => {
@@ -63,9 +91,9 @@
         let value = element.getAttribute(attr);
         let replaced = false;
 
-        for (const [placeholder, key] of Object.entries(PLACEHOLDERS)) {
-          if (value.includes(placeholder) && userData[key]) {
-            value = value.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), userData[key]);
+        for (const [findText, replaceText] of replacementPairs) {
+          if (value.includes(findText)) {
+            value = value.replace(new RegExp(escapeRegExp(findText), 'g'), replaceText);
             replaced = true;
           }
         }
@@ -79,6 +107,8 @@
 
   // Walk the DOM tree and replace placeholders
   function replacePlaceholders(userData) {
+    const replacementPairs = buildReplacementPairs(userData);
+
     const walker = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
@@ -92,8 +122,8 @@
       if (node.nodeType === Node.TEXT_NODE) {
         // Process text nodes
         const text = node.textContent;
-        if (text && Object.keys(PLACEHOLDERS).some(p => text.includes(p))) {
-          replaceInTextNode(node, userData);
+        if (text && replacementPairs.some(([findText]) => text.includes(findText))) {
+          replaceInTextNode(node, replacementPairs);
         }
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         // Collect elements with attributes to process
@@ -102,7 +132,7 @@
     }
 
     // Process element attributes
-    elementsToProcess.forEach(element => replaceInAttributes(element, userData));
+    elementsToProcess.forEach(element => replaceInAttributes(element, replacementPairs));
   }
 
   // Show user info indicator in header

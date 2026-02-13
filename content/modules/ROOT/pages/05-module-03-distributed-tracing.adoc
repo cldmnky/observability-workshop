@@ -201,7 +201,7 @@ To practice distributed tracing, you need an application that emits trace data. 
 +
 [source,bash]
 ----
-oc new-project tracing-demo
+oc new-project {user}-tracing-demo
 ----
 
 . Deploy the frontend service:
@@ -213,7 +213,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: tracing-demo
+  namespace: {user}-tracing-demo
   labels:
     app: frontend
 spec:
@@ -241,7 +241,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
-  namespace: tracing-demo
+  namespace: {user}-tracing-demo
 spec:
   selector:
     app: frontend
@@ -254,7 +254,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: frontend
-  namespace: tracing-demo
+  namespace: {user}-tracing-demo
 spec:
   to:
     kind: Service
@@ -270,7 +270,7 @@ This deploys the HotROD demo application, which simulates a ride-sharing service
 +
 [source,bash]
 ----
-oc get pods -n tracing-demo -w
+oc get pods -n {user}-tracing-demo -w
 ----
 +
 Press Ctrl+C when the pod shows Running status.
@@ -279,7 +279,7 @@ Press Ctrl+C when the pod shows Running status.
 +
 [source,bash]
 ----
-oc get route frontend -n tracing-demo -o jsonpath='{.spec.host}'
+oc get route frontend -n {user}-tracing-demo -o jsonpath='{.spec.host}'
 ----
 
 . Access the application in your browser:
@@ -298,7 +298,7 @@ Each click triggers a simulated ride request that flows through multiple microse
 
 Check that your traced application is running:
 
-* ✓ frontend pod is Running in tracing-demo namespace
+* ✓ frontend pod is Running in {user}-tracing-demo namespace
 * ✓ Route exists and application is accessible
 * ✓ Application UI loads in browser
 * ✓ Clicking customer buttons generates activity
@@ -311,17 +311,17 @@ Check that your traced application is running:
 **Issue**: HotROD application not starting
 
 **Solution**:
-. Check pod status: `oc get pods -n tracing-demo`
-. View pod logs: `oc logs -n tracing-demo deployment/frontend`
-. Verify image pull: `oc describe pod -n tracing-demo -l app=frontend`
-. Check for resource constraints: `oc get events -n tracing-demo`
+. Check pod status: `oc get pods -n {user}-tracing-demo`
+. View pod logs: `oc logs -n {user}-tracing-demo deployment/frontend`
+. Verify image pull: `oc describe pod -n {user}-tracing-demo -l app=frontend`
+. Check for resource constraints: `oc get events -n {user}-tracing-demo`
 
 **Issue**: Application route not accessible
 
 **Solution**:
-. Verify route exists: `oc get route frontend -n tracing-demo`
-. Check service: `oc get svc frontend -n tracing-demo`
-. Test from within cluster: `oc exec -n tracing-demo deployment/frontend -- curl localhost:8080`
+. Verify route exists: `oc get route frontend -n {user}-tracing-demo`
+. Check service: `oc get svc frontend -n {user}-tracing-demo`
+. Test from within cluster: `oc exec -n {user}-tracing-demo deployment/frontend -- curl localhost:8080`
 
 == Exercise 3: Analyze traces in Jaeger UI
 
@@ -415,7 +415,7 @@ Check that you can analyze traces effectively:
 **Solution**:
 . Wait 30-60 seconds for trace ingestion
 . Verify time range (expand to last 1 hour)
-. Check application is sending traces: `oc logs -n tracing-demo deployment/frontend | grep -i trace`
+. Check application is sending traces: `oc logs -n {user}-tracing-demo deployment/frontend | grep -i trace`
 . Verify Tempo distributor received traces: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/component=distributor`
 . Confirm application environment variables point to correct Tempo endpoint
 
@@ -453,7 +453,7 @@ Query the request duration:
 +
 [source,promql]
 ----
-histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{namespace="tracing-demo"}[5m]))
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{namespace="{user}-tracing-demo"}[5m]))
 ----
 +
 This shows the 95th percentile response time.
@@ -486,7 +486,7 @@ Query logs from the same time period:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="tracing-demo"} |= "Customer 3"
+{kubernetes_namespace_name="{user}-tracing-demo"} |= "Customer 3"
 ----
 +
 Look for log entries that match the trace timestamp.
@@ -499,7 +499,7 @@ Some applications log trace IDs. If available, you can query:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="tracing-demo"} |= "trace_id" |= "<trace-id-from-jaeger>"
+{kubernetes_namespace_name="{user}-tracing-demo"} |= "trace_id" |= "<trace-id-from-jaeger>"
 ----
 +
 This shows all logs associated with that specific trace.
@@ -539,9 +539,9 @@ Check that you can correlate all 3 signals:
 
 **Solution**:
 . Generate more traffic to populate metrics
-. Check metric labels match: `namespace="tracing-demo"`
+. Check metric labels match: `namespace="{user}-tracing-demo"`
 . Allow 30-60 seconds for Prometheus scraping
-. Verify application exposes metrics: `oc exec -n tracing-demo deployment/frontend -- curl localhost:8080/metrics`
+. Verify application exposes metrics: `oc exec -n {user}-tracing-demo deployment/frontend -- curl localhost:8080/metrics`
 
 == Exercise 5: Implement trace sampling
 
@@ -567,8 +567,8 @@ Update the frontend deployment with sampling configuration:
 +
 [source,bash]
 ----
-oc set env deployment/frontend -n tracing-demo OTEL_TRACES_SAMPLER=parentbased_traceidratio
-oc set env deployment/frontend -n tracing-demo OTEL_TRACES_SAMPLER_ARG=0.1
+oc set env deployment/frontend -n {user}-tracing-demo OTEL_TRACES_SAMPLER=parentbased_traceidratio
+oc set env deployment/frontend -n {user}-tracing-demo OTEL_TRACES_SAMPLER_ARG=0.1
 ----
 +
 This samples 10% of traces (0.1 = 10%).
@@ -577,8 +577,8 @@ This samples 10% of traces (0.1 = 10%).
 +
 [source,bash]
 ----
-oc rollout restart deployment/frontend -n tracing-demo
-oc rollout status deployment/frontend -n tracing-demo
+oc rollout restart deployment/frontend -n {user}-tracing-demo
+oc rollout status deployment/frontend -n {user}-tracing-demo
 ----
 
 . Generate traffic and observe sampling:
@@ -595,7 +595,7 @@ For production, you want to always sample errors regardless of rate:
 +
 [source,bash]
 ----
-oc set env deployment/frontend -n tracing-demo OTEL_TRACES_SAMPLER=parentbased_always_on
+oc set env deployment/frontend -n {user}-tracing-demo OTEL_TRACES_SAMPLER=parentbased_always_on
 ----
 +
 This samples 100% of traces.
@@ -619,9 +619,9 @@ Check that sampling configuration is working:
 **Issue**: All traces still appear despite low sampling rate
 
 **Solution**:
-. Verify environment variables: `oc set env deployment/frontend -n tracing-demo --list | grep SAMPLER`
-. Check pod was restarted: `oc get pods -n tracing-demo`
-. View application logs for sampling messages: `oc logs -n tracing-demo deployment/frontend | grep sampling`
+. Verify environment variables: `oc set env deployment/frontend -n {user}-tracing-demo --list | grep SAMPLER`
+. Check pod was restarted: `oc get pods -n {user}-tracing-demo`
+. View application logs for sampling messages: `oc logs -n {user}-tracing-demo deployment/frontend | grep sampling`
 
 **Issue**: No traces appear after setting low sampling rate
 

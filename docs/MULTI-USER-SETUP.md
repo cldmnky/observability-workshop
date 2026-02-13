@@ -64,7 +64,7 @@ Pod Components:
 
 ### 4. Helm Chart Templates
 
-- User data ConfigMap is managed outside the chart via `make deploy`
+- User data Secret is managed outside the chart via `make deploy`
 - `user-info-api-build.yaml` - Builds user-info-api container
 - `oauth-serviceaccount.yaml` - ServiceAccount for OAuth
 - `oauth-tls-secret.yaml` - TLS secret for OAuth proxy
@@ -115,6 +115,12 @@ oc get pods -n showroom-workshop
 # Should see 3 containers per pod: oauth-proxy, user-info-api, showroom-site
 ```
 
+`make deploy` also creates:
+
+- OpenShift group `workshop-users` containing all users in `.config/users.yaml`
+- Namespaced `view` RoleBindings for `workshop-users` in operator namespaces
+- Per-user exercise namespaces (`<user>-observability-demo`, `<user>-tracing-demo`) with `edit` for each matching user
+
 ### Disable Multi-User (Simple Deployment)
 
 ```yaml
@@ -134,6 +140,8 @@ In Antora content (`.adoc` files), use these placeholders:
 - `{login_command}` - Complete oc login command
 - `{openshift_cluster_ingress_domain}` - Cluster ingress domain
 - `{api_url}` - OpenShift API URL
+
+Exercise namespaces are automatically personalized in workshop pages: `observability-demo` and `tracing-demo` render as `<user>-observability-demo` and `<user>-tracing-demo` for the logged-in user.
 
 Example:
 
