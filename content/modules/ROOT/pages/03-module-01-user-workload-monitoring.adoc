@@ -536,7 +536,7 @@ Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify 
 [source,bash]
 ----
 oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- \
-  sh -c 'wget -q -O - http://localhost:9090/api/v1/targets' | \
+  curl -s http://localhost:9090/api/v1/targets | \
   grep -o '"namespace":"[^"]*observability-demo"' | head -5
 ----
 +
