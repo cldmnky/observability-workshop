@@ -29,7 +29,9 @@ make refresh
 - Creates/updates secret `workshop-users-secret` from `.config/users.yaml`
 - Creates/updates OpenShift group `workshop-users` from `.config/users.yaml` user list
 - Creates view RoleBindings for `workshop-users` in operator namespaces
-- Creates per-user exercise namespaces (`<user>-observability-demo`, `<user>-tracing-demo`) and grants each user `edit` in their own namespaces
+- Creates OpenShift group `workshop-users` and grants `view` access in operator namespaces
+- Creates ClusterRole `workshop-user-monitoring` with permissions for ServiceMonitor and PrometheusRule resources
+- Creates per-user exercise namespaces with monitoring permissions
 - Applies `bootstrap/argocd/applicationset-observability.yaml`
 
 ## Common Issues

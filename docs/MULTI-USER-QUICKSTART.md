@@ -47,8 +47,9 @@ This will:
 - Create/update secret `workshop-users-secret` from `.config/users.yaml`
 - Create/update OpenShift group `workshop-users` with all users from `.config/users.yaml`
 - Grant `view` access for `workshop-users` in operator namespaces (logging, tempo, monitoring, etc.)
+- Create ClusterRole `workshop-user-monitoring` with ServiceMonitor/PrometheusRule permissions
 - Create per-user exercise namespaces like `user1-observability-demo` and `user1-tracing-demo`
-- Grant each user `edit` access in their own exercise namespaces
+- Grant each user monitoring permissions in their namespaces
 - Let ArgoCD deploy all applications, including `showroom-site`
 
 ### 3. Build Both Containers in Cluster

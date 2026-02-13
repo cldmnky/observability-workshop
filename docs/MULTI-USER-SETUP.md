@@ -119,7 +119,9 @@ oc get pods -n showroom-workshop
 
 - OpenShift group `workshop-users` containing all users in `.config/users.yaml`
 - Namespaced `view` RoleBindings for `workshop-users` in operator namespaces
-- Per-user exercise namespaces (`<user>-observability-demo`, `<user>-tracing-demo`) with `edit` for each matching user
+- ClusterRole `workshop-user-monitoring` with ServiceMonitor/PrometheusRule permissions
+- Per-user exercise namespaces (`<user>-observability-demo`, `<user>-tracing-demo`)
+- RoleBindings granting each user monitoring permissions in their namespaces
 
 ### Disable Multi-User (Simple Deployment)
 

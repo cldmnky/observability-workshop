@@ -16,6 +16,7 @@ USER_DATA_SECRET ?= workshop-users-secret
 WORKSHOP_USERS_GROUP ?= workshop-users
 OPERATOR_VIEW_NAMESPACES ?= openshift-logging openshift-tempo-operator openshift-operators openshift-monitoring openshift-user-workload-monitoring openshift-netobserv-operator openshift-builds
 EXERCISE_NAMESPACE_SUFFIXES ?= observability-demo tracing-demo
+MONITORING_CLUSTERROLE ?= workshop-user-monitoring
 
 # Colors for output
 GREEN := \033[0;32m
@@ -82,7 +83,17 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 			printf '%b\n' "$(YELLOW)Skipping missing namespace $$ns for view RoleBinding$(NC)"; \
 		fi; \
 	done
-	@printf '%b\n' "$(GREEN)Creating/updating per-user exercise namespaces and edit access...$(NC)"
+	@printf '%b\n' "$(GREEN)Creating/updating monitoring ClusterRole for workshop users...$(NC)"
+	@printf '%s\n' \
+		'apiVersion: rbac.authorization.k8s.io/v1' \
+		'kind: ClusterRole' \
+		'metadata:' \
+		'  name: $(MONITORING_CLUSTERROLE)' \
+		'rules:' \
+		'- apiGroups: [monitoring.coreos.com]' \
+		'  resources: [servicemonitors, prometheusrules, podmonitors]' \
+		'  verbs: [create, delete, get, list, patch, update, watch]' | oc apply -f -
+	@printf '%b\n' "$(GREEN)Creating/updating per-user exercise namespaces with monitoring RBAC...$(NC)"
 	@USER_LIST=$$(awk '/^users:/{in_users=1; next} in_users && /^[^[:space:]]/{in_users=0} in_users && /^  [A-Za-z0-9._-]+:/{gsub(":", "", $$1); print $$1}' $(USERS_FILE)); \
 	for user in $$USER_LIST; do \
 		for suffix in $(EXERCISE_NAMESPACE_SUFFIXES); do \
@@ -92,12 +103,12 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 				'apiVersion: rbac.authorization.k8s.io/v1' \
 				'kind: RoleBinding' \
 				'metadata:' \
-				'  name: workshop-user-edit' \
+				'  name: $(MONITORING_CLUSTERROLE)' \
 				"  namespace: $$user_ns" \
 				'roleRef:' \
 				'  apiGroup: rbac.authorization.k8s.io' \
 				'  kind: ClusterRole' \
-				'  name: edit' \
+				'  name: $(MONITORING_CLUSTERROLE)' \
 				'subjects:' \
 				'- kind: User' \
 				'  apiGroup: rbac.authorization.k8s.io' \
@@ -108,8 +119,9 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 	@oc apply -f $(APPSET_FILE)
 	@printf '%b\n' "$(YELLOW)ArgoCD will sync applications automatically (including showroom-site).$(NC)"
 	@printf '%s\n' "Run 'make deploy-status' to verify showroom-site resources once synced."
+	@printf '%b\n' "$(BLUE)Note: User namespaces are pre-created with monitoring permissions. Users can verify access with 'oc project <namespace>'.$(NC)"
 
-verify-rbac: ## Verify workshop group, operator view bindings, and user namespace edit bindings
+verify-rbac: ## Verify workshop group, operator view bindings, and user namespace monitoring permissions
 	@if [ ! -f "$(USERS_FILE)" ]; then \
 		printf '%b\n' "$(RED)Error: $(USERS_FILE) not found$(NC)"; \
 		exit 1; \
@@ -156,7 +168,14 @@ verify-rbac: ## Verify workshop group, operator view bindings, and user namespac
 			printf '%b\n' "$(YELLOW)  - Skipping missing namespace $$ns$(NC)"; \
 		fi; \
 	done; \
-	printf '%b\n' "$(GREEN)Verifying per-user exercise namespaces and edit RoleBindings...$(NC)"; \
+	printf '%b\n' "$(GREEN)Verifying monitoring ClusterRole...$(NC)"; \
+	if oc get clusterrole $(MONITORING_CLUSTERROLE) >/dev/null 2>&1; then \
+		printf '%b\n' "$(GREEN)  ✓ ClusterRole exists: $(MONITORING_CLUSTERROLE)$(NC)"; \
+	else \
+		printf '%b\n' "$(RED)  ✗ ClusterRole missing: $(MONITORING_CLUSTERROLE)$(NC)"; \
+		FAIL=1; \
+	fi; \
+	printf '%b\n' "$(GREEN)Verifying per-user exercise namespaces and monitoring RoleBindings...$(NC)"; \
 	for user in $$USER_LIST; do \
 		for suffix in $(EXERCISE_NAMESPACE_SUFFIXES); do \
 			user_ns=$${user}-$${suffix}; \
@@ -167,17 +186,17 @@ verify-rbac: ## Verify workshop group, operator view bindings, and user namespac
 				FAIL=1; \
 				continue; \
 			fi; \
-			if oc get rolebinding workshop-user-edit -n $$user_ns >/dev/null 2>&1; then \
-				RB_ROLE=$$(oc get rolebinding workshop-user-edit -n $$user_ns -o jsonpath='{.roleRef.name}' 2>/dev/null); \
-				RB_USERS=$$(oc get rolebinding workshop-user-edit -n $$user_ns -o jsonpath='{.subjects[?(@.kind=="User")].name}' 2>/dev/null); \
-				if [ "$$RB_ROLE" = "edit" ] && echo " $$RB_USERS " | grep -q " $$user "; then \
-					printf '%b\n' "$(GREEN)  ✓ $$user_ns: workshop-user-edit for $$user$(NC)"; \
+			if oc get rolebinding $(MONITORING_CLUSTERROLE) -n $$user_ns >/dev/null 2>&1; then \
+				RB_ROLE=$$(oc get rolebinding $(MONITORING_CLUSTERROLE) -n $$user_ns -o jsonpath='{.roleRef.name}' 2>/dev/null); \
+				RB_USERS=$$(oc get rolebinding $(MONITORING_CLUSTERROLE) -n $$user_ns -o jsonpath='{.subjects[?(@.kind=="User")].name}' 2>/dev/null); \
+				if [ "$$RB_ROLE" = "$(MONITORING_CLUSTERROLE)" ] && echo " $$RB_USERS " | grep -q " $$user "; then \
+					printf '%b\n' "$(GREEN)  ✓ $$user_ns: monitoring RoleBinding for $$user$(NC)"; \
 				else \
-					printf '%b\n' "$(RED)  ✗ $$user_ns: workshop-user-edit has unexpected roleRef/subject$(NC)"; \
+					printf '%b\n' "$(RED)  ✗ $$user_ns: monitoring RoleBinding has unexpected roleRef/subject$(NC)"; \
 					FAIL=1; \
 				fi; \
 			else \
-				printf '%b\n' "$(RED)  ✗ $$user_ns: missing RoleBinding workshop-user-edit$(NC)"; \
+				printf '%b\n' "$(RED)  ✗ $$user_ns: missing RoleBinding $(MONITORING_CLUSTERROLE)$(NC)"; \
 				FAIL=1; \
 			fi; \
 		done; \
