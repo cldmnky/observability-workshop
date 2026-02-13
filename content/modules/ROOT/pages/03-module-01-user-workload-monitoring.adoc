@@ -537,17 +537,23 @@ Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify 
 ----
 oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- \
   curl -s http://localhost:9090/api/v1/targets | \
-  grep -o '"namespace":"[^"]*observability-demo"' | head -5
+  grep -E 'sample-app.*{user}-observability-demo' | head -5
 ----
 +
-.Expected output (showing your namespace is being monitored)
+.Expected output (showing your application is being monitored)
 [source,text]
 ----
-"namespace":"user1-observability-demo"
-"namespace":"user1-observability-demo"
+..."job":"sample-app-coo/sample-app/0","namespace":"{user}-observability-demo"...
 ----
 +
-If you see your namespace listed, the COO Prometheus has successfully discovered and is scraping your ServiceMonitor.
+If you see your application and namespace, the COO Prometheus has successfully discovered and is scraping your ServiceMonitor. If not, verify the ServiceMonitor has the correct label:
++
+[source,bash]
+----
+oc get servicemonitor sample-app-coo -n {user}-observability-demo --show-labels
+----
++
+You should see `monitoring.rhobs/stack=observability-stack` in the labels.
 
 . Create a Perses dashboard to visualize your metrics:
 +
