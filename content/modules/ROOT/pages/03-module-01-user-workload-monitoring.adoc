@@ -86,34 +86,51 @@ NOTE: In this workshop, you'll primarily use the **RED method** for monitoring t
 
 OpenShift provides multiple monitoring approaches to serve different use cases:
 
-**Platform monitoring** (managed by cluster admins):
+**Platform monitoring** (managed by Cluster Monitoring Operator - CMO):
 
 * Monitors OpenShift infrastructure and control plane components
 * Includes: etcd, API server, scheduler, controller manager
 * Namespace: `openshift-monitoring`
 * Scope: Cluster-wide infrastructure metrics
+* Managed by cluster admins only
 
-**User workload monitoring** (for your applications):
+**User workload monitoring** (managed by CMO):
 
 * Monitors custom applications and user-deployed services
 * You configure what to monitor via ServiceMonitor resources
 * Namespace: `openshift-user-workload-monitoring`
 * Uses Prometheus, Thanos Querier, and Alertmanager
 * Scope: Cluster-wide application metrics (any namespace)
+* Limited customization options
 
-**Cluster Observability Operator (COO)** (for team-scoped monitoring):
+**Cluster Observability Operator (COO)** (independent operator for advanced use cases):
 
-* Namespace-scoped monitoring with MonitoringStack custom resource
+* Creates namespace-scoped monitoring stacks via MonitoringStack custom resource
+* Functions independently of CMO - both can coexist without conflict
 * Label-based ServiceMonitor discovery (e.g., `monitoring.rhobs/stack: observability-stack`)
-* Namespace: `observability-demo` (or any namespace you deploy the stack to)
-* Uses Prometheus, Thanos Querier, and Perses dashboards
-* Scope: Team or application-specific metrics with custom visualizations
+* Deploys Prometheus, Thanos Querier (optional), Alertmanager (optional)
+* Supports UI plugins for enhanced dashboards (Perses), logging, and troubleshooting
+* Namespace: Can deploy stacks in any namespace (e.g., `observability-demo`)
+* Scope: Multi-tenant, team-scoped, or application-specific monitoring
+
+**Key advantages of COO**:
+
+* **Multi-tenancy**: Create separate monitoring stacks per team or namespace
+* **Extensibility**: Add custom metrics without losing support
+* **Scalability**: Multiple monitoring stacks on a single cluster
+* **Flexibility**: Independent release cycle from OpenShift
+* **Longer retention**: Supports historical analysis and capacity planning
 
 **When to use each**:
 
 * Use **platform monitoring** for cluster infrastructure (managed by admins, you can't modify it)
-* Use **user workload monitoring** for simple application metrics without custom dashboards
-* Use **COO** when you need custom Perses dashboards, namespace isolation, or team-scoped monitoring
+* Use **user workload monitoring** for simple application metrics without custom dashboards or long-term retention
+* Use **COO** when you need:
+  - Custom Perses dashboards and enhanced visualizations
+  - Namespace isolation or multi-tenant monitoring
+  - Longer data retention periods
+  - More configuration flexibility
+  - Multiple monitoring stacks for different teams
 
 In this workshop, you'll use **both user workload monitoring** (Exercises 1-3) and **COO** (Exercise 4 onward) to understand the full range of monitoring options available in OpenShift.
 
@@ -542,25 +559,37 @@ Querying metrics via PromQL is powerful, but visualizing trends over time is mor
 
 === Understanding COO vs User Workload Monitoring
 
-Your cluster has **two** monitoring systems:
+Your cluster has **two independent monitoring systems**:
 
-**User Workload Monitoring** (Exercise 1-3):
+**User Workload Monitoring (CMO)** (Exercise 1-3):
 
-* Cluster-wide monitoring managed by OpenShift
+* Managed by Cluster Monitoring Operator (CMO)
+* Cluster-wide monitoring for all namespaces
 * Namespace: `openshift-user-workload-monitoring`
-* Best for: Infrastructure monitoring, cluster-wide metrics
+* Automatically discovers ServiceMonitors in any namespace
+* Best for: Standard application monitoring with built-in OpenShift integration
+* Limited customization options
 * You've already used this for your sample-app
 
-**Cluster Observability Operator (COO)**:
+**Cluster Observability Operator (COO)** (Exercise 4):
 
-* Namespace-scoped monitoring with MonitoringStack custom resource
-* Namespace: `observability-demo`
-* Best for: Application-specific monitoring, custom dashboards, team-scoped metrics
-* Provides Perses dashboards for custom visualizations
+* Independent operator that functions alongside CMO (no conflicts)
+* Creates namespace-scoped monitoring stacks via MonitoringStack CR
+* Namespace: `observability-demo` (can deploy to any namespace)
+* Label-based ServiceMonitor discovery via `resourceSelector`
+* Best for: Multi-tenant environments, custom dashboards, longer retention, team-scoped metrics
+* Highly customizable (retention periods, storage, collection methods)
+* Optional components: Thanos Querier, Alertmanager, UI plugins (Perses dashboards)
 
-**Key difference**: COO uses a **label selector** to discover ServiceMonitors. Your sample-app ServiceMonitor doesn't have this label, so it's only visible to user workload monitoring.
+**Key difference**: COO uses a **label selector** (`resourceSelector.matchLabels`) to discover ServiceMonitors. Your sample-app ServiceMonitor from Exercise 3 doesn't have this label, so it's only visible to user workload monitoring (CMO), not COO.
 
-In this exercise, you'll create a **second** ServiceMonitor for COO with custom dashboards.
+**Why use both?**:
+
+* CMO provides out-of-the-box monitoring for all applications
+* COO provides advanced features: multi-tenancy, custom dashboards, longer retention
+* They coexist independently - no conflicts
+
+In this exercise, you'll create a **second** ServiceMonitor with the COO-specific label to demonstrate multi-tenant monitoring and custom Perses dashboards.
 
 === Steps
 
@@ -754,10 +783,13 @@ Check that your COO dashboard is working:
 
 **What you learned**: 
 
-* COO provides namespace-scoped monitoring with label-based ServiceMonitor discovery
-* Perses dashboards are declarative (YAML) and версioned with your application
-* You can run multiple monitoring stacks: cluster-wide (user workload) + team-scoped (COO)
-* COO dashboards use Thanos Querier for multi-replica query aggregation
+* COO is an independent operator that coexists with the Cluster Monitoring Operator (CMO)
+* MonitoringStack CR creates namespace-scoped monitoring with label-based ServiceMonitor discovery
+* COO provides multi-tenancy: different teams can have isolated monitoring stacks
+* Perses dashboards are declarative (YAML) and versioned with your application
+* You can run multiple monitoring systems: cluster-wide (CMO) + team-scoped (COO)
+* COO offers more flexibility: longer retention, custom configurations, independent release cycles
+* Thanos Querier aggregates metrics from multiple Prometheus replicas for high availability
 
 === Troubleshooting
 
@@ -882,11 +914,12 @@ Check that your alerting rules are working:
 By completing this module, you should now understand:
 
 * ✓ The 3 pillars of observability (metrics, logs, traces) and when to use each signal type
-* ✓ OpenShift's dual monitoring architecture (platform vs user workload monitoring)
-* ✓ Cluster Observability Operator (COO) for namespace-scoped monitoring with label-based discovery
+* ✓ Observability methodologies: RED (request-driven), USE (resources), Golden Signals
+* ✓ OpenShift's monitoring architecture: Platform (CMO), User Workload (CMO), and COO
+* ✓ Cluster Observability Operator (COO): Independent multi-tenant monitoring with MonitoringStack CR
 * ✓ How ServiceMonitor resources configure Prometheus to scrape application metrics
 * ✓ Writing PromQL queries to analyze application performance and calculate rates
-* ✓ Creating declarative Perses dashboards for custom visualizations
+* ✓ Creating declarative Perses dashboards for custom visualizations with COO
 * ✓ Configuring PrometheusRule resources to proactively alert on application issues
 
 **Business impact for Red Hat Observability Inc.**:
