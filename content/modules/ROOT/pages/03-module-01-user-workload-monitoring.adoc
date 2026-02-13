@@ -151,6 +151,8 @@ Check that your monitoring stack is operational:
 
 To practice monitoring, you need an application that exposes metrics. You'll deploy a sample application that provides Prometheus-compatible metrics.
 
+NOTE: Your workshop namespace has been pre-created with special permissions to create ServiceMonitor and PrometheusRule resources. These permissions are required for this workshop and are granted via a custom ClusterRole.
+
 === Steps
 
 . Create a new project for your sample application:
@@ -159,6 +161,8 @@ To practice monitoring, you need an application that exposes metrics. You'll dep
 ----
 oc new-project {user}-observability-demo
 ----
++
+NOTE: If the namespace already exists, you can switch to it with `oc project {user}-observability-demo`. The namespace has been pre-configured with the necessary monitoring permissions.
 
 . Deploy a sample application that exposes metrics:
 +
@@ -188,6 +192,16 @@ spec:
         ports:
         - containerPort: 8080
           name: http
+      - name: debug
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["/bin/sh", "-c", "while true; do sleep 30; done"]
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
 ---
 apiVersion: v1
 kind: Service
@@ -207,6 +221,8 @@ EOF
 ----
 +
 This creates a deployment with 2 replicas and a service to expose the application.
++
+NOTE: The deployment includes a debug sidecar container with UBI minimal. This sidecar provides debugging tools like `curl` without bloating the main application container. This is a common pattern for production debugging.
 
 . Verify the pods are running:
 +
@@ -219,30 +235,59 @@ oc get pods -n {user}-observability-demo
 [source,text]
 ----
 NAME                          READY   STATUS    RESTARTS   AGE
-sample-app-xxxxx-xxxxx        1/1     Running   0          30s
-sample-app-xxxxx-xxxxx        1/1     Running   0          30s
+sample-app-xxxxx-xxxxx        2/2     Running   0          30s
+sample-app-xxxxx-xxxxx        2/2     Running   0          30s
 ----
++
+Note the `2/2` ready status indicates both the application and debug sidecar containers are running.
 
-. Check what metrics the application exposes:
+. Check what metrics the application exposes using the debug sidecar:
++
+First, make a request to the application to initialize the metrics:
 +
 [source,bash]
 ----
-oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/metrics | head -20
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080
 ----
++
+.Expected output
+[source,text]
+----
+Hello from example application.
+----
++
+Now check the metrics endpoint:
++
+[source,bash]
+----
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080/metrics | head -20
+----
++
+The `-c debug` flag specifies which container to exec into (the debug sidecar). Since containers in the same pod share the network namespace, the sidecar can access `localhost:8080`.
 +
 .Sample output
 [source,text]
 ----
+# HELP http_request_duration_seconds Duration of all HTTP requests
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{code="200",handler="found",method="get",le="0.005"} 1
+http_request_duration_seconds_bucket{code="200",handler="found",method="get",le="0.01"} 1
+...
+# HELP http_requests_total Count of all HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{code="200",method="get"} 1
 # HELP version Version information about this binary
 # TYPE version gauge
 version{version="v0.3.0"} 1
-# HELP http_requests_total Count of all HTTP requests
-# TYPE http_requests_total counter
-http_requests_total{code="200",method="get"} 0
-http_requests_total{code="404",method="get"} 0
 ----
 +
-The application exposes metrics like `http_requests_total`, `version`, and others in Prometheus format.
+The application exposes several metrics:
++
+* `http_requests_total`: Counter of all HTTP requests by status code and method
+* `http_request_duration_seconds`: Histogram of request latency
+* `version`: Application version information
++
+NOTE: Metrics are lazy-initialized and only appear after the first request. This is why we made an initial request before checking the metrics endpoint.
 
 === Verify
 
@@ -310,12 +355,12 @@ sample-app-monitor   10s
 [source,bash]
 ----
 for i in {1..50}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
   echo "Request $i completed"
 done
 ----
 +
-This sends 50 HTTP requests to the application, which will increment the `http_requests_total` metric.
+This sends 50 HTTP requests to the application using the debug sidecar, which will increment the `http_requests_total` metric.
 
 . Wait 1-2 minutes for Prometheus to scrape the metrics, then query them:
 +
@@ -360,68 +405,332 @@ Check that Prometheus is collecting your application metrics:
 . Wait 1-2 minutes for Prometheus to scrape metrics
 . Verify ServiceMonitor exists: `oc get servicemonitor -n {user}-observability-demo`
 . Check that service labels match ServiceMonitor selector
-. Verify pods are running and exposing metrics: `oc exec -n {user}-observability-demo deployment/sample-app -- curl localhost:8080/metrics`
+. Verify pods are running and exposing metrics: `oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl localhost:8080/metrics`
 
 **Issue**: Metrics show 0 requests
 
 **Solution**: Generate traffic (run the curl loop again) and wait for Prometheus to scrape the updated values.
 
-== Exercise 4: Create custom dashboards
+[[rbac-troubleshooting]]
+**Issue**: Permission denied when creating ServiceMonitor
 
-Querying metrics via PromQL is powerful, but visualizing trends over time is more intuitive. You'll create a custom dashboard to track application performance.
+**Error message**:
+[source,text]
+----
+servicemonitors.monitoring.coreos.com "sample-app-monitor" is forbidden: 
+User "userX" cannot create resource "servicemonitors" in API group "monitoring.coreos.com"
+----
+
+**Solution**: This requires special permissions beyond the standard OpenShift roles.
+
+**If using the GitOps deployment** (recommended):
+
+The `make deploy` command creates:
+
+1. A `workshop-user-monitoring` ClusterRole with ServiceMonitor/PrometheusRule permissions
+2. RoleBindings in each user's namespace to grant these permissions
+
+Verify the RoleBinding exists:
+
+[source,bash]
+----
+oc get rolebinding workshop-user-monitoring -n {user}-observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME                        ROLE                                    AGE
+workshop-user-monitoring    ClusterRole/workshop-user-monitoring    10m
+----
+
+If missing, re-run:
+
+[source,bash]
+----
+make deploy
+----
+
+**If deploying manually**:
+
+A cluster administrator needs to grant monitoring permissions. The admin can either:
+
+**Option 1**: Grant the pre-created monitoring ClusterRole:
+
+[source,bash]
+----
+oc adm policy add-cluster-role-to-user workshop-user-monitoring {user} -n {user}-observability-demo
+----
+
+**Option 2**: Create and bind a custom ClusterRole:
+
+[source,bash]
+----
+# Create ClusterRole (once)
+cat <<EOF | oc apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: workshop-user-monitoring
+rules:
+- apiGroups: [monitoring.coreos.com]
+  resources: [servicemonitors, prometheusrules, podmonitors]
+  verbs: [create, delete, get, list, patch, update, watch]
+EOF
+
+# Grant to user
+oc create rolebinding workshop-user-monitoring \
+  --clusterrole=workshop-user-monitoring \
+  --user={user} \
+  -n {user}-observability-demo
+----
+
+== Exercise 4: Create custom dashboards with COO
+
+Querying metrics via PromQL is powerful, but visualizing trends over time is more intuitive. You'll use the Cluster Observability Operator (COO) to create custom dashboards.
+
+=== Understanding COO vs User Workload Monitoring
+
+Your cluster has **two** monitoring systems:
+
+**User Workload Monitoring** (Exercise 1-3):
+
+* Cluster-wide monitoring managed by OpenShift
+* Namespace: `openshift-user-workload-monitoring`
+* Best for: Infrastructure monitoring, cluster-wide metrics
+* You've already used this for your sample-app
+
+**Cluster Observability Operator (COO)**:
+
+* Namespace-scoped monitoring with MonitoringStack custom resource
+* Namespace: `observability-demo`
+* Best for: Application-specific monitoring, custom dashboards, team-scoped metrics
+* Provides Perses dashboards for custom visualizations
+
+**Key difference**: COO uses a **label selector** to discover ServiceMonitors. Your sample-app ServiceMonitor doesn't have this label, so it's only visible to user workload monitoring.
+
+In this exercise, you'll create a **second** ServiceMonitor for COO with custom dashboards.
 
 === Steps
 
-. In the OpenShift console, navigate to **Observe** → **Dashboards**
-
-. Click **Create Dashboard** button (or use existing custom dashboard if available)
-
-. Add a new panel for request rate:
+. Verify the COO MonitoringStack is deployed:
 +
-* Panel title: "HTTP Request Rate"
-* Query:
-+
-[source,promql]
+[source,bash]
 ----
-sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
+oc get monitoringstack -n observability-demo
 ----
 +
-This sums the request rate per pod.
-
-. Add another panel for total requests:
-+
-* Panel title: "Total HTTP Requests"
-* Query:
-+
-[source,promql]
+.Expected output
+[source,text]
 ----
-sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
+NAME                   AGE
+observability-stack    1h
 ----
 
-. Generate more traffic to see the dashboard update:
+. Check the label selector the MonitoringStack uses to discover ServiceMonitors:
++
+[source,bash]
+----
+oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.spec.resourceSelector.matchLabels}'
+----
++
+.Expected output
+[source,json]
+----
+{"monitoring.rhobs/stack":"observability-stack"}
+----
++
+ServiceMonitors **must have this label** to be discovered by the COO stack.
+
+. Create a **new** ServiceMonitor with the COO label:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-app-coo
+  namespace: {user}-observability-demo
+  labels:
+    app: sample-app
+    monitoring.rhobs/stack: observability-stack
+spec:
+  selector:
+    matchLabels:
+      app: sample-app
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+EOF
+----
++
+Note the `monitoring.rhobs/stack: observability-stack` label - this tells COO to scrape this service.
+
+. Verify the ServiceMonitor is picked up by checking Prometheus targets:
++
+[source,bash]
+----
+oc get pods -n observability-demo -l app.kubernetes.io/name=prometheus
+----
++
+.Expected output
+[source,text]
+----
+NAME                                READY   STATUS    RESTARTS   AGE
+prometheus-observability-stack-0    2/2     Running   0          1h
+prometheus-observability-stack-1    2/2     Running   0          1h
+prometheus-observability-stack-2    2/2     Running   0          1h
+----
++
+Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor.
+
+. Create a Perses dashboard to visualize your metrics:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: perses.dev/v1alpha1
+kind: PersesDashboard
+metadata:
+  name: sample-app-dashboard
+  namespace: {user}-observability-demo
+  labels:
+    monitoring.rhobs/stack: observability-stack
+spec:
+  display:
+    name: Sample Application Metrics
+    description: HTTP request metrics for sample-app
+  datasources:
+    default:
+      kind: PrometheusDatasource
+      spec:
+        directUrl: http://thanos-querier.observability-demo.svc.cluster.local:9090
+  duration: 1h
+  panels:
+    HTTP_Request_Rate:
+      kind: Panel
+      spec:
+        display:
+          name: HTTP Request Rate
+          description: Requests per second by pod
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              datasource:
+                kind: PrometheusDatasource
+              query: |
+                sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+    Total_Requests:
+      kind: Panel
+      spec:
+        display:
+          name: Total HTTP Requests
+          description: Cumulative request count by pod
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              datasource:
+                kind: PrometheusDatasource
+              query: |
+                sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Request Metrics
+          collapse:
+            open: true
+        items:
+          - x: 0
+            y: 0
+            width: 12
+            height: 6
+            content:
+              \$ref: '#/spec/panels/HTTP_Request_Rate'
+          - x: 0
+            y: 6
+            width: 12
+            height: 6
+            content:
+              \$ref: '#/spec/panels/Total_Requests'
+EOF
+----
++
+This creates a Perses dashboard with 2 panels: request rate and total requests.
+
+. Generate traffic to populate the dashboard:
 +
 [source,bash]
 ----
 for i in {1..100}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
   sleep 0.1
 done
 ----
 
-. Observe the dashboard updates in real-time as Prometheus scrapes new data
+. Access your custom dashboard in the OpenShift console:
++
+* Navigate to **Observe** → **Dashboards**
+* In the dashboard dropdown, select **Sample Application Metrics**
+* You should see 2 panels showing request rate and total requests
 
-NOTE: The OpenShift console provides basic dashboarding capabilities. For advanced dashboards, you can use Grafana (not covered in this module).
+. Verify the dashboard is using COO metrics:
++
+The dashboard queries the Thanos Querier in the `observability-demo` namespace, which aggregates data from the COO MonitoringStack (not user workload monitoring).
 
 === Verify
 
-Check that your dashboard displays application metrics:
+Check that your COO dashboard is working:
 
-* ✓ Dashboard shows request rate per pod
-* ✓ Total requests counter is increasing
-* ✓ Graphs update as new data arrives
-* ✓ Multiple time series (one per pod) are visible
+* ✓ MonitoringStack exists in observability-demo namespace
+* ✓ ServiceMonitor `sample-app-coo` has label `monitoring.rhobs/stack: observability-stack`
+* ✓ PersesDashboard created successfully
+* ✓ Dashboard appears in **Observe** → **Dashboards**
+* ✓ Panels show request rate and total requests
+* ✓ Graphs update with new data
 
-**What you learned**: Dashboards provide real-time visibility into application performance. PromQL queries can aggregate metrics across multiple pods.
+**What you learned**: 
+
+* COO provides namespace-scoped monitoring with label-based ServiceMonitor discovery
+* Perses dashboards are declarative (YAML) and версioned with your application
+* You can run multiple monitoring stacks: cluster-wide (user workload) + team-scoped (COO)
+* COO dashboards use Thanos Querier for multi-replica query aggregation
+
+=== Troubleshooting
+
+**Issue**: ServiceMonitor not picked up by COO
+
+**Solution**:
+. Verify the label: `oc get servicemonitor sample-app-coo -n {user}-observability-demo --show-labels`
+. Must have: `monitoring.rhobs/stack=observability-stack`
+. Check MonitoringStack selector: `oc get monitoringstack observability-stack -n observability-demo -o yaml | grep -A5 resourceSelector`
+
+**Issue**: Dashboard not visible in console
+
+**Solution**:
+. Verify PersesDashboard exists: `oc get persesdashboard -n {user}-observability-demo`
+. Check for errors: `oc describe persesdashboard sample-app-dashboard -n {user}-observability-demo`
+. Verify UI plugin is enabled: `oc get uiplugins.observability.openshift.io dashboards -o yaml`
+
+**Issue**: Dashboard shows "No data"
+
+**Solution**:
+. Wait 2-3 minutes for Prometheus to scrape metrics
+. Verify Thanos Querier is running: `oc get pods -n observability-demo -l app.kubernetes.io/name=thanos-querier`
+. Generate traffic (run the curl loop again)
+. Check Prometheus targets: Port-forward to COO Prometheus and check `/targets`
 
 == Exercise 5: Configure alerting rules
 
@@ -483,7 +792,7 @@ Wait 2-3 minutes without generating any traffic. The alert should transition fro
 [source,bash]
 ----
 for i in {1..200}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
+  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
   sleep 0.5
 done
 ----
@@ -523,9 +832,10 @@ By completing this module, you should now understand:
 
 * ✓ The 3 pillars of observability (metrics, logs, traces) and when to use each signal type
 * ✓ OpenShift's dual monitoring architecture (platform vs user workload monitoring)
+* ✓ Cluster Observability Operator (COO) for namespace-scoped monitoring with label-based discovery
 * ✓ How ServiceMonitor resources configure Prometheus to scrape application metrics
 * ✓ Writing PromQL queries to analyze application performance and calculate rates
-* ✓ Creating custom dashboards for real-time application visibility
+* ✓ Creating declarative Perses dashboards for custom visualizations
 * ✓ Configuring PrometheusRule resources to proactively alert on application issues
 
 **Business impact for Red Hat Observability Inc.**:
@@ -533,7 +843,8 @@ By completing this module, you should now understand:
 You've implemented the foundation of proactive monitoring. Instead of discovering issues through customer complaints, you now have:
 
 * Real-time visibility into application request rates and patterns
-* Custom dashboards tracking business-critical metrics
+* Declarative dashboards versioned alongside your application code
+* Team-scoped monitoring (COO) isolated from cluster infrastructure monitoring
 * Automated alerts that notify you before problems impact customers
 
 **Next steps**: Module 2 will add centralized logging with LokiStack, enabling you to correlate metrics with detailed log messages for faster root cause analysis.
@@ -547,15 +858,18 @@ You successfully demonstrated how user workload monitoring provides application 
 * Verified the user workload monitoring stack (Prometheus, Thanos, Alertmanager)
 * Deployed a sample application with Prometheus-compatible metrics
 * Configured ServiceMonitor to automatically collect application metrics
-* Created custom dashboards to visualize application performance
+* Created namespace-scoped monitoring with Cluster Observability Operator (COO)
+* Built declarative Perses dashboards to visualize application performance
 * Implemented alerting rules to proactively detect application issues
 
 **Key concepts mastered**:
 
 * **ServiceMonitor**: Declaratively configures which services Prometheus scrapes
+* **MonitoringStack**: Namespace-scoped monitoring with label-based resource discovery
 * **PromQL**: Query language for analyzing time-series metrics data
+* **PersesDashboard**: Declarative YAML-based dashboard as code
 * **PrometheusRule**: Defines alerting conditions and notification thresholds
-* **User workload monitoring**: Separate monitoring stack for application metrics
+* **User workload monitoring vs COO**: Cluster-wide vs namespace-scoped monitoring
 
 **Metrics collected**:
 
