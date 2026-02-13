@@ -687,7 +687,15 @@ Check that your COO dashboard is working:
 **Solution**:
 . Verify the label: `oc get servicemonitor sample-app-coo -n {user}-observability-demo --show-labels`
 . Must have: `monitoring.rhobs/stack=observability-stack`
-. Check MonitoringStack selector: `oc get monitoringstack observability-stack -n observability-demo -o yaml | grep -A5 resourceSelector`
+. Check MonitoringStack has namespaceSelector to discover resources in other namespaces:
++
+[source,bash]
+----
+oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.spec.namespaceSelector}'
+----
++
+Should return `{}` (empty selector = all namespaces). If it returns nothing, the MonitoringStack only watches its own namespace.
+. Check MonitoringStack resourceSelector: `oc get monitoringstack observability-stack -n observability-demo -o yaml | grep -A5 resourceSelector`
 
 **Issue**: Dashboard not visible in console
 

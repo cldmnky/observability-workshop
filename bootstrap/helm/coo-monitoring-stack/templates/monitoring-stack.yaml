@@ -10,6 +10,9 @@ spec:
   logLevel: {{ .Values.monitoringStack.logLevel }}
   retention: {{ .Values.monitoringStack.retention }}
   
+  # Namespace selector - allows discovering ServiceMonitors in any namespace
+  namespaceSelector: {}
+  
   # Resource selector - automatically discovers ServiceMonitors with matching labels
   resourceSelector:
     matchLabels:
