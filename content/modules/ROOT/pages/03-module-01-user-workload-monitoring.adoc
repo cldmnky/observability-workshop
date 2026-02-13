@@ -571,49 +571,60 @@ spec:
   display:
     name: Sample Application Metrics
     description: HTTP request metrics for sample-app
-  datasources:
-    default:
-      kind: PrometheusDatasource
-      spec:
-        directUrl: http://thanos-querier.observability-demo.svc.cluster.local:9090
   duration: 1h
+  datasources:
+    prometheusDatasource:
+      default: true
+      display:
+        name: Thanos Querier
+        description: COO Prometheus via Thanos Querier
+      plugin:
+        kind: PrometheusDatasource
+        spec:
+          directUrl: http://thanos-querier-observability-stack.observability-demo.svc.cluster.local:10902
   panels:
-    HTTP_Request_Rate:
+    httpRequestRate:
       kind: Panel
       spec:
         display:
           name: HTTP Request Rate
           description: Requests per second by pod
-        queries:
-          - kind: TimeSeriesQuery
-            spec:
-              datasource:
-                kind: PrometheusDatasource
-              query: |
-                sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
         plugin:
           kind: TimeSeriesChart
           spec:
             legend:
               position: bottom
-    Total_Requests:
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheusDatasource
+                  query: sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
+    totalRequests:
       kind: Panel
       spec:
         display:
           name: Total HTTP Requests
           description: Cumulative request count by pod
-        queries:
-          - kind: TimeSeriesQuery
-            spec:
-              datasource:
-                kind: PrometheusDatasource
-              query: |
-                sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
         plugin:
           kind: TimeSeriesChart
           spec:
             legend:
               position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheusDatasource
+                  query: sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
   layouts:
     - kind: Grid
       spec:
@@ -627,13 +638,13 @@ spec:
             width: 12
             height: 6
             content:
-              \$ref: '#/spec/panels/HTTP_Request_Rate'
+              \$ref: '#/spec/panels/httpRequestRate'
           - x: 0
             y: 6
             width: 12
             height: 6
             content:
-              \$ref: '#/spec/panels/Total_Requests'
+              \$ref: '#/spec/panels/totalRequests'
 EOF
 ----
 +
