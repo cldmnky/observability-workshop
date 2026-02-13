@@ -109,7 +109,7 @@ oc get pods -n openshift-tempo-operator
 === During workshop support
 
 * Use the lab terminal for all command line operations
-* Console access is available via {openshift_cluster_console_url}
+* Console access is available via {openshift_console_url}
 * All credentials are provided in the lab interface
 * Sample applications are pre-deployed for testing
 
@@ -188,7 +188,7 @@ oc get pods -n openshift-tempo-operator
 
 == Authors and contributors
 
-**Primary Author**: Red Hat Technical Training Team
+**Primary Author**: Magnus Bengtsson <mbengtss@redhat.com>
 
 **Last Updated**: February 2026
 
