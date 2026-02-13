@@ -28,15 +28,17 @@
   function buildReplacementPairs(userData) {
     const pairs = [];
 
+    // Placeholder replacements (marked with false for isLiteral)
     for (const [placeholder, key] of Object.entries(PLACEHOLDERS)) {
       if (userData[key]) {
-        pairs.push([placeholder, userData[key]]);
+        pairs.push([placeholder, userData[key], false]);
       }
     }
 
+    // Namespace literal replacements (marked with true for isLiteral)
     if (userData.user) {
       for (const [literal, mapper] of Object.entries(EXERCISE_NAMESPACE_LITERALS)) {
-        pairs.push([literal, mapper(userData.user)]);
+        pairs.push([literal, mapper(userData.user), true]);
       }
     }
 
@@ -70,9 +72,13 @@
     let text = node.textContent;
     let replaced = false;
 
-    for (const [findText, replaceText] of replacementPairs) {
+    for (const [findText, replaceText, isLiteral] of replacementPairs) {
       if (text.includes(findText)) {
-        text = text.replace(new RegExp(escapeRegExp(findText), 'g'), replaceText);
+        // For namespace literals, use negative lookbehind to avoid double replacement
+        const pattern = isLiteral 
+          ? new RegExp(`(?<!\\w-)${escapeRegExp(findText)}(?!-)`, 'g')
+          : new RegExp(escapeRegExp(findText), 'g');
+        text = text.replace(pattern, replaceText);
         replaced = true;
       }
     }
@@ -91,9 +97,13 @@
         let value = element.getAttribute(attr);
         let replaced = false;
 
-        for (const [findText, replaceText] of replacementPairs) {
+        for (const [findText, replaceText, isLiteral] of replacementPairs) {
           if (value.includes(findText)) {
-            value = value.replace(new RegExp(escapeRegExp(findText), 'g'), replaceText);
+            // For namespace literals, use negative lookbehind to avoid double replacement
+            const pattern = isLiteral 
+              ? new RegExp(`(?<!\\w-)${escapeRegExp(findText)}(?!-)`, 'g')
+              : new RegExp(escapeRegExp(findText), 'g');
+            value = value.replace(pattern, replaceText);
             replaced = true;
           }
         }
