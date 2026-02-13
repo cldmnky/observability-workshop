@@ -555,7 +555,40 @@ oc get servicemonitor sample-app-coo -n {user}-observability-demo --show-labels
 +
 You should see `monitoring.rhobs/stack=observability-stack` in the labels.
 
+. Create a Perses DataSource for the COO Prometheus:
++
+A PersesDatasource creates a shared connection to the Prometheus instance that dashboards can reference.
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: perses.dev/v1alpha1
+kind: PersesDatasource
+metadata:
+  name: observability-demo-prometheus
+  namespace: observability-demo
+  labels:
+    monitoring.rhobs/stack: observability-stack
+spec:
+  default: true
+  display:
+    name: "Observability Demo - Prometheus"
+    description: "Direct connection to Prometheus in observability-demo MonitoringStack"
+  plugin:
+    kind: PrometheusDatasource
+    spec:
+      proxy:
+        kind: HTTPProxy
+        spec:
+          url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
+EOF
+----
++
+This creates a datasource pointing to the COO Prometheus service. Dashboards will reference this datasource instead of embedding connection details.
+
 . Create a Perses dashboard to visualize your metrics:
++
+Now create a dashboard that references the datasource:
 +
 [source,bash]
 ----
@@ -572,16 +605,6 @@ spec:
     name: Sample Application Metrics
     description: HTTP request metrics for sample-app
   duration: 1h
-  datasources:
-    prometheusDatasource:
-      default: true
-      display:
-        name: Thanos Querier
-        description: COO Prometheus via Thanos Querier
-      plugin:
-        kind: PrometheusDatasource
-        spec:
-          directUrl: http://thanos-querier-observability-stack.observability-demo.svc.cluster.local:10902
   panels:
     httpRequestRate:
       kind: Panel
@@ -602,7 +625,7 @@ spec:
                 spec:
                   datasource:
                     kind: PrometheusDatasource
-                    name: prometheusDatasource
+                    name: observability-demo-prometheus
                   query: sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
     totalRequests:
       kind: Panel
@@ -623,32 +646,12 @@ spec:
                 spec:
                   datasource:
                     kind: PrometheusDatasource
-                    name: prometheusDatasource
+                    name: observability-demo-prometheus
                   query: sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
-  layouts:
-    - kind: Grid
-      spec:
-        display:
-          title: Request Metrics
-          collapse:
-            open: true
-        items:
-          - x: 0
-            y: 0
-            width: 12
-            height: 6
-            content:
-              \$ref: '#/spec/panels/httpRequestRate'
-          - x: 0
-            y: 6
-            width: 12
-            height: 6
-            content:
-              \$ref: '#/spec/panels/totalRequests'
 EOF
 ----
 +
-This creates a Perses dashboard with 2 panels: request rate and total requests.
+This creates a Perses dashboard with 2 panels that reference the shared datasource: request rate and total requests.
 
 . Generate traffic to populate the dashboard:
 +
