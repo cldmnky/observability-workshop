@@ -3,9 +3,9 @@
 :toc: macro
 :toclevels: 1
 
-After implementing metrics, logging, and tracing in the previous modules, your team at Red Hat Observability Inc. faces a new challenge. "We have comprehensive observability now, but each service uses different instrumentation libraries," notes your lead developer. "Some services use Prometheus client libraries, others use custom logging frameworks, and tracing requires yet another SDK. This creates maintenance overhead and inconsistent data quality."
+After implementing metrics, logging, and tracing in the previous modules, a new challenge emerges: each service uses different instrumentation libraries. Some services use Prometheus client libraries, others use custom logging frameworks, and tracing requires yet another SDK. This creates maintenance overhead and inconsistent data quality.
 
-Red Hat Observability Inc. needs a unified approach to observability instrumentation that works consistently across all services, regardless of programming language or framework.
+Your organization needs a unified approach to observability instrumentation that works consistently across all services, regardless of programming language or framework.
 
 In this module, you'll implement OpenTelemetry, a vendor-neutral standard for telemetry data collection that provides unified APIs for metrics, logs, and traces.
 
@@ -27,7 +27,7 @@ Before implementing OpenTelemetry, you need to understand what it is and why it 
 
 === What is OpenTelemetry?
 
-**OpenTelemetry (OTel)** is an open-source observability framework that provides:
+**OpenTelemetry (OTel)** is an open source observability framework that provides:
 
 * **Unified APIs**: Single set of APIs for all telemetry types (metrics, logs, traces)
 * **SDKs**: Implementations for 11+ programming languages (Java, Python, Go, Node.js, .NET, etc.)
@@ -36,7 +36,7 @@ Before implementing OpenTelemetry, you need to understand what it is and why it 
 
 **Key benefits**:
 
-* **Standardization**: One instrumentation approach across all services
+* **Standardization**: 1 instrumentation approach across all services
 * **Flexibility**: Change backends without changing application code
 * **Completeness**: Capture metrics, logs, and traces with unified context
 * **Future-proof**: Industry-standard backed by CNCF (Cloud Native Computing Foundation)
@@ -790,7 +790,7 @@ Check that custom collector configuration works:
 * ✓ Custom attributes appear in telemetry data
 * ✓ Multiple exporters sending to different backends
 
-**What you learned**: The OpenTelemetry Collector is a powerful data pipeline. Processors transform telemetry (add attributes, filter, sample). Multiple exporters enable sending data to multiple backends simultaneously.
+**What you learned**: The OpenTelemetry Collector is a flexible telemetry pipeline. Processors transform telemetry (add attributes, filter, sample). Multiple exporters enable sending data to multiple backends simultaneously.
 
 === Troubleshooting
 
@@ -828,7 +828,7 @@ By completing this module, you should now understand:
 * ✓ Collector pipelines are customizable with processors for filtering, batching, and enrichment
 * ✓ All signals share trace context for complete correlation
 
-**Business impact for Red Hat Observability Inc.**:
+**Business impact**:
 
 You've standardized observability instrumentation across all services. This provides:
 
@@ -842,7 +842,7 @@ You've standardized observability instrumentation across all services. This prov
 
 == Module summary
 
-You successfully implemented OpenTelemetry for unified observability at Red Hat Observability Inc.
+You successfully implemented OpenTelemetry for unified observability.
 
 **What you accomplished**:
 
@@ -904,12 +904,12 @@ You've implemented a comprehensive observability stack that provides:
 * Instrument applications using industry-standard OpenTelemetry
 * Implement production-ready observability practices
 
-**Business impact for Red Hat Observability Inc.**:
+**Business impact**:
 
 * **Mean time to detection**: Reduced from hours to seconds
 * **Mean time to resolution**: Reduced from 2-4 hours to 15-30 minutes
 * **Operational efficiency**: 60-70% reduction in troubleshooting time
-* **Reliability**: Proactive issue detection before customer impact
+* **Reliability**: Proactive issue detection before user impact
 
 **Next steps**:
 

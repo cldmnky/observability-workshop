@@ -3,9 +3,9 @@
 :toc: macro
 :toclevels: 1
 
-Armed with metrics from Module 1 and centralized logging from Module 2, your team at Red Hat Observability Inc. can now detect issues and understand what went wrong. But there's still a challenge: "When customers report slow response times, we can see that the API is slow, but we don't know which of our 12 microservices is causing the bottleneck," explains your lead architect. "We need to trace requests end-to-end."
+With metrics from Module 1 and centralized logging from Module 2, you can now detect issues and understand what went wrong. However, a challenge remains: when applications experience slow response times, metrics show overall slowness, but identifying which specific microservice causes the bottleneck requires additional visibility.
 
-Red Hat Observability Inc.'s application is a complex mesh of microservices. 1 customer request might touch 5-8 different services. When performance degrades, metrics show overall slowness, and logs show individual service behavior, but neither reveals where in the chain the delay occurs.
+Your organization's application is a complex mesh of microservices. 1 user request might touch 5-8 different services. When performance degrades, metrics show overall slowness, and logs show individual service behavior, but neither reveals where in the chain the delay occurs.
 
 In this module, you'll implement distributed tracing with Tempo, enabling you to visualize complete request flows and pinpoint exactly where performance bottlenecks occur.
 
@@ -468,7 +468,7 @@ Open Jaeger UI and filter for slow traces:
 * Min Duration: 500ms
 * Find Traces
 +
-Select one of the slow traces for Customer 3.
+Select 1 of the slow traces for Customer 3.
 
 . Identify the problematic span:
 +
@@ -641,7 +641,7 @@ By completing this module, you should now understand:
 * ✓ Correlating traces with logs and metrics provides complete incident context
 * ✓ Trace sampling balances observability with storage costs
 
-**Business impact for Red Hat Observability Inc.**:
+**Business impact**:
 
 You've eliminated the guesswork in performance troubleshooting. Instead of manually testing each microservice, you now have:
 
@@ -656,7 +656,7 @@ You've eliminated the guesswork in performance troubleshooting. Instead of manua
 
 == Module summary
 
-You successfully implemented distributed tracing with Tempo at Red Hat Observability Inc.
+You successfully implemented distributed tracing with Tempo.
 
 **What you accomplished**:
 

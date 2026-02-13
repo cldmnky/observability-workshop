@@ -3,9 +3,9 @@
 :toc: macro
 :toclevels: 1
 
-After implementing user workload monitoring in Module 1, your manager at Red Hat Observability Inc. has a new challenge. "The metrics show us when something is wrong, but we still waste hours digging through pod logs to find out why," she explains. "We need centralized logging so we can query logs across all our microservices in one place."
+After implementing user workload monitoring in Module 1, you now need to address log management challenges. While metrics show when issues occur, investigating root causes requires efficient log analysis across distributed services.
 
-Red Hat Observability Inc. runs a distributed application with 12+ microservices. When an issue occurs, developers currently SSH into individual pods and grep through log files. This manual process is time-consuming and error-prone, especially when correlating events across services.
+Your organization runs a distributed application with 12+ microservices. When issues occur, developers currently access individual pod logs manually. This process is time-consuming and error-prone, especially when correlating events across multiple services.
 
 In this module, you'll implement centralized logging with LokiStack and learn to write LogQL queries that quickly surface relevant log entries across your entire application.
 
@@ -461,7 +461,7 @@ Check that you can correlate metrics and logs:
 * ✓ Structured data can be extracted from log lines
 * ✓ Correlation reduces investigation time from minutes to seconds
 
-**What you learned**: Metrics tell you when and where problems occur. Logs provide the detailed context explaining why. Together, they dramatically reduce mean time to resolution.
+**What you learned**: Metrics tell you when and where problems occur. Logs provide the detailed context explaining why. Together, they reduce mean time to resolution through unified analysis.
 
 === Troubleshooting
 
@@ -594,14 +594,14 @@ By completing this module, you should now understand:
 * ✓ LokiStack's label-based indexing approach reduces storage costs compared to full-text indexing
 * ✓ ClusterLogForwarder routes application logs from pods to Loki for centralized storage
 * ✓ LogQL queries use labels to select streams and filters to search log content
-* ✓ Correlating logs with metrics dramatically reduces troubleshooting time
+* ✓ Correlating logs with metrics reduces troubleshooting time through unified analysis
 * ✓ Log-based alerts can detect issues based on patterns in log messages
 
-**Business impact for Red Hat Observability Inc.**:
+**Business impact**:
 
-You've eliminated the manual log searching process. Instead of SSHing into individual pods and grepping files, you now have:
+You've eliminated the manual log searching process. Instead of accessing individual pods and searching files manually, you now have:
 
-* Centralized logs from all 12+ microservices in one queryable system
+* Centralized logs from all 12+ microservices in 1 queryable system
 * Ability to search across all services simultaneously with LogQL
 * Correlation between metric spikes and log messages
 * Automated alerts on critical log patterns
@@ -612,7 +612,7 @@ You've eliminated the manual log searching process. Instead of SSHing into indiv
 
 == Module summary
 
-You successfully implemented centralized logging with LokiStack at Red Hat Observability Inc.
+You successfully implemented centralized logging with LokiStack.
 
 **What you accomplished**:
 

@@ -3,9 +3,9 @@
 :toc: macro
 :toclevels: 1
 
-Your manager at Red Hat Observability Inc. just assigned you to improve visibility into the company's microservices application. "We need to know when our applications are having problems before customers call us," she says. "Right now, we only monitor infrastructure, not application health."
+Your organization needs to improve visibility into microservices application health and performance. The current infrastructure monitoring does not provide insight into application-level metrics or business-critical functionality.
 
-Red Hat Observability Inc. needs custom application metrics and alerts that reflect business-critical functionality. You've been tasked with implementing user workload monitoring to track application performance, latency, and error rates.
+You will implement user workload monitoring to track application performance, latency, and error rates. Custom metrics and alerts will enable proactive detection of application issues before they impact users.
 
 In this module, you'll learn how to configure Prometheus monitoring for custom application metrics and create alerts that notify you when applications deviate from expected behavior.
 
@@ -23,7 +23,7 @@ By the end of this module, you'll be able to:
 
 == Understanding observability foundations
 
-Before implementing monitoring, you need to understand the observability landscape at Red Hat Observability Inc.
+Before implementing monitoring, you need to understand the observability landscape.
 
 === The 3 pillars of observability
 
@@ -108,15 +108,6 @@ prometheus-user-workload-1             6/6     Running   0          1h
 thanos-ruler-user-workload-0           3/3     Running   0          1h
 thanos-ruler-user-workload-1           3/3     Running   0          1h
 ----
-
-. Check the ConfigMap that enables user workload monitoring:
-+
-[source,bash]
-----
-oc get configmap cluster-monitoring-config -n openshift-monitoring -o yaml
-----
-+
-Look for `enableUserWorkload: true` in the configuration.
 
 . Access the OpenShift console monitoring interface:
 +
@@ -395,7 +386,7 @@ Check that Prometheus is collecting your application metrics:
 
 * ✓ ServiceMonitor exists in {user}-observability-demo namespace
 * ✓ PromQL query `http_requests_total` returns data
-* ✓ Multiple time series (one per pod) are visible
+* ✓ Multiple time series (1 per pod) are visible
 * ✓ Rate query shows request rate calculation
 
 **What you learned**: ServiceMonitor resources configure Prometheus to scrape application metrics. Once configured, metrics are automatically collected and queryable via PromQL.
@@ -416,11 +407,11 @@ Check that Prometheus is collecting your application metrics:
 
 == Exercise 4: Create custom dashboards with COO
 
-Querying metrics via PromQL is powerful, but visualizing trends over time is more intuitive. You'll use the Cluster Observability Operator (COO) to create custom dashboards.
+Querying metrics via PromQL is effective, but visualizing trends over time provides better insights. You'll use the Cluster Observability Operator (COO) to create custom dashboards.
 
 === Understanding COO vs User Workload Monitoring
 
-Your cluster has **two independent monitoring systems**:
+Your cluster has **2 independent monitoring systems**:
 
 **User Workload Monitoring (CMO)** (Exercise 1-3):
 
@@ -684,7 +675,7 @@ oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c 'fo
 
 . Verify the dashboard is using COO metrics:
 +
-The dashboard queries the Thanos Querier in the `observability-demo` namespace, which aggregates data from the COO MonitoringStack (not user workload monitoring).
+The dashboard queries the COO Prometheus service in the `observability-demo` namespace through the Perses datasource (not user workload monitoring).
 
 === Verify
 
@@ -838,9 +829,9 @@ By completing this module, you should now understand:
 * ✓ Creating declarative Perses dashboards for custom visualizations with COO
 * ✓ Configuring PrometheusRule resources to proactively alert on application issues
 
-**Business impact for Red Hat Observability Inc.**:
+**Business impact**:
 
-You've implemented the foundation of proactive monitoring. Instead of discovering issues through customer complaints, you now have:
+You've implemented the foundation of proactive monitoring. Instead of discovering issues through user complaints, you now have:
 
 * Real-time visibility into application request rates and patterns
 * Declarative dashboards versioned alongside your application code
@@ -851,7 +842,7 @@ You've implemented the foundation of proactive monitoring. Instead of discoverin
 
 == Module summary
 
-You successfully demonstrated how user workload monitoring provides application visibility at Red Hat Observability Inc.
+You successfully demonstrated how user workload monitoring provides application visibility.
 
 **What you accomplished**:
 

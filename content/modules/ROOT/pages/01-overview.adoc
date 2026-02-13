@@ -5,23 +5,23 @@
 
 == Your role and mission
 
-You're a senior developer at Red Hat Observability Inc., and you've been assigned to improve the reliability and troubleshooting capabilities for the company's cloud-native applications.
+You are implementing observability for cloud native applications running on OpenShift. Your organization needs to reduce mean time to resolution for production issues and improve overall application reliability.
 
-Red Hat Observability Inc. needs to reduce mean time to resolution for production issues and improve overall application reliability. Your manager has explained: "We're spending too much time troubleshooting production incidents, and our current monitoring gaps are costing us valuable development time and customer satisfaction."
+Current monitoring gaps increase troubleshooting time for production incidents. The organization requires comprehensive visibility into application health and performance.
 
-**Your assignment**: Implement comprehensive observability for the company's microservices applications running on OpenShift to enable faster issue detection and resolution.
+**Your assignment**: Implement comprehensive observability for microservices applications running on OpenShift to enable faster issue detection and resolution.
 
 **The objective**: Demonstrate how metrics, logs, and traces work together to provide complete visibility into application behavior and performance.
 
 == Success criteria for your mission
 
-By the end of this workshop, you'll have practical observability skills to address Red Hat Observability Inc.'s operational challenges:
+By the end of this workshop, you'll have practical observability skills to address operational challenges:
 
 * Configure user workload monitoring with custom metrics and alerts → **proactively detect application issues before they impact users**
 * Implement centralized logging with LokiStack for efficient log analysis → **reduce time spent searching through distributed logs**
 * Set up distributed tracing to visualize request flows across microservices → **quickly identify performance bottlenecks**
 * Instrument applications with OpenTelemetry for unified telemetry collection → **standardize observability across all services**
-* Correlate signals (metrics, logs, traces) to diagnose complex issues → **dramatically reduce mean time to resolution**
+* Correlate signals (metrics, logs, traces) to diagnose complex issues → **reduce mean time to resolution through unified signal analysis**
 
 **Technical outcome**: You'll have hands-on experience implementing a production-ready observability stack on OpenShift.
 
@@ -46,36 +46,36 @@ You should have:
 * Basic knowledge of monitoring and logging concepts
 * Access to a computer with internet connectivity
 
-== Red Hat Observability Inc.'s operational challenges
+== Operational challenges
 
-**The situation**: Red Hat Observability Inc. runs a complex microservices application on OpenShift, but lacks comprehensive observability, leading to extended troubleshooting times and production incidents.
+**The situation**: Your organization runs a complex microservices application on OpenShift but lacks comprehensive observability, leading to extended troubleshooting times and production incidents.
 
-**Current challenges** (operational pain points):
+**Current challenges**:
 
 * **Limited visibility**: Only basic infrastructure monitoring exists → cannot see application-level health or business metrics
 * **Log fragmentation**: Logs scattered across multiple pods and namespaces → troubleshooting requires manual log collection and correlation
 * **No distributed tracing**: Difficult to understand request flows across 12+ microservices → performance issues take hours to diagnose
 * **Manual correlation**: When issues occur, teams manually piece together metrics and logs → mean time to resolution averages 2-4 hours
-* **Reactive monitoring**: No custom alerts for business-critical metrics → issues discovered by customers first
+* **Reactive monitoring**: No custom alerts for business-critical metrics → issues discovered by users first
 
-**The opportunity**: Implementing comprehensive observability with OpenShift's monitoring stack, LokiStack logging, distributed tracing, and OpenTelemetry instrumentation will dramatically improve the team's ability to maintain reliable applications.
+**The opportunity**: Implementing comprehensive observability with OpenShift's monitoring stack, LokiStack logging, distributed tracing, and OpenTelemetry instrumentation will improve the ability to maintain reliable applications.
 
-**Technical perspective**: "We need to move from reactive firefighting to proactive monitoring. Complete visibility into our application behavior will let us catch issues early and resolve them quickly."
+**Technical goal**: Move from reactive firefighting to proactive monitoring. Complete visibility into application behavior enables early issue detection and faster resolution.
 
-== Your vision of success
+== Expected outcomes
 
-When comprehensive observability is implemented at Red Hat Observability Inc., here's the expected improvements:
+When comprehensive observability is implemented, here are the expected improvements:
 
-**Immediate improvements** (short-term):
+**Immediate improvements**:
 
-* **Faster troubleshooting**: Reduce mean time to resolution from 2-4 hours to 15-30 minutes → improve customer satisfaction and reduce operational stress
-* **Proactive alerts**: Custom metrics and alerts catch issues before customer impact → shift from reactive to proactive operations
+* **Faster troubleshooting**: Reduce mean time to resolution from 2-4 hours to 15-30 minutes through centralized observability and correlation
+* **Proactive alerts**: Custom metrics and alerts detect issues before user impact → shift from reactive to proactive operations
 * **Unified logging**: Centralized log analysis with LokiStack → troubleshoot issues without SSH access to individual pods
 * **Request tracing**: Visualize complete request flows → identify bottlenecks in seconds instead of hours
 
-**Strategic benefits** (longer-term):
+**Strategic benefits**:
 
-* **Improved reliability**: Better visibility leads to higher application uptime → increased customer confidence
+* **Improved reliability**: Better visibility leads to higher application uptime and faster incident resolution
 * **Reduced operational costs**: Less time spent troubleshooting → teams can focus on feature development
 * **Performance optimization**: Data-driven insights enable targeted improvements → better resource utilization
 * **Standardized instrumentation**: OpenTelemetry provides consistent observability across all services → easier onboarding and maintenance
