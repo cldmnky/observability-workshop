@@ -18,7 +18,7 @@ By the end of this module, you'll be able to:
 * Understand the 3 pillars of observability (metrics, logs, traces) and when to use each
 * Configure ServiceMonitor resources to collect custom application metrics
 * Write PromQL queries to analyze application performance
-* Create custom dashboards in the OpenShift console for application visibility
+* Create declarative Perses dashboards for application visibility in the OpenShift console
 * Configure Alertmanager rules to proactively notify you of application issues
 
 == Understanding observability foundations
@@ -27,110 +27,52 @@ Before implementing monitoring, you need to understand the observability landsca
 
 === The 3 pillars of observability
 
-Comprehensive observability relies on 3 complementary signal types:
+Use all 3 signal types together:
 
-* **Metrics**: Numerical measurements over time (CPU usage, request count, latency percentiles)
-  - Use for: Trends, thresholds, alerting on quantitative changes
-  - Example: "API response time increased 200% in the last 10 minutes"
+* **Metrics**: Numeric trends over time (request rate, latency percentiles, CPU)
+  - Best for: Detection, thresholds, alerting
+* **Logs**: Timestamped events with context (errors, transaction IDs, user actions)
+  - Best for: Root cause details and audit trails
+* **Traces**: End-to-end request flow across services
+  - Best for: Finding latency bottlenecks and dependency issues
 
-* **Logs**: Discrete event records with timestamps and context (error messages, transaction IDs, user actions)
-  - Use for: Detailed context, root cause analysis, audit trails
-  - Example: "User 12345 received error: database connection timeout"
+Practical workflow:
 
-* **Traces**: Request flows across distributed services (span duration, service dependencies, bottleneck identification)
-  - Use for: Understanding microservice interactions, performance optimization
-  - Example: "Order API → Inventory Service → Database: 850ms total, 700ms in database query"
-
-**When to use each signal**:
-
-* Start with **metrics** to detect that something is wrong (high error rate)
-* Use **logs** to understand what went wrong (specific error messages)
-* Apply **traces** to find where the problem occurred (which service caused the delay)
+* Start with **metrics** to detect a problem
+* Use **logs** to identify what failed
+* Use **traces** to locate where it failed
 
 === Observability methodologies
 
-Beyond the 3 pillars, different methodologies help structure which metrics to collect:
+Use these common methods to decide which metrics matter most:
 
-**RED Method** (Request-driven services):
-
-* **Rate**: Number of requests per second
-* **Errors**: Number of failed requests per second
-* **Duration**: Time taken to process requests (latency)
-
-Best for: Microservices, APIs, web applications
-
-Example: "Our checkout API has 500 req/s, 2% error rate, and p95 latency of 250ms"
-
-**USE Method** (Resources):
-
-* **Utilization**: Percentage of time the resource is busy
-* **Saturation**: Degree of queued work (e.g., CPU run queue)
-* **Errors**: Error count from the resource
-
-Best for: Infrastructure components (CPU, memory, disk, network)
-
-Example: "Database server has 85% CPU utilization, 10 connections queued, 0 disk errors"
-
-**Golden Signals** (Google SRE):
-
-* **Latency**: Time to service requests
-* **Traffic**: Demand on your system
-* **Errors**: Rate of failed requests
-* **Saturation**: How "full" your service is
-
-Best for: Comprehensive service monitoring combining request and resource metrics
+* **RED** (services): **Rate, Errors, Duration**
+* **USE** (infrastructure): **Utilization, Saturation, Errors**
+* **Golden Signals**: **Latency, Traffic, Errors, Saturation**
 
 NOTE: In this workshop, you'll primarily use the **RED method** for monitoring the sample application's HTTP requests (rate, errors, duration). The Prometheus metrics `http_requests_total` and `http_request_duration_seconds` directly support this methodology.
 
 === OpenShift monitoring architecture
 
-OpenShift provides multiple monitoring approaches to serve different use cases:
+OpenShift provides 3 complementary monitoring options:
 
-**Platform monitoring** (managed by Cluster Monitoring Operator - CMO):
+* **Platform monitoring (CMO)**
+  - Namespace: `openshift-monitoring`
+  - Purpose: Cluster and control-plane health
+  - Managed by: Cluster admins
 
-* Monitors OpenShift infrastructure and control plane components
-* Includes: etcd, API server, scheduler, controller manager
-* Namespace: `openshift-monitoring`
-* Scope: Cluster-wide infrastructure metrics
-* Managed by cluster admins only
+* **User workload monitoring (CMO)**
+  - Namespace: `openshift-user-workload-monitoring`
+  - Purpose: Cluster-wide application monitoring using ServiceMonitor
+  - Trade-off: Easy to use, limited customization
 
-**User workload monitoring** (managed by CMO):
+* **Cluster Observability Operator (COO)**
+  - Purpose: Independent, namespace-scoped monitoring stacks via `MonitoringStack`
+  - Discovery: Label-based selectors (for example, `monitoring.rhobs/stack: observability-stack`)
+  - Components: Prometheus plus optional Thanos Querier, Alertmanager, and UI plugins (including Perses dashboards)
+  - Best for: Multi-tenant teams, custom dashboards, and flexible retention/configuration
 
-* Monitors custom applications and user-deployed services
-* You configure what to monitor via ServiceMonitor resources
-* Namespace: `openshift-user-workload-monitoring`
-* Uses Prometheus, Thanos Querier, and Alertmanager
-* Scope: Cluster-wide application metrics (any namespace)
-* Limited customization options
-
-**Cluster Observability Operator (COO)** (independent operator for advanced use cases):
-
-* Creates namespace-scoped monitoring stacks via MonitoringStack custom resource
-* Functions independently of CMO - both can coexist without conflict
-* Label-based ServiceMonitor discovery (e.g., `monitoring.rhobs/stack: observability-stack`)
-* Deploys Prometheus, Thanos Querier (optional), Alertmanager (optional)
-* Supports UI plugins for enhanced dashboards (Perses), logging, and troubleshooting
-* Namespace: Can deploy stacks in any namespace (e.g., `observability-demo`)
-* Scope: Multi-tenant, team-scoped, or application-specific monitoring
-
-**Key advantages of COO**:
-
-* **Multi-tenancy**: Create separate monitoring stacks per team or namespace
-* **Extensibility**: Add custom metrics without losing support
-* **Scalability**: Multiple monitoring stacks on a single cluster
-* **Flexibility**: Independent release cycle from OpenShift
-* **Longer retention**: Supports historical analysis and capacity planning
-
-**When to use each**:
-
-* Use **platform monitoring** for cluster infrastructure (managed by admins, you can't modify it)
-* Use **user workload monitoring** for simple application metrics without custom dashboards or long-term retention
-* Use **COO** when you need:
-  - Custom Perses dashboards and enhanced visualizations
-  - Namespace isolation or multi-tenant monitoring
-  - Longer data retention periods
-  - More configuration flexibility
-  - Multiple monitoring stacks for different teams
+CMO and COO can run together without conflict.
 
 In this workshop, you'll use **both user workload monitoring** (Exercises 1-3) and **COO** (Exercise 4 onward) to understand the full range of monitoring options available in OpenShift.
 
@@ -142,12 +84,12 @@ The observability stack was pre-configured via GitOps, so Prometheus and Alertma
 
 === Steps
 
-. Log into the OpenShift console at {openshift_cluster_console_url}
+. Log into the OpenShift console at {openshift_console_url}
 +
 Use the credentials provided in your lab interface:
 +
-* Username: {openshift_cluster_admin_username}
-* Password: {openshift_cluster_admin_password}
+* Username: {user}
+* Password: {password}
 
 . Verify user workload monitoring pods are running:
 +
@@ -203,7 +145,7 @@ Check that your monitoring stack is operational:
 * ✓ Prometheus query interface is accessible
 * ✓ PromQL query returns results
 
-**What you learned**: OpenShift provides 2 monitoring stacks (platform and user workload). User workload monitoring is where you'll configure custom application metrics.
+**What you learned**: OpenShift includes CMO-managed platform and user workload monitoring, plus optional COO stacks for advanced use cases. In this exercise, you verified the CMO user workload stack.
 
 === Troubleshooting
 
