@@ -16,8 +16,8 @@
   };
 
   // Namespace literals used in workshop exercises that must be user-specific
+  // Note: 'observability-demo' is NOT included because it's a shared COO namespace
   const EXERCISE_NAMESPACE_LITERALS = {
-    'observability-demo': (user) => `${user}-observability-demo`,
     'tracing-demo': (user) => `${user}-tracing-demo`
   };
 
