@@ -16,7 +16,7 @@ operator:
 # Builds requires OpenShift Pipelines to be installed.
 pipelines:
   # Install Pipelines operator subscription as prerequisite
-  enabled: true
+  enabled: false
   # Pipelines operator subscription namespace (AllNamespaces mode)
   namespace: openshift-operators
   # Operator channel
