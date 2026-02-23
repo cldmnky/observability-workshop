@@ -1,0 +1,133 @@
+{{- if .Values.workshopUsers.rbac.enabled }}
+---
+# Workshop User RBAC Configuration
+# 
+# This template grants authenticated workshop users appropriate permissions
+# to complete observability workshop exercises:
+#
+# 1. ClusterRole with read-only access to observability CRDs and console plugins
+# 2. Edit access to namespaces in editNamespaces list (create ServiceMonitors, deploy apps)
+# 3. View access to namespaces in viewNamespaces list (observe monitoring/logging/tracing infrastructure)
+#
+# RBAC follows principle of least privilege:
+# - Full edit in workshop workspace namespaces
+# - View-only in operator namespaces (learn infrastructure without breaking it)
+# - No access to platform monitoring (openshift-monitoring) or cluster-admin resources
+#
+# Sync wave 2: Deploys after namespaces (wave 0) and operators (wave 1) exist
+---
+# ClusterRole for workshop users to access observability resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: workshop-observability-access
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+rules:
+# Access to observability UI plugins
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - consoleplugins
+  verbs:
+  - get
+  - list
+# Access to monitoring dashboards and queries
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheusrules
+  - servicemonitors
+  - podmonitors
+  verbs:
+  - get
+  - list
+  - watch
+# Access to Tempo traces (read-only at cluster level)
+- apiGroups:
+  - tempo.grafana.com
+  resources:
+  - tempostacks
+  verbs:
+  - get
+  - list
+# Access to OpenTelemetry instrumentation (read-only at cluster level)
+- apiGroups:
+  - opentelemetry.io
+  resources:
+  - instrumentations
+  - opentelemetrycollectors
+  verbs:
+  - get
+  - list
+---
+# ClusterRoleBinding for workshop users (all authenticated users)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: workshop-observability-access
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: workshop-observability-access
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+{{- range .Values.workshopUsers.rbac.editNamespaces }}
+---
+# RoleBinding for {{ . }} namespace (full edit access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-{{ include "showroom-site.sanitize-namespace" . }}-edit
+  namespace: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+{{- end }}
+{{- range .Values.workshopUsers.rbac.viewNamespaces }}
+---
+# RoleBinding for {{ . }} namespace (view access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workshop-users-{{ include "showroom-site.sanitize-namespace" . }}-view
+  namespace: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: workshop-observability-access
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: observability-workshop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated
+{{- end }}
+{{- end }}
