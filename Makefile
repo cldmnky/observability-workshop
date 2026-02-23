@@ -353,7 +353,7 @@ sync-argo: ## Apply ApplicationSet and sync ArgoCD application
 # Development targets
 dev-build: ## Quick dev build (local docker/podman test)
 	@printf '%b\n' "$(YELLOW)Building container locally for testing...$(NC)"
-	@podman build -t localhost/showroom-site:test -f Containerfile .
+	@podman build --build-arg PLAYBOOK=site-container-dev.yml -t localhost/showroom-site:test -f Containerfile .
 	@printf '%b\n' "$(GREEN)Test with: podman run -p 8080:8080 localhost/showroom-site:test$(NC)"
 
 dev-run: ## Run locally built container
