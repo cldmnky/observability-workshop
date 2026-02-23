@@ -41,7 +41,7 @@ spec:
               
               # Create BuildRun
               cat <<EOF | oc create -f -
-              apiVersion: shipwright.io/v1alpha1
+              apiVersion: shipwright.io/v1beta1
               kind: BuildRun
               metadata:
                 generateName: user-info-api-build-
