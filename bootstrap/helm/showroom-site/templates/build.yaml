@@ -1,5 +1,5 @@
 ---
-apiVersion: shipwright.io/v1
+apiVersion: shipwright.io/v1alpha1
 kind: Build
 metadata:
   name: {{ .Values.build.name }}
