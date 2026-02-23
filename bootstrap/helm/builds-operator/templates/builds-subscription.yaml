@@ -4,7 +4,7 @@ metadata:
   name: openshift-builds-operator
   namespace: {{ .Values.operator.namespace }}
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   channel: {{ .Values.operator.channel }}
   installPlanApproval: {{ .Values.operator.installPlanApproval }}
