@@ -1,0 +1,11 @@
+{{- if and .Values.uiPlugins.enabled (ne .Values.uiPlugins.namespace "openshift-operators") }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.uiPlugins.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}

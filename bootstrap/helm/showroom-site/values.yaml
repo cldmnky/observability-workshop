@@ -135,3 +135,4 @@ workshopUsers:
       - openshift-logging
       - openshift-netobserv-operator
       - openshift-cluster-observability-operator
+      - openshift-operators
