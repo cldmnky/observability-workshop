@@ -235,14 +235,12 @@ spec:
     spec:
       containers:
       - name: app
-        image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:latest
-        command: 
-        - python
-        - -m
-        - flask
-        - run
-        - --host=0.0.0.0
-        - --port=8080
+        image: registry.access.redhat.com/ubi9/python-311:latest
+        command: ["/bin/bash", "-c"]
+        args:
+        - "pip install --quiet flask opentelemetry-distro opentelemetry-exporter-otlp-proto-grpc &&
+          opentelemetry-bootstrap -a install &&
+          opentelemetry-instrument flask run --host=0.0.0.0 --port=8080"
         ports:
         - containerPort: 8080
           name: http
@@ -253,12 +251,6 @@ spec:
           value: "http://central-collector-collector.{user}-observability-demo.svc:4318"
         - name: OTEL_SERVICE_NAME
           value: "dice-roller"
-        - name: OTEL_TRACES_EXPORTER
-          value: "otlp"
-        - name: OTEL_METRICS_EXPORTER
-          value: "otlp"
-        - name: OTEL_LOGS_EXPORTER
-          value: "otlp"
         - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
           value: "true"
         volumeMounts:
@@ -876,47 +868,4 @@ You successfully implemented OpenTelemetry for unified observability.
 * Set appropriate sampling rates for traces
 * Add custom attributes for filtering and grouping
 
-== Workshop completion
-
-Congratulations! You've completed all 4 modules of the OpenShift Observability Workshop.
-
-**Your observability journey**:
-
-* **Module 1**: User workload monitoring with Prometheus and Alertmanager
-* **Module 2**: Centralized logging with LokiStack and LogQL
-* **Module 3**: Distributed tracing with Tempo and Jaeger
-* **Module 4**: Unified instrumentation with OpenTelemetry
-
-**What you've achieved**:
-
-You've implemented a comprehensive observability stack that provides:
-
-* Real-time metrics and custom alerts for proactive issue detection
-* Centralized logs searchable across all microservices
-* End-to-end request tracing for performance optimization
-* Standardized instrumentation with OpenTelemetry
-
-**Skills gained**:
-
-* Configure observability infrastructure on OpenShift
-* Write queries (PromQL, LogQL) to analyze application behavior
-* Correlate metrics, logs, and traces for fast incident resolution
-* Instrument applications using industry-standard OpenTelemetry
-* Implement production-ready observability practices
-
-**Business impact**:
-
-* **Mean time to detection**: Reduced from hours to seconds
-* **Mean time to resolution**: Reduced from 2-4 hours to 15-30 minutes
-* **Operational efficiency**: 60-70% reduction in troubleshooting time
-* **Reliability**: Proactive issue detection before user impact
-
-**Next steps**:
-
-* Explore advanced OpenShift Cluster Observability Operator features
-* Implement multi-cluster observability
-* Integrate with Grafana for custom dashboards
-* Set up alerting integrations (PagerDuty, Slack)
-* Apply learnings to your own applications
-
-Thank you for participating in this workshop!
+Continue to the xref:07-conclusion.adoc[Workshop Completion] page to review your achievements and next steps.

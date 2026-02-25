@@ -1,0 +1,19 @@
+# Local Development Users Configuration
+# This file provides sample user data for local development of the showroom site
+# Used by `make dev-run` to populate the user-info-api
+
+users:
+  testuser1:
+    console_url: "https://console-openshift-console.apps.cluster-dev.example.com"
+    login_command: "oc login --insecure-skip-tls-verify=false -u testuser1 -p password123 https://api.cluster-dev.example.com:6443"
+    openshift_cluster_ingress_domain: "apps.cluster-dev.example.com"
+    openshift_console_url: "https://console-openshift-console.apps.cluster-dev.example.com"
+    password: "password123"
+    user: testuser1
+  testuser2:
+    console_url: "https://console-openshift-console.apps.cluster-dev.example.com"
+    login_command: "oc login --insecure-skip-tls-verify=false -u testuser2 -p password456 https://api.cluster-dev.example.com:6443"
+    openshift_cluster_ingress_domain: "apps.cluster-dev.example.com"
+    openshift_console_url: "https://console-openshift-console.apps.cluster-dev.example.com"
+    password: "password456"
+    user: testuser2

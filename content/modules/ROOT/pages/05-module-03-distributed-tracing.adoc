@@ -228,12 +228,10 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: quay.io/jaegertracing/example-hotrod:latest
+        image: quay.io/jaegertracing/example-hotrod:v1.62.0
         ports:
         - containerPort: 8080
         env:
-        - name: JAEGER_ENDPOINT
-          value: "http://tempo-tempo-distributor.openshift-tempo-operator.svc:4318/v1/traces"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: "http://tempo-tempo-distributor.openshift-tempo-operator.svc:4318"
 ---

@@ -61,7 +61,7 @@ The LokiStack instance and logging operator were pre-configured, so you'll confi
 
 === Steps
 
-. Log into the OpenShift console at {openshift_cluster_console_url} (if not already logged in)
+. Log into the OpenShift console at {openshift_console_url} (if not already logged in)
 
 . Verify the logging operator is running:
 +
@@ -208,11 +208,11 @@ EOF
 ----
 for i in {1..50}; do
   # Successful requests
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080 > /dev/null
-  
+  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
+
   # Failed requests (404 errors)
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/nonexistent > /dev/null
-  
+  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080/nonexistent > /dev/null
+
   echo "Completed request pair $i"
   sleep 0.5
 done

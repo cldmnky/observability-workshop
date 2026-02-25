@@ -95,6 +95,37 @@ See link:bootstrap/README.md[bootstrap/README.md] for detailed deployment instru
 
 For developing and testing workshop content locally before deploying to RHDP:
 
+=== Using Make Targets (Quick Start)
+
+The easiest way to build and run the complete development environment with both the showroom site and user-info-api:
+
+[source,bash]
+----
+# Build both containers (site + API)
+make dev-build
+
+# Run in a pod (multi-container environment)
+make dev-run
+
+# Stop the development environment
+make dev-stop
+
+# View logs
+podman logs -f showroom-dev-pod-site  # Site logs
+podman logs -f showroom-dev-pod-api   # API logs
+----
+
+**What this does**:
+
+* Builds the showroom-site Antora container
+* Builds the user-info-api sidecar container
+* Creates a podman pod with both containers sharing localhost network
+* Exposes the site at http://localhost:8080
+* API endpoint at http://localhost:8080/api/user-info
+* Uses sample user data from `.config/users-dev.yaml`
+
+This provides a complete local development environment matching the deployed multi-user setup.
+
 === Using Containers (Recommended)
 
 In order to test and develop on your local machine, you can use a specially built container with Podman or Docker as follows.

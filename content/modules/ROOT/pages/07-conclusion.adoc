@@ -1,0 +1,58 @@
+= Workshop completion
+:toc:
+:toc-placement: preamble
+:icons: font
+
+Congratulations! You've completed all 4 modules of the OpenShift Observability Workshop.
+
+toc::[]
+
+== Your observability journey
+
+* **Module 1**: User workload monitoring with Prometheus and Alertmanager
+* **Module 2**: Centralized logging with LokiStack and LogQL
+* **Module 3**: Distributed tracing with Tempo and Jaeger
+* **Module 4**: Unified instrumentation with OpenTelemetry
+
+== What you've achieved
+
+You've implemented a comprehensive observability stack that provides:
+
+* Real-time metrics and custom alerts for proactive issue detection
+* Centralized logs searchable across all microservices
+* End-to-end request tracing for performance optimization
+* Standardized instrumentation with OpenTelemetry
+
+== Skills gained
+
+* Configure observability infrastructure on OpenShift
+* Write queries (PromQL, LogQL) to analyze application behavior
+* Correlate metrics, logs, and traces for fast incident resolution
+* Instrument applications using industry-standard OpenTelemetry
+* Implement production-ready observability practices
+
+== Business impact
+
+* **Mean time to detection**: Reduced from hours to seconds
+* **Mean time to resolution**: Reduced from 2-4 hours to 15-30 minutes
+* **Operational efficiency**: 60-70% reduction in troubleshooting time
+* **Reliability**: Proactive issue detection before user impact
+
+== Next steps
+
+* Explore advanced OpenShift Cluster Observability Operator features
+* Implement multi-cluster observability
+* Integrate with Grafana for custom dashboards
+* Set up alerting integrations (PagerDuty, Slack)
+* Apply learnings to your own applications
+
+== References
+
+* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift documentation^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging documentation^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry documentation^]
+* link:https://www.redhat.com/en/technologies/cloud-computing/openshift[Red Hat OpenShift product page^]
+
+== Feedback
+
+Thank you for participating in this workshop! Please share your feedback via the lab interface to help improve future sessions.

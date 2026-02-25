@@ -98,7 +98,7 @@ oc get pods -n openshift-tempo-operator
 → **Solution**: Verify you're using the correct namespace. Check with `oc project` and switch if needed using `oc project <namespace-name>`.
 
 **Problem**: "Unable to connect to OpenShift console"
-→ **Solution**: Verify you're using the correct console URL from the lab interface: {openshift_cluster_console_url}
+→ **Solution**: Verify you're using the correct console URL from the lab interface: {openshift_console_url}
 
 **Problem**: "Prometheus metrics not appearing"
 → **Solution**: Check ServiceMonitor configuration and verify pods are running: `oc get servicemonitor`
@@ -142,7 +142,7 @@ oc get pods -n openshift-tempo-operator
 * Building custom dashboards
 * Configuring Alertmanager rules
 
-**Hands-on exercises**: 3
+**Hands-on exercises**: 5
 
 === Module 2: Logging with LokiStack
 
@@ -156,7 +156,7 @@ oc get pods -n openshift-tempo-operator
 * Creating log-based alerts
 * Log retention and storage management
 
-**Hands-on exercises**: 3
+**Hands-on exercises**: 5
 
 === Module 3: Distributed tracing
 
@@ -170,7 +170,7 @@ oc get pods -n openshift-tempo-operator
 * Identifying performance bottlenecks
 * Correlating traces with logs and metrics
 
-**Hands-on exercises**: 3
+**Hands-on exercises**: 5
 
 === Module 4: OpenTelemetry integration
 
@@ -184,7 +184,7 @@ oc get pods -n openshift-tempo-operator
 * Sending data to multiple backends
 * Production best practices
 
-**Hands-on exercises**: 3
+**Hands-on exercises**: 5
 
 == Authors and contributors
 

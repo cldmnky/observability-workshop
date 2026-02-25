@@ -1,4 +1,4 @@
-.PHONY: help deploy verify-rbac build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean uninstall-chart sync-argo
+.PHONY: help deploy verify-rbac build build-site build-api build-all build-wait build-logs build-logs-api refresh deploy-status url rebuild clean uninstall-chart sync-argo dev-build dev-build-api dev-run dev-stop
 
 # Configuration
 NAMESPACE ?= showroom-workshop
@@ -17,6 +17,12 @@ WORKSHOP_USERS_GROUP ?= workshop-users
 OPERATOR_VIEW_NAMESPACES ?= openshift-logging openshift-tempo-operator openshift-operators openshift-monitoring openshift-user-workload-monitoring openshift-netobserv-operator openshift-builds
 EXERCISE_NAMESPACE_SUFFIXES ?= observability-demo tracing-demo
 MONITORING_CLUSTERROLE ?= workshop-user-monitoring
+
+# Local dev configuration
+DEV_POD_NAME ?= showroom-dev-pod
+DEV_SITE_IMAGE ?= localhost/showroom-site:test
+DEV_API_IMAGE ?= localhost/user-info-api:test
+DEV_USERS_FILE ?= .config/users-dev.yaml
 
 # Colors for output
 GREEN := \033[0;32m
@@ -351,11 +357,42 @@ sync-argo: ## Apply ApplicationSet and sync ArgoCD application
 	@$(MAKE) deploy
 
 # Development targets
-dev-build: ## Quick dev build (local docker/podman test)
-	@printf '%b\n' "$(YELLOW)Building container locally for testing...$(NC)"
-	@podman build --build-arg PLAYBOOK=site-container-dev.yml -t localhost/showroom-site:test -f Containerfile .
-	@printf '%b\n' "$(GREEN)Test with: podman run -p 8080:8080 localhost/showroom-site:test$(NC)"
+dev-build-api: ## Build user-info-api container for local dev
+	@printf '%b\n' "$(YELLOW)Building user-info-api container...$(NC)"
+	@podman build -t $(DEV_API_IMAGE) -f user-info-api/Containerfile user-info-api/
+	@printf '%b\n' "$(GREEN)API image built: $(DEV_API_IMAGE)$(NC)"
 
-dev-run: ## Run locally built container
-	@printf '%b\n' "$(GREEN)Starting local container on http://localhost:8080$(NC)"
-	@podman run --rm -p 8080:8080 localhost/showroom-site:test
+dev-build: dev-build-api ## Build both site and API containers for local dev
+	@printf '%b\n' "$(YELLOW)Building showroom-site container...$(NC)"
+	@podman build --build-arg PLAYBOOK=site-container-dev.yml -t $(DEV_SITE_IMAGE) -f Containerfile .
+	@printf '%b\n' "$(GREEN)All dev images built successfully$(NC)"
+	@printf '%b\n' "$(GREEN)Run with: make dev-run$(NC)"
+
+dev-run: ## Run site and API in a pod (multi-container dev environment)
+	@printf '%b\n' "$(YELLOW)Checking for existing pod...$(NC)"
+	@podman pod exists $(DEV_POD_NAME) 2>/dev/null && $(MAKE) dev-stop || true
+	@printf '%b\n' "$(GREEN)Creating pod $(DEV_POD_NAME) with port 8080 exposed...$(NC)"
+	@podman pod create --name $(DEV_POD_NAME) -p 8080:8080
+	@printf '%b\n' "$(GREEN)Starting user-info-api container...$(NC)"
+	@podman run -d \
+		--pod $(DEV_POD_NAME) \
+		--name $(DEV_POD_NAME)-api \
+		-e USER_DATA_FILE=/etc/user-data/users.yaml \
+		-e PORT=8081 \
+		-v $(PWD)/$(DEV_USERS_FILE):/etc/user-data/users.yaml:ro,z \
+		$(DEV_API_IMAGE)
+	@printf '%b\n' "$(GREEN)Starting showroom-site container...$(NC)"
+	@podman run -d \
+		--pod $(DEV_POD_NAME) \
+		--name $(DEV_POD_NAME)-site \
+		$(DEV_SITE_IMAGE)
+	@printf '%b\n' "$(GREEN)Development environment running at http://localhost:8080$(NC)"
+	@printf '%b\n' "$(YELLOW)API endpoint: http://localhost:8080/api/user-info$(NC)"
+	@printf '%b\n' "$(YELLOW)Stop with: make dev-stop$(NC)"
+	@printf '%b\n' "$(YELLOW)View logs: podman logs -f $(DEV_POD_NAME)-site  OR  podman logs -f $(DEV_POD_NAME)-api$(NC)"
+
+dev-stop: ## Stop and remove local dev pod
+	@printf '%b\n' "$(YELLOW)Stopping development pod...$(NC)"
+	@podman pod stop $(DEV_POD_NAME) 2>/dev/null || true
+	@podman pod rm $(DEV_POD_NAME) 2>/dev/null || true
+	@printf '%b\n' "$(GREEN)Development environment stopped$(NC)"

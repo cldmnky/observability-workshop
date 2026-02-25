@@ -409,7 +409,7 @@ Check that Prometheus is collecting your application metrics:
 
 Querying metrics via PromQL is effective, but visualizing trends over time provides better insights. You'll use the Cluster Observability Operator (COO) to create custom dashboards.
 
-=== Understanding COO vs User Workload Monitoring
+=== Understanding COO vs user workload monitoring
 
 Your cluster has **2 independent monitoring systems**:
 

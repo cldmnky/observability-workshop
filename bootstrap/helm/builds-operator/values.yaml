@@ -1,5 +1,6 @@
 # Builds for Red Hat OpenShift Operator Configuration
 operator:
+  enabled: false
   # Namespace where the Builds operator will be installed
   # Builds supports AllNamespaces mode with default namespace openshift-builds
   namespace: openshift-builds

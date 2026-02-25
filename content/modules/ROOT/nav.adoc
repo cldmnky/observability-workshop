@@ -35,3 +35,5 @@
 ** xref:06-module-04-opentelemetry.adoc#_exercise_3_verify_telemetry_in_backends[Exercise 3: Verify Telemetry]
 ** xref:06-module-04-opentelemetry.adoc#_exercise_4_implement_auto_instrumentation[Exercise 4: Auto-instrumentation]
 ** xref:06-module-04-opentelemetry.adoc#_exercise_5_configure_collector_pipeline[Exercise 5: Collector Pipeline]
+
+* xref:07-conclusion.adoc[Workshop Completion]
