@@ -289,7 +289,7 @@ This opens the log query interface powered by Loki.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo"}
+{kubernetes_namespace_name="{user}-observability-demo"} |json
 ----
 +
 Click **Run query**
@@ -300,7 +300,7 @@ You should see log entries from all pods in the {user}-observability-demo namesp
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo"} |= "404"
+{kubernetes_namespace_name="{user}-observability-demo"} |= "404" |json
 ----
 +
 The `|=` operator filters for log lines containing "404".
@@ -309,7 +309,7 @@ The `|=` operator filters for log lines containing "404".
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"}
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |json
 ----
 +
 The `=~` operator matches a regular expression.
@@ -318,7 +318,7 @@ The `=~` operator matches a regular expression.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes"
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes" |json
 ----
 
 This shows note creation and note update calls from the frontend route.
@@ -327,7 +327,7 @@ This shows note creation and note update calls from the frontend route.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200"
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200" |json
 ----
 +
 This shows successful `/ping` requests from the frontend pod.
@@ -345,10 +345,10 @@ This calculates the rate of 404 errors per second over the last 5 minutes.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo"} | line_format "{{.kubernetes_pod_name}}: {{ __line__ }}"
+{kubernetes_namespace_name="{user}-observability-demo"} |json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
 ----
 +
-This formats output to show which pod generated each log line and works for plain-text logs.
+This uses `|json` to parse the structured log and formats output as pod name plus the parsed `message` field.
 
 === Verify
 
