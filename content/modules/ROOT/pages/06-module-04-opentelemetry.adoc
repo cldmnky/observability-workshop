@@ -3,11 +3,9 @@
 :toc: macro
 :toclevels: 1
 
-After implementing metrics, logging, and tracing in the previous modules, a new challenge emerges: each service uses different instrumentation libraries. Some services use Prometheus client libraries, others use custom logging frameworks, and tracing requires yet another SDK. This creates maintenance overhead and inconsistent data quality.
+In Module 3 you verified the Tempo tracing backend, enabled the Distributed Tracing UI plugin, and explored how the Go application is instrumented with the OpenTelemetry SDK. The telemetry pipeline was not yet active—the application was running silently.
 
-Your organization needs a unified approach to observability instrumentation that works consistently across all services, regardless of programming language or framework.
-
-In this module, you'll implement OpenTelemetry, a vendor-neutral standard for telemetry data collection that provides unified APIs for metrics, logs, and traces.
+In this module you will activate that pipeline end-to-end. You'll deploy a sidecar OpenTelemetry Collector in your namespace, enable the SDK on all three services, and observe live traces, metrics, and logs flowing from your application through the collector pipeline to Tempo, Prometheus, and Loki.
 
 toc::[]
 
@@ -15,74 +13,88 @@ toc::[]
 
 By the end of this module, you'll be able to:
 
-* Understand OpenTelemetry architecture and its role in unified observability
-* Deploy and configure the OpenTelemetry Collector to receive and route telemetry
-* Instrument applications using OpenTelemetry SDKs and auto-instrumentation
-* Send metrics, logs, and traces to multiple backends simultaneously
-* Apply production best practices for OpenTelemetry deployment
+* Understand the sidecar-to-central OpenTelemetry Collector architecture
+* Create a sidecar `OpenTelemetryCollector` CR and configure its pipeline
+* Enable OpenTelemetry on the workshop application using `enable-otel.yaml`
+* Observe live traces in the **Observe → Traces** console UI
+* Understand how the central collector fans out telemetry to Tempo, Prometheus, and Loki
+* Explain how auto-instrumentation works for applications that cannot be recompiled
 
-== Understanding OpenTelemetry
+== Understanding the collector architecture
 
-Before implementing OpenTelemetry, you need to understand what it is and why it matters for observability standardization.
+Before enabling telemetry, understand how data flows from the application to each observability backend.
 
-=== What is OpenTelemetry?
+=== Two-tier collector pattern
 
-**OpenTelemetry (OTel)** is an open source observability framework that provides:
+This workshop uses a two-tier OpenTelemetry Collector topology:
 
-* **Unified APIs**: Single set of APIs for all telemetry types (metrics, logs, traces)
-* **SDKs**: Implementations for 11+ programming languages (Java, Python, Go, Node.js, .NET, etc.)
-* **Auto-instrumentation**: Automatic telemetry generation without code changes
-* **Vendor neutrality**: Send data to any observability backend (Prometheus, Loki, Tempo, Jaeger, commercial vendors)
+[source,text]
+----
+Application pods ({user}-observability-demo)
+  +------------------------------------------+
+  |  frontend                                |
+  |  +----------+   OTLP (localhost:4318)    |
+  |  | app      |---> sidecar collector      |
+  |  +----------+                            |
+  +------------------------------------------+
+         |
+         | OTLP gRPC (cluster DNS)
+         v
+  central-collector-collector.observability-demo.svc:4317
+  +----------------------------------------------------------+
+  |  Central collector (observability-demo namespace)        |
+  |                                                          |
+  |  Receivers:  otlp (4317, 4318)                           |
+  |  Connectors: spanmetrics (traces -> RED metrics)         |
+  |  Exporters:                                              |
+  |   +-- otlp/tempo  -> tempo-tempo-distributor:4317        |
+  |   +-- prometheusremotewrite -> COO Prometheus :9090      |
+  |   +-- otlphttp/logs -> LokiStack gateway :8080           |
+  +----------------------------------------------------------+
+----
 
-**Key benefits**:
+**Why two tiers?**
 
-* **Standardization**: 1 instrumentation approach across all services
-* **Flexibility**: Change backends without changing application code
-* **Completeness**: Capture metrics, logs, and traces with unified context
-* **Future-proof**: Industry-standard backed by CNCF (Cloud Native Computing Foundation)
+* **Sidecar collector**: Runs within the application pod, receives telemetry on `localhost:4318`, enriches it with Kubernetes pod metadata via the `k8sattributes` processor, and forwards to the central collector.
+* **Central collector**: Runs as a `Deployment` in the shared `observability-demo` namespace with 2 replicas for resilience. Handles backend-specific protocols (TLS for Tempo, remote-write for Prometheus, OTLP/HTTP for Loki), applies the `spanmetrics` connector to generate RED metrics from traces, and holds the authentication tokens for each backend.
 
-=== OpenTelemetry architecture
+This pattern decouples application-facing collection (simple, low-overhead sidecar) from backend-facing export (complex, authenticated, shared).
 
-**Components you'll use**:
+=== Processors in the sidecar collector
 
-**OpenTelemetry SDK** (embedded in application):
+The sidecar uses four processors in order:
 
-* Instruments code to generate telemetry
-* Applies sampling and filtering
-* Exports data to Collector or backends
+[options="header",cols="25,75"]
+|===
+|Processor |Function
+|`memory_limiter` |Prevents the collector from consuming more than 75% of available pod memory
+|`resourcedetection` |Detects OpenShift infrastructure attributes (such as `k8s.cluster.name`) and adds them to all telemetry
+|`k8sattributes` |Calls the Kubernetes API to attach pod name, namespace, deployment name, node name, and pod UID to every span, metric, and log record
+|`batch` |Accumulates records before sending to reduce network overhead
+|===
 
-**OpenTelemetry Collector** (separate service):
+=== Span metrics connector in the central collector
 
-* Receives telemetry from applications
-* Processes (batching, filtering, enrichment)
-* Exports to multiple backends simultaneously
+The central collector uses a `spanmetrics` connector to generate **RED metrics** automatically from incoming traces:
 
-**Backends** (Prometheus, Loki, Tempo):
+* **Rate**: `traces_spanmetrics_calls_total` — request count per service and operation
+* **Errors**: `traces_spanmetrics_calls_total{status.code="STATUS_CODE_ERROR"}` — error count
+* **Duration**: `traces_spanmetrics_latency_bucket` — latency histogram with configurable buckets
 
-* Store and query telemetry data
-* Already deployed in your cluster from previous modules
+These metrics are published to the COO-managed Prometheus instance via remote write, providing service-level latency histograms without any Prometheus client instrumentation in the application code.
 
-=== Data flow
+== Exercise 1: Verify the OpenTelemetry operator and pre-deployed components
 
-Application with OTel SDK → OTel Collector → Multiple backends:
-
-* Metrics → Prometheus (user workload monitoring)
-* Logs → Loki (via logging pipeline)
-* Traces → Tempo (distributed tracing)
-
-All signals share the same trace context for correlation.
-
-== Exercise 1: Verify OpenTelemetry Operator
-
-You need to confirm that the OpenTelemetry Operator was deployed via GitOps and is ready to manage collectors and instrumentation.
+Before creating resources in your namespace, confirm the OpenTelemetry Operator and the shared `observability-demo` infrastructure are healthy.
 
 === Steps
 
-. Verify the OpenTelemetry Operator is running:
+. Verify the OpenTelemetry Operator pod is running:
 +
 [source,bash]
 ----
-oc get pods -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator
+oc get pods -n openshift-operators \
+  -l app.kubernetes.io/name=opentelemetry-operator
 ----
 +
 .Expected output
@@ -92,7 +104,7 @@ NAME                                          READY   STATUS    RESTARTS   AGE
 opentelemetry-operator-controller-xxxxx       2/2     Running   0          1h
 ----
 
-. Check the OpenTelemetryCollector CRD is available:
+. Confirm the operator registered the CRDs:
 +
 [source,bash]
 ----
@@ -102,555 +114,120 @@ oc api-resources | grep opentelemetry
 .Expected output
 [source,text]
 ----
-instrumentations              opentelemetry.io               true    Instrumentation
-opentelemetrycollectors       opentelemetry.io               true    OpenTelemetryCollector
+instrumentations              opentelemetry.io   true    Instrumentation
+opentelemetrycollectors       opentelemetry.io   true    OpenTelemetryCollector
 ----
 
-. Verify the collector instances deployed via GitOps:
+. Inspect the pre-deployed central collector:
 +
 [source,bash]
 ----
-oc get opentelemetrycollector -n {user}-observability-demo
+oc get opentelemetrycollector central-collector -n observability-demo
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                MODE         VERSION       READY
-central-collector   deployment   0.140.0-2     2/2
-sidecar             sidecar      0.140.0-2     1/1
+NAME               MODE         VERSION
+central-collector  deployment   0.140.0-2
 ----
-+
-2 collectors are deployed: a **central-collector** (deployment mode, 2 replicas) that receives telemetry from applications, and a **sidecar** collector injected into application pods.
 
-. Check collector pods are running:
+. Verify the central collector pods are running:
 +
 [source,bash]
 ----
-oc get pods -n {user}-observability-demo -l app.kubernetes.io/component=opentelemetry-collector
+oc get pods -n observability-demo \
+  -l app.kubernetes.io/name=central-collector-collector
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                                          READY   STATUS    RESTARTS   AGE
-central-collector-collector-xxxxx              1/1     Running   0          1h
-central-collector-collector-xxxxx              1/1     Running   0          1h
+NAME                                      READY   STATUS    RESTARTS   AGE
+central-collector-collector-xxxxx         1/1     Running   0          1h
+central-collector-collector-xxxxx         1/1     Running   0          1h
 ----
++
+Two replicas provide resilience for the shared collection endpoint.
 
-. View the collector configuration:
+. Inspect the central collector service (this is where sidecars forward telemetry):
 +
 [source,bash]
 ----
-oc get opentelemetrycollector central-collector -n {user}-observability-demo -o yaml
-----
-+
-Look for the `config` section showing receivers, processors, and exporters.
-
-. Verify the pre-deployed Instrumentation resource:
-+
-[source,bash]
-----
-oc get instrumentation -n {user}-observability-demo
+oc get svc central-collector-collector -n observability-demo
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                   AGE
-demo-instrumentation   1h
+NAME                           TYPE        CLUSTER-IP      PORT(S)
+central-collector-collector    ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
+----
+
+. Inspect the pre-deployed Instrumentation CR:
++
+[source,bash]
+----
+oc get instrumentation demo-instrumentation \
+  -n observability-demo -o yaml
 ----
 +
-This Instrumentation resource enables auto-instrumentation injection for applications deployed in the `{user}-observability-demo` namespace.
+Note the key fields:
++
+* `spec.exporter.endpoint: http://localhost:4318` — auto-instrumented pods send to the sidecar
+* `spec.sampler.type: parentbased_traceidratio` with `argument: "1.0"` — sample 100% of traces (appropriate for a workshop environment)
+* `spec.propagators: [tracecontext, baggage]` — uses W3C Trace Context headers for context propagation
 
 === Verify
 
-Check that your OpenTelemetry infrastructure is operational:
+* ✓ OpenTelemetry Operator pod is Running (2/2)
+* ✓ `OpenTelemetryCollector` and `Instrumentation` CRDs are registered
+* ✓ `central-collector` exists in `observability-demo` in deployment mode with 2 replicas
+* ✓ `central-collector-collector` service exposes ports 4317 and 4318
+* ✓ `demo-instrumentation` Instrumentation CR exists in `observability-demo`
 
-* ✓ OpenTelemetry Operator pod is Running
-* ✓ OpenTelemetryCollector CRD is available
-* ✓ Collector instance exists with Ready status
-* ✓ Collector pods are Running (2 replicas)
-* ✓ Collector configuration includes receivers and exporters
-
-**What you learned**: The OpenTelemetry Operator manages collector deployments and can inject auto-instrumentation into applications. The collector receives telemetry and routes it to backends.
+**What you learned**: The central collector and the auto-instrumentation Instrumentation CR are pre-deployed in the shared `observability-demo` namespace by GitOps. Your task is to wire your application namespace into this shared infrastructure.
 
 === Troubleshooting
 
-**Issue**: OpenTelemetry Operator pod not running
+**Issue**: `opentelemetrycollectors` CRD not found
 
 **Solution**:
-. Check operator logs: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator`
-. Verify operator deployment: `oc get deployment -n openshift-operators`
-. Check for resource constraints or image pull issues
+. Check if the operator CSV is installed: `oc get csv -n openshift-operators | grep opentelemetry`
+. Check the subscription: `oc get subscription opentelemetry-product -n openshift-operators`
+. Allow 2-3 minutes for the operator to register CRDs after installation
 
-**Issue**: OpenTelemetryCollector CRD not found
-
-**Solution**:
-. Verify operator installation: `oc get csv -n openshift-operators | grep opentelemetry`
-. Check if CRD was created: `oc get crd | grep opentelemetry`
-. Operator may still be initializing (wait 1-2 minutes)
-
-**Issue**: Collector instance not Ready
+**Issue**: Central collector pods are not Running
 
 **Solution**:
-. View collector status: `oc describe opentelemetrycollector central-collector -n {user}-observability-demo`
-. Check collector pod logs: `oc logs -n {user}-observability-demo -l app.kubernetes.io/component=opentelemetry-collector`
-. Verify configuration syntax is valid
+. Describe the CR: `oc describe opentelemetrycollector central-collector -n observability-demo`
+. Check pod events: `oc get events -n observability-demo --sort-by=.lastTimestamp | tail -20`
+. Confirm Tempo and Prometheus services are resolvable from `observability-demo`
 
-== Exercise 2: Deploy application with OpenTelemetry SDK
+== Exercise 2: Create the sidecar collector in your namespace
 
-You'll deploy a sample application instrumented with the OpenTelemetry SDK to emit metrics, logs, and traces.
+You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `{user}-observability-demo` namespace. When this CR exists, the OpenTelemetry Operator automatically injects a sidecar container into any pod in the namespace that carries the annotation `sidecar.opentelemetry.io/inject: "sidecar"`.
 
 === Steps
 
-. The `{user}-observability-demo` namespace already exists (created by GitOps). Verify it:
+. Verify the required ServiceAccount is present in your namespace:
 +
 [source,bash]
 ----
-oc project {user}-observability-demo
-----
-
-. Deploy a Python application with OpenTelemetry instrumentation:
-+
-[source,bash]
-----
-cat <<EOF | oc apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: dice-roller
-  namespace: {user}-observability-demo
-  labels:
-    app: dice-roller
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: dice-roller
-  template:
-    metadata:
-      labels:
-        app: dice-roller
-    spec:
-      containers:
-      - name: app
-        image: registry.access.redhat.com/ubi9/python-311:latest
-        command: ["/bin/bash", "-c"]
-        args:
-        - "pip install --quiet flask opentelemetry-distro opentelemetry-exporter-otlp-proto-grpc &&
-          opentelemetry-bootstrap -a install &&
-          opentelemetry-instrument flask run --host=0.0.0.0 --port=8080"
-        ports:
-        - containerPort: 8080
-          name: http
-        env:
-        - name: FLASK_APP
-          value: dice_roller.py
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://central-collector-collector.{user}-observability-demo.svc:4318"
-        - name: OTEL_SERVICE_NAME
-          value: "dice-roller"
-        - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
-          value: "true"
-        volumeMounts:
-        - name: app-code
-          mountPath: /app
-      volumes:
-      - name: app-code
-        configMap:
-          name: dice-roller-code
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: dice-roller
-  namespace: {user}-observability-demo
-spec:
-  selector:
-    app: dice-roller
-  ports:
-  - port: 8080
-    targetPort: 8080
-    name: http
----
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: dice-roller
-  namespace: {user}-observability-demo
-spec:
-  to:
-    kind: Service
-    name: dice-roller
-  port:
-    targetPort: http
-EOF
-----
-
-. Create the application code ConfigMap:
-+
-[source,bash]
-----
-cat <<EOF | oc apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dice-roller-code
-  namespace: {user}-observability-demo
-data:
-  dice_roller.py: |
-    from flask import Flask
-    from random import randint
-    import logging
-    
-    app = Flask(__name__)
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    
-    @app.route('/roll')
-    def roll_dice():
-        result = randint(1, 6)
-        logger.info(f"Rolled a {result}")
-        return str(result)
-    
-    @app.route('/health')
-    def health():
-        return 'OK'
-EOF
-----
-
-. Wait for the pod to be running:
-+
-[source,bash]
-----
-oc get pods -n {user}-observability-demo -w
+oc get serviceaccount otel-collector-sidecar \
+  -n {user}-observability-demo
 ----
 +
-Press Ctrl+C when Running.
-
-. Test the application:
-+
-[source,bash]
-----
-DICE_URL=$(oc get route dice-roller -n {user}-observability-demo -o jsonpath='{.spec.host}')
-curl http://$DICE_URL/roll
-----
+This ServiceAccount was pre-created for your namespace with the RBAC permissions needed by the `k8sattributes` and `resourcedetection` processors (read access to pods, namespaces, and nodes).
 +
 .Expected output
 [source,text]
 ----
-4
-----
-+
-(A random number 1-6)
-
-. Generate traffic to create telemetry:
-+
-[source,bash]
-----
-for i in {1..50}; do
-  curl -s http://$DICE_URL/roll
-  echo " - Roll $i"
-  sleep 0.5
-done
+NAME                    SECRETS   AGE
+otel-collector-sidecar  0         1h
 ----
 
-=== Verify
-
-Check that your OpenTelemetry-instrumented application is running:
-
-* ✓ dice-roller pod is Running
-* ✓ Application responds to HTTP requests
-* ✓ Application configured with OTLP exporter endpoint
-* ✓ Environment variables point to OTel Collector
-* ✓ Traffic generated successfully
-
-**What you learned**: Applications instrumented with OpenTelemetry SDKs automatically generate metrics, logs, and traces. Configuration via environment variables tells the SDK where to send telemetry.
-
-=== Troubleshooting
-
-**Issue**: Pod fails to start with "ModuleNotFoundError"
-
-**Solution**:
-. Check if application code is mounted: `oc get configmap dice-roller-code -n {user}-observability-demo`
-. Verify volume mount in pod: `oc describe pod -n {user}-observability-demo -l app=dice-roller`
-. Check Python dependencies: `oc logs -n {user}-observability-demo deployment/dice-roller`
-
-**Issue**: curl returns connection refused
-
-**Solution**:
-. Verify route exists: `oc get route dice-roller -n {user}-observability-demo`
-. Check service: `oc get svc dice-roller -n {user}-observability-demo`
-. Test internally: `oc exec -n {user}-observability-demo deployment/dice-roller -- curl localhost:8080/health`
-. View application logs: `oc logs -n {user}-observability-demo deployment/dice-roller`
-
-== Exercise 3: Verify telemetry in backends
-
-Now you'll confirm that the application's telemetry data is flowing through the OpenTelemetry Collector to your backends (Prometheus, Loki, Tempo).
-
-=== Steps
-
-. **Check traces in Jaeger**:
-+
-Open Jaeger UI: **Observe** → **Traces**
-+
-Select service: **dice-roller**
-+
-Click "Find Traces"
-+
-You should see traces for each `/roll` request.
-+
-Click on a trace to see the span details.
-
-. **Check metrics in Prometheus**:
-+
-Navigate to **Observe** → **Metrics**
-+
-Query:
-+
-[source,promql]
-----
-http_server_duration_milliseconds_count{service_name="dice-roller"}
-----
-+
-This shows the count of HTTP requests instrumented by OpenTelemetry.
-
-. **Check logs in Loki**:
-+
-Navigate to **Observe** → **Logs**
-+
-Query:
-+
-[source,logql]
-----
-{kubernetes_namespace_name="{user}-observability-demo"} |= "Rolled a"
-----
-+
-You should see log entries like "Rolled a 3", "Rolled a 5", etc.
-
-. **Verify trace context in logs**:
-+
-Search for trace context markers in the log output:
-+
-[source,logql]
-----
-{kubernetes_namespace_name="{user}-observability-demo"} |= "trace_id"
-----
-+
-If trace context propagation is working, some log lines include trace ID metadata.
-
-. **Check OpenTelemetry Collector metrics**:
-+
-The collector itself exposes metrics about telemetry processing:
-+
-[source,promql]
-----
-otelcol_receiver_accepted_spans{namespace="{user}-observability-demo"}
-----
-+
-This shows how many spans the collector received.
-
-=== Verify
-
-Check that telemetry flows end-to-end:
-
-* ✓ Traces visible in Jaeger for dice-roller service
-* ✓ Metrics queryable in Prometheus
-* ✓ Logs searchable in Loki
-* ✓ Trace context (trace IDs) present in logs
-* ✓ Collector metrics show data processing
-
-**What you learned**: OpenTelemetry provides unified instrumentation that generates all 3 signals (metrics, logs, traces) automatically. The collector receives and routes telemetry to appropriate backends.
-
-=== Troubleshooting
-
-**Issue**: No traces in Jaeger
-
-**Solution**:
-. Verify collector received traces: Check collector logs `oc logs -n {user}-observability-demo -l app.kubernetes.io/component=opentelemetry-collector`
-. Check application OTLP endpoint: `oc set env deployment/dice-roller -n {user}-observability-demo --list | grep OTLP`
-. Test collector endpoint: `oc exec -n {user}-observability-demo deployment/dice-roller -- curl -v central-collector-collector.{user}-observability-demo.svc:4318`
-. Verify traces exporter in collector config
-
-**Issue**: No metrics in Prometheus
-
-**Solution**:
-. Check if collector exposes Prometheus endpoint: `oc get svc -n {user}-observability-demo`
-. Verify ServiceMonitor exists for collector
-. Allow time for Prometheus scraping (30-60 seconds)
-. Check metrics endpoint directly: `oc exec -n {user}-observability-demo deployment/central-collector-collector -- curl localhost:8889/metrics`
-
-**Issue**: No logs in Loki
-
-**Solution**:
-. Verify application is logging: `oc logs -n {user}-observability-demo deployment/dice-roller`
-. Check if logs exporter is configured in collector
-. Confirm collector can reach Loki: Collector logs should not show export errors
-. Wait 1-2 minutes for log ingestion
-
-== Exercise 4: Implement auto-instrumentation
-
-Writing instrumentation code manually is time-consuming. OpenTelemetry supports auto-instrumentation that injects telemetry without code changes.
-
-=== Steps
-
-. An Instrumentation resource was already deployed via GitOps. Verify it:
-+
-[source,bash]
-----
-oc get instrumentation demo-instrumentation -n {user}-observability-demo -o yaml
-----
-+
-Notice the configuration includes:
-+
-* **Exporter endpoint**: Points to the central collector
-* **Propagators**: W3C Trace Context and Baggage for context propagation
-* **Sampler**: `parentbased_traceidratio` at 100% sampling (`1.0`)
-+
-The Instrumentation resource tells the operator how to inject auto-instrumentation into application pods.
-
-. Verify the Instrumentation resource:
-+
-[source,bash]
-----
-oc get instrumentation -n {user}-observability-demo
-----
-+
-.Expected output
-[source,text]
-----
-NAME                   AGE
-demo-instrumentation   1h
-----
-
-. Deploy a Java application with auto-instrumentation annotation:
-+
-[source,bash]
-----
-cat <<EOF | oc apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: sample-java-app
-  namespace: {user}-observability-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: sample-java-app
-  template:
-    metadata:
-      labels:
-        app: sample-java-app
-      annotations:
-        instrumentation.opentelemetry.io/inject-java: "true"
-    spec:
-      containers:
-      - name: app
-        image: quay.io/openshift-examples/spring-petclinic:latest
-        ports:
-        - containerPort: 8080
-          name: http
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: sample-java-app
-  namespace: {user}-observability-demo
-spec:
-  selector:
-    app: sample-java-app
-  ports:
-  - port: 8080
-    targetPort: 8080
-EOF
-----
-+
-The annotation `instrumentation.opentelemetry.io/inject-java: "true"` tells the operator to inject OpenTelemetry auto-instrumentation.
-
-. Wait for the pod to start:
-+
-[source,bash]
-----
-oc get pods -n {user}-observability-demo -w
-----
-+
-Note: Auto-instrumentation may take longer to start (downloading Java agent).
-
-. Verify auto-instrumentation was injected:
-+
-[source,bash]
-----
-oc describe pod -n {user}-observability-demo -l app=sample-java-app
-----
-+
-Look for init containers added by the operator.
-
-. Generate traffic to the Java application:
-+
-[source,bash]
-----
-oc exec -n {user}-observability-demo deployment/sample-java-app -- curl -s localhost:8080
-----
-
-. Check Jaeger for traces from the auto-instrumented app:
-+
-Open Jaeger UI and select **sample-java-app** service.
-+
-You should see traces even though you didn't add any instrumentation code.
-
-=== Verify
-
-Check that auto-instrumentation is working:
-
-* ✓ Instrumentation resource created successfully
-* ✓ Java application deployed with injection annotation
-* ✓ Init containers added to pod (visible in `oc describe`)
-* ✓ Application starts successfully
-* ✓ Traces appear in Jaeger without manual instrumentation
-
-**What you learned**: Auto-instrumentation injects OpenTelemetry SDKs at runtime without code changes. This is ideal for existing applications or when you can't modify source code.
-
-=== Troubleshooting
-
-**Issue**: Instrumentation resource not found
-
-**Solution**:
-. Check if CRD exists: `oc api-resources | grep instrumentation`
-. Verify operator supports Instrumentation: Check operator version
-. Ensure operator is running: `oc get pods -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator`
-
-**Issue**: Auto-instrumentation not injected (no init containers)
-
-**Solution**:
-. Verify annotation syntax: `instrumentation.opentelemetry.io/inject-java: "true"`
-. Check annotation is on pod template, not deployment
-. Ensure Instrumentation resource is in same namespace
-. View operator logs: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator`
-
-**Issue**: Pod fails to start after injection
-
-**Solution**:
-. Check init container logs: `oc logs -n {user}-observability-demo <pod> -c opentelemetry-auto-instrumentation`
-. Verify image pull: Init container downloads auto-instrumentation agent
-. Check network connectivity: Init container needs internet access
-. Increase resource limits if pod is OOMKilled
-
-== Exercise 5: Configure collector pipeline
-
-The OpenTelemetry Collector is highly configurable. You'll customize the collector pipeline to add processing and routing logic.
-
-=== Steps
-
-. View current collector configuration:
-+
-[source,bash]
-----
-oc get opentelemetrycollector central-collector -n {user}-observability-demo -o yaml | less
-----
-
-. Create a custom collector configuration:
+. Create the sidecar OpenTelemetryCollector CR:
 +
 [source,bash]
 ----
@@ -658,214 +235,602 @@ cat <<EOF | oc apply -f -
 apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
-  name: custom-collector
+  name: sidecar
   namespace: {user}-observability-demo
 spec:
-  mode: deployment
-  replicas: 2
-  config: |
+  mode: sidecar
+  serviceAccount: otel-collector-sidecar
+  config:
     receivers:
       otlp:
         protocols:
           grpc:
+            endpoint: 0.0.0.0:4317
           http:
-    
+            endpoint: 0.0.0.0:4318
     processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      resourcedetection:
+        detectors: [openshift]
+        timeout: 2s
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.deployment.name
+            - k8s.node.name
+            - k8s.pod.name
+            - k8s.pod.uid
       batch:
         timeout: 10s
         send_batch_size: 1024
-      
-      memory_limiter:
-        check_interval: 1s
-        limit_mib: 512
-      
-      attributes:
-        actions:
-          - key: environment
-            value: production
-            action: insert
-    
     exporters:
-      logging:
-        loglevel: debug
-      
-      otlp/tempo:
-        endpoint: tempo-tempo-distributor.openshift-tempo-operator.svc:4317
+      otlp:
+        endpoint: central-collector-collector.observability-demo.svc:4317
         tls:
           insecure: true
-      
-      prometheus:
-        endpoint: "0.0.0.0:8889"
-        namespace: otel
-    
     service:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, batch, attributes]
-          exporters: [logging, otlp/tempo]
-        
+          processors: [memory_limiter, resourcedetection, k8sattributes, batch]
+          exporters: [otlp]
         metrics:
           receivers: [otlp]
-          processors: [memory_limiter, batch]
-          exporters: [logging, prometheus]
-        
+          processors: [memory_limiter, resourcedetection, k8sattributes, batch]
+          exporters: [otlp]
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, batch]
-          exporters: [logging]
+          processors: [memory_limiter, resourcedetection, k8sattributes, batch]
+          exporters: [otlp]
 EOF
 ----
-+
-This creates a collector with:
-+
-* **Batch processor**: Batches telemetry for efficiency
-* **Memory limiter**: Prevents OOM by limiting memory usage
-* **Attributes processor**: Adds custom labels to all telemetry
-* **Multiple exporters**: Sends data to multiple backends
 
-. Wait for the custom collector to deploy:
+. Verify the CR was accepted:
 +
 [source,bash]
 ----
-oc get pods -n {user}-observability-demo -l app.kubernetes.io/component=opentelemetry-collector -w
+oc get opentelemetrycollector sidecar -n {user}-observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME     MODE    VERSION
+sidecar  sidecar 0.140.0-2
+----
++
+In `sidecar` mode, the operator does not create a standalone `Deployment`. Instead it stores the container spec and injects it into pods on demand when the annotation is detected.
+
+=== Understand the pipeline
+
+The sidecar pipeline has three signal paths—traces, metrics, and logs—all using the same processor chain:
+
+[source,text]
+----
+otlp receiver (localhost:4318)
+  -> memory_limiter  (drop data if memory pressure)
+  -> resourcedetection (add cluster.name)
+  -> k8sattributes  (add pod/namespace/deployment metadata)
+  -> batch          (buffer and flush)
+  -> otlp exporter  (forward to central-collector:4317)
 ----
 
-. Update dice-roller to use the custom collector:
-+
-[source,bash]
-----
-oc set env deployment/dice-roller -n {user}-observability-demo \
-  OTEL_EXPORTER_OTLP_ENDPOINT=http://custom-collector-collector.{user}-observability-demo.svc:4318
-----
-
-. Restart the application:
-+
-[source,bash]
-----
-oc rollout restart deployment/dice-roller -n {user}-observability-demo
-oc rollout status deployment/dice-roller -n {user}-observability-demo
-----
-
-. Generate traffic:
-+
-[source,bash]
-----
-DICE_URL=$(oc get route dice-roller -n {user}-observability-demo -o jsonpath='{.spec.host}')
-for i in {1..30}; do
-  curl -s http://$DICE_URL/roll > /dev/null
-  sleep 1
-done
-----
-
-. View collector logs to see telemetry processing:
-+
-[source,bash]
-----
-oc logs -n {user}-observability-demo -l app.kubernetes.io/component=opentelemetry-collector --tail=50
-----
-+
-You should see debug logs showing spans, metrics, and logs being processed.
-
-. Verify the custom attribute was added:
-+
-Check traces in Jaeger - they should now have an `environment=production` attribute.
+All three signals reach the central collector over a single gRPC connection, which then routes each to its appropriate backend.
 
 === Verify
 
-Check that custom collector configuration works:
-
-* ✓ Custom collector pods running
-* ✓ Application updated to use custom collector
-* ✓ Telemetry flowing through custom pipeline
-* ✓ Collector logs show processing activity
-* ✓ Custom attributes appear in telemetry data
-* ✓ Multiple exporters sending to different backends
-
-**What you learned**: The OpenTelemetry Collector is a flexible telemetry pipeline. Processors transform telemetry (add attributes, filter, sample). Multiple exporters enable sending data to multiple backends simultaneously.
+* ✓ `otel-collector-sidecar` ServiceAccount exists in `{user}-observability-demo`
+* ✓ `sidecar` OpenTelemetryCollector CR exists in `sidecar` mode
+* ✓ CR configuration includes all three pipelines (traces, metrics, logs)
+* ✓ Exporter endpoint points to `central-collector-collector.observability-demo.svc:4317`
 
 === Troubleshooting
 
-**Issue**: Custom collector fails to start
+**Issue**: `oc apply` returns `forbidden` when creating the CR
 
 **Solution**:
-. Check configuration syntax: `oc describe opentelemetrycollector custom-collector -n {user}-observability-demo`
-. View collector pod logs: `oc logs -n {user}-observability-demo -l app.kubernetes.io/component=opentelemetry-collector`
-. Validate YAML indentation: Config section must be valid YAML
-. Check exporter endpoints are reachable
+. Confirm you are logged in as the correct user: `oc whoami`
+. Confirm your project is set: `oc project`
+. Verify you have create access: `oc auth can-i create opentelemetrycollectors -n {user}-observability-demo`
 
-**Issue**: No telemetry after switching to custom collector
-
-**Solution**:
-. Verify application endpoint updated: `oc set env deployment/dice-roller -n {user}-observability-demo --list | grep OTLP`
-. Test collector endpoint: `oc exec -n {user}-observability-demo deployment/dice-roller -- curl -v custom-collector-collector.{user}-observability-demo.svc:4318`
-. Check collector service exists: `oc get svc custom-collector-collector -n {user}-observability-demo`
-
-**Issue**: Custom attributes not appearing
+**Issue**: ServiceAccount `otel-collector-sidecar` not found
 
 **Solution**:
-. Verify attributes processor in pipeline: Check config has processor in pipeline definition
-. Check processor configuration syntax
-. View collector logs for processing errors
-. Allow time for Prometheus scraping or trace ingestion
+. Check available service accounts: `oc get sa -n {user}-observability-demo`
+. Contact the workshop facilitator—the ServiceAccount should be pre-provisioned as part of the workshop setup
+
+== Exercise 3: Enable OpenTelemetry on the applications
+
+Now you'll activate the OpenTelemetry SDK in all three services by applying the `enable-otel.yaml` patch file. This adds the sidecar injection annotation and the SDK environment variables to each deployment without rebuilding container images.
+
+=== Steps
+
+. Set your namespace as a shell variable:
++
+[source,bash]
+----
+NAMESPACE={user}-observability-demo
+----
+
+. Review what `enable-otel.yaml` will change:
++
+[source,bash]
+----
+grep -E "OTEL_|inject:|serviceAccountName:" src/enable-otel.yaml
+----
++
+You will see three key changes per deployment:
++
+* `sidecar.opentelemetry.io/inject: "sidecar"` — triggers sidecar injection by matching the CR name you created
+* `OTEL_ENABLED: "true"` — activates the Go SDK
+* `OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"` — routes telemetry to the injected sidecar
+
+. Apply the patch to your namespace:
++
+[source,bash]
+----
+sed "s/__NAMESPACE__/$NAMESPACE/g" src/enable-otel.yaml | oc apply -f -
+----
++
+.Expected output
+[source,text]
+----
+deployment.apps/frontend configured
+deployment.apps/backend configured
+deployment.apps/database configured
+----
+
+. Monitor the rolling restart:
++
+[source,bash]
+----
+oc rollout status deployment/frontend deployment/backend deployment/database \
+  -n {user}-observability-demo
+----
++
+.Expected output
+[source,text]
+----
+deployment "frontend" successfully rolled out
+deployment "backend" successfully rolled out
+deployment "database" successfully rolled out
+----
+
+. Verify sidecar injection occurred:
++
+[source,bash]
+----
+oc get pods -n {user}-observability-demo \
+  -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
+----
++
+.Expected output
+[source,text]
+----
+NAME                        CONTAINERS
+frontend-xxxxx              frontend, otc-container
+backend-xxxxx               backend, otc-container
+database-xxxxx              database, otc-container
+----
++
+The `otc-container` is the injected OpenTelemetry Collector sidecar. Each pod now has two containers: the application and its dedicated collector.
+
+. Confirm the sidecar container is running and pipelines have started:
++
+[source,bash]
+----
+oc logs -n {user}-observability-demo \
+  -l app=frontend -c otc-container | tail -10
+----
++
+.Expected output (excerpt)
+[source,text]
+----
+Everything is ready. Begin running and processing data.
+Pipeline started (traces).
+Pipeline started (metrics).
+Pipeline started (logs).
+----
+
+. Generate application traffic to produce telemetry:
++
+[source,bash]
+----
+FRONTEND_URL=$(oc get route frontend \
+  -n {user}-observability-demo \
+  -o jsonpath='{.spec.host}')
+
+for i in $(seq 1 30); do
+  curl -sk -o /dev/null "https://$FRONTEND_URL/"
+  curl -sk -o /dev/null -X POST "https://$FRONTEND_URL/new-note" \
+    -d "title=Test+$i&content=OTel+test"
+  sleep 1
+done
+echo "Traffic generation complete"
+----
++
+This sends 30 iterations of mixed GET and POST requests, generating spans at each hop through frontend → backend → database.
+
+=== Verify
+
+* ✓ `enable-otel.yaml` applied cleanly to all three deployments
+* ✓ All three deployments rolled out successfully
+* ✓ Each pod has two containers: the application and `otc-container` (sidecar)
+* ✓ Sidecar logs show all three pipelines started
+* ✓ Traffic generated against the frontend route
+
+**What you learned**: The OpenTelemetry Operator's sidecar injection mechanism transforms a running pod by adding a pre-configured collector container, without rebuilding the image. The annotation `sidecar.opentelemetry.io/inject: "sidecar"` tells the operator to use the `sidecar` CR you created in the previous exercise as the container specification.
+
+=== Troubleshooting
+
+**Issue**: Pods show only 1 container after rollout
+
+**Solution**:
+. Check that the annotation was applied: `oc get deployment frontend -n {user}-observability-demo -o jsonpath='{.spec.template.metadata.annotations}'`
+. Verify the sidecar CR exists: `oc get opentelemetrycollector sidecar -n {user}-observability-demo`
+. Check operator logs for injection errors: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator | grep -i inject`
+
+**Issue**: Sidecar container is in `CrashLoopBackOff`
+
+**Solution**:
+. View sidecar logs: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container`
+. Common cause: ServiceAccount lacks permissions for `k8sattributes`—verify the ServiceAccount RBAC
+. Check central collector reachability: `oc exec -n {user}-observability-demo deployment/frontend -c otc-container -- wget -qO- http://central-collector-collector.observability-demo.svc:13133/`
+
+**Issue**: `sed` substitution produces empty output
+
+**Solution**:
+. Verify the variable is set: `echo $NAMESPACE`
+. Confirm `enable-otel.yaml` is in the `src/` directory: `ls src/enable-otel.yaml`
+. Test the substitution: `sed "s/__NAMESPACE__/$NAMESPACE/g" src/enable-otel.yaml | head -10`
+
+== Exercise 4: View live traces in Observe → Traces
+
+With traffic flowing and telemetry active, you can now view real traces from your application in the OpenShift console.
+
+=== Steps
+
+. Navigate to **Observe** → **Traces** in the OpenShift console.
+
+. Set the search parameters:
++
+* **Namespace**: `{user}-observability-demo`
+* **Time range**: Last 5 minutes
++
+Click **Search** or the refresh icon.
++
+The scatter plot should now show individual points, one per trace, with y-axis showing duration in milliseconds.
+
+. Identify slow traces:
++
+Look at the scatter plot for points significantly higher on the y-axis than the main cluster.
++
+Click one of the higher points to open the trace detail view.
+
+. Explore the trace waterfall:
++
+The waterfall shows a horizontal bar for each span, indented to reflect parent-child relationships:
++
+[source,text]
+----
+frontend: GET /new-note                  [==============================] 95ms
+  backend: POST /api/notes               [========================] 80ms
+    database: POST /api/events           [==================] 60ms
+----
++
+Each bar length represents duration. The widest bar is the slowest operation in the request chain.
+
+. Click a span to expand its attributes:
++
+Select the `database` span. You will see attributes populated by both the application and the sidecar processors:
++
+* **Application attributes**: `http.method`, `http.status_code`, `http.route`
+* **Kubernetes attributes** (added by sidecar `k8sattributes`): `k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`
+* **Resource attributes** (added by `resourcedetection`): `cloud.platform`, `k8s.cluster.name`
+
+. Use TraceQL to find slow database spans:
++
+Click **Show query** and enter:
++
+[source,text]
+----
+{ resource.service.name = "database" && duration > 50ms }
+----
++
+This filters to only traces where the database service had at least one span exceeding 50ms.
+
+. Find error traces:
++
+[source,text]
+----
+{ status = error }
+----
++
+If any requests returned HTTP errors, this will surface the traces where something went wrong, with all spans visible for root cause analysis.
+
+. Correlate a trace with logs:
++
+Note the **Trace ID** shown at the top of a trace detail view (a 32-character hex string).
++
+Navigate to **Observe** → **Logs**.
++
+Query for log lines containing that trace ID:
++
+[source,logql]
+----
+{kubernetes_namespace_name="{user}-observability-demo"} |= "<your-trace-id>"
+----
++
+Because the application uses `otelslog.NewHandler()`, every structured log line emitted during a traced request carries the active trace ID as a log field. This lets you move directly from a slow span to the exact log lines emitted during that span.
+
+=== Verify
+
+* ✓ Traces appear in **Observe → Traces** for namespace `{user}-observability-demo`
+* ✓ Trace waterfall shows spans from all three services (frontend, backend, database)
+* ✓ Span attributes include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
+* ✓ TraceQL query `{ resource.service.name = "database" }` returns results
+* ✓ A trace ID from the trace view can be found in **Observe → Logs**
+
+**What you learned**: The two-tier collector architecture enriches telemetry with Kubernetes context at the sidecar level before forwarding to the central collector. Every trace, metric, and log automatically carries pod, deployment, and cluster metadata—no manual attribute configuration in application code required.
+
+=== Troubleshooting
+
+**Issue**: No traces appear after generating traffic
+
+**Solution**:
+. Verify traffic reached the app: `oc logs -n {user}-observability-demo deployment/frontend -c frontend | tail -10`
+. Check sidecar export errors: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container | grep -i "error\|export"`
+. Verify central collector received spans: `oc logs -n observability-demo -l app.kubernetes.io/name=central-collector-collector | grep -i "error\|span"`
+. Confirm Tempo is healthy: `oc get tempostack -n openshift-tempo-operator`
+. Expand the trace search time range to the last 15 minutes
+
+**Issue**: Traces appear but show spans from only one service
+
+**Solution**:
+. Verify all three deployments have sidecars: `oc get pods -n {user}-observability-demo -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'`
+. Confirm `OTEL_ENABLED` is set on all deployments: `oc set env deployment/backend -n {user}-observability-demo --list | grep OTEL`
+
+**Issue**: Spans show no Kubernetes metadata attributes
+
+**Solution**:
+. Check ServiceAccount permissions: `oc auth can-i get pods --as=system:serviceaccount:{user}-observability-demo:otel-collector-sidecar`
+. Check `k8sattributes` errors in sidecar logs: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container | grep -i k8s`
+
+== Exercise 5: Explore the central collector pipeline
+
+The central collector in `observability-demo` receives telemetry from all sidecar collectors and routes it to three backends. Inspect the configuration and verify each export path.
+
+=== Steps
+
+. View the central collector configuration:
++
+[source,bash]
+----
+oc get opentelemetrycollector central-collector \
+  -n observability-demo \
+  -o jsonpath='{.spec.config}' | yq .
+----
++
+Note the three export destinations:
++
+* `otlp/tempo` → `tempo-tempo-distributor.openshift-tempo-operator.svc:4317` (traces, with TLS and bearer token auth)
+* `prometheusremotewrite` → COO Prometheus remote-write endpoint (metrics and span metrics)
+* Logs pipeline (uses `debug` exporter by default in this workshop)
+
+. Inspect the spanmetrics connector:
++
+[source,bash]
+----
+oc get opentelemetrycollector central-collector \
+  -n observability-demo \
+  -o jsonpath='{.spec.config}' | yq '.connectors.spanmetrics'
+----
++
+The `spanmetrics` connector acts as both an exporter (receiving spans from the traces pipeline) and a receiver (producing metric records for the `traces/spanmetrics` pipeline). It generates latency histograms and call-count counters for every `service.name` + `span.name` combination automatically.
+
+. Query the generated span metrics in Prometheus:
++
+Navigate to **Observe** → **Metrics** and enter:
++
+[source,promql]
+----
+sum(rate(traces_spanmetrics_calls_total{service_name="frontend"}[5m])) by (span_name)
+----
++
+This shows the request rate per operation for the frontend service—derived solely from traces, with no Prometheus client library code in the application.
++
+To see the p95 latency for backend operations:
++
+[source,promql]
+----
+histogram_quantile(0.95,
+  sum(rate(traces_spanmetrics_latency_bucket{service_name="backend"}[5m]))
+  by (span_name, le)
+)
+----
+
+. Check the central collector's own health endpoint:
++
+[source,bash]
+----
+oc exec -n observability-demo \
+  deployment/central-collector-collector -- \
+  wget -qO- http://localhost:13133/
+----
++
+.Expected output
+[source,text]
+----
+Server available, lifetime uptime xxx seconds
+----
+
+. Understand the full Loki export path:
++
+A complete production LokiStack log export from the OpenTelemetry Collector requires a dedicated logs pipeline with the `otlphttp/logs` exporter, bearer token authentication against the LokiStack gateway, and attribute remapping. The following excerpt shows the required exporter and processor configuration, as documented in the link:https://docs.redhat.com/en/documentation/red_hat_build_of_opentelemetry/3.9/html/forwarding_telemetry_data/otel-forwarding-telemetry[Red Hat build of OpenTelemetry 3.9 forwarding documentation^]:
++
+[source,yaml]
+----
+exporters:
+  otlphttp/logs:
+    endpoint: https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application/otlp
+    encoding: json
+    tls:
+      ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+    auth:
+      authenticator: bearertokenauth
+processors:
+  resource:
+    attributes:
+      - key: kubernetes.namespace_name
+        from_attribute: k8s.namespace.name
+        action: upsert
+      - key: kubernetes.pod_name
+        from_attribute: k8s.pod.name
+        action: upsert
+      - key: log_type
+        value: application
+        action: upsert
+----
+
+=== Verify
+
+* ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and logs exporters
+* ✓ `spanmetrics` connector configuration is visible
+* ✓ `traces_spanmetrics_calls_total` metric exists in Prometheus for your services
+* ✓ `traces_spanmetrics_latency_bucket` histogram is queryable for p95 latency
+* ✓ Central collector health endpoint returns `Server available`
+
+**What you learned**: The central collector implements a fanout pattern—one OTLP receiver, multiple exporters. The `spanmetrics` connector bridges traces and metrics, generating RED signals automatically. A single instrumentation pass captures traces, metrics, and logs simultaneously.
+
+== Exercise 6: Auto-instrumentation with the Instrumentation CR
+
+For applications in languages that support OpenTelemetry auto-instrumentation (Java, Python, Node.js, .NET)—and where modifying source code is not possible—the OpenTelemetry Operator can inject a language agent into pods automatically.
+
+=== Steps
+
+. Inspect the pre-deployed Instrumentation CR:
++
+[source,bash]
+----
+oc get instrumentation demo-instrumentation \
+  -n observability-demo -o yaml
+----
++
+Key fields:
++
+[source,yaml]
+----
+spec:
+  exporter:
+    endpoint: http://localhost:4318   # <1>
+  propagators:
+    - tracecontext
+    - baggage                          # <2>
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"                    # <3>
+----
++
+<1> The sidecar receives telemetry on `localhost:4318`—the auto-instrumented application sends to the sidecar, which forwards to the central collector.
+<2> W3C Trace Context and Baggage propagators ensure trace context passes between services.
+<3> 100% sampling is used in this workshop environment.
+
+. Understand the auto-instrumentation annotation:
++
+To enable auto-instrumentation for a Java application, add a single annotation to the pod template:
++
+[source,yaml]
+----
+metadata:
+  annotations:
+    sidecar.opentelemetry.io/inject: "sidecar"
+    instrumentation.opentelemetry.io/inject-java: "demo-instrumentation"
+----
++
+For Python:
++
+[source,yaml]
+----
+    instrumentation.opentelemetry.io/inject-python: "demo-instrumentation"
+----
++
+For Node.js:
++
+[source,yaml]
+----
+    instrumentation.opentelemetry.io/inject-nodejs: "demo-instrumentation"
+----
++
+The annotation value is the name of the `Instrumentation` CR in the same namespace as the pod. For resources in a different namespace, use the `namespace/name` format: `observability-demo/demo-instrumentation`.
++
+When an annotated pod is scheduled, the OpenTelemetry Operator's mutating admission webhook injects an init container that copies the language agent into a shared volume. The agent instruments the application process at startup—no code changes or image rebuilds are required.
+
+. Understand the difference from the Go SDK approach:
++
+The workshop application uses **manual SDK instrumentation** (the `OTEL_ENABLED` gate), which provides fine-grained control. Auto-instrumentation is best suited for:
++
+[options="header",cols="40,60"]
+|===
+|Scenario |Recommended approach
+|Go application with source access |Manual SDK (`telemetry.Setup()` + `otelhttp`)
+|Java, Python, Node.js apps without source access |Auto-instrumentation annotation + sidecar
+|Existing app with too many unneeded spans |Manual SDK with custom sampling
+|Rapid onboarding of many services |Auto-instrumentation + sidecar collector CR
+|===
+
+=== Verify
+
+* ✓ `demo-instrumentation` Instrumentation CR exists and targets `http://localhost:4318`
+* ✓ Annotation format for Java, Python, and Node.js auto-instrumentation is understood
+* ✓ Distinction between manual SDK (Go) and auto-instrumentation (other languages) is clear
+* ✓ The Instrumentation CR must be in the same namespace as the pods it configures (or referenced with namespace prefix)
+
+**What you learned**: The `Instrumentation` CR is a namespace-level configuration object defining how the operator injects language agents and configures SDK exporters. Combined with the sidecar collector, a single pod annotation is all that separates an un-observed application from full traces, metrics, and logs flowing to all three backends.
 
 == Learning outcomes
 
 By completing this module, you should now understand:
 
-* ✓ OpenTelemetry provides unified, vendor-neutral instrumentation across all telemetry types
-* ✓ OpenTelemetry Collector receives, processes, and routes telemetry to multiple backends
-* ✓ SDKs generate metrics, logs, and traces from application code automatically
-* ✓ Auto-instrumentation injects telemetry without code changes for supported languages
-* ✓ Collector pipelines are customizable with processors for filtering, batching, and enrichment
-* ✓ All signals share trace context for complete correlation
+* ✓ The **sidecar-to-central** collector pattern decouples application-facing collection from backend-facing export
+* ✓ A **sidecar OpenTelemetryCollector** in `sidecar` mode injects a container into annotated pods without any image changes
+* ✓ The **`k8sattributes` and `resourcedetection` processors** automatically enrich telemetry with Kubernetes and infrastructure metadata
+* ✓ Applying `enable-otel.yaml` simultaneously activates the Go SDK, sets the OTLP endpoint, and triggers sidecar injection
+* ✓ The **`spanmetrics` connector** in the central collector generates RED metrics from traces, eliminating the need for a Prometheus client library
+* ✓ **Auto-instrumentation** via the `Instrumentation` CR enables zero-code telemetry for Java, Python, and Node.js applications
 
-**Business impact**:
+**Business impact**: You now have a complete three-signal observability pipeline for all three microservices. A single request to your application automatically produces:
 
-You've standardized observability instrumentation across all services. This provides:
+* A **distributed trace** showing the exact call path and per-service timing
+* **RED metrics** (rate, errors, duration) queryable in Prometheus—without any metrics code in the application
+* **Structured log records** correlated to the trace via trace ID—without any manual log attribute configuration
 
-* **Consistency**: All services emit telemetry in the same format
-* **Flexibility**: Change backends without changing application code
-* **Efficiency**: Single SDK replaces multiple instrumentation libraries
-* **Completeness**: Unified trace context across metrics, logs, and traces
-* **Future-proof**: Industry-standard approach backed by CNCF
-
-**Estimated improvement**: Reduced instrumentation complexity and maintenance overhead by 60-70%.
+This gives the platform engineering team full observability with minimal developer friction.
 
 == Module summary
 
-You successfully implemented OpenTelemetry for unified observability.
+You activated the full OpenTelemetry telemetry pipeline for the workshop application—from sidecar collector creation through to live trace visualization in the OpenShift console.
 
 **What you accomplished**:
 
-* Verified the OpenTelemetry Operator and Collector deployment via GitOps
-* Deployed applications instrumented with OpenTelemetry SDKs
-* Confirmed telemetry flows from applications through collectors to backends
-* Implemented auto-instrumentation for zero-code telemetry injection
-* Customized collector pipelines with processors and multiple exporters
+* Verified the OpenTelemetry Operator and the pre-deployed central collector in `observability-demo`
+* Created a sidecar `OpenTelemetryCollector` CR in your namespace with a three-signal pipeline (traces, metrics, logs)
+* Applied `enable-otel.yaml` to activate the Go SDK and trigger sidecar injection on all three deployments
+* Analyzed live traces in **Observe → Traces**, identified span-level bottlenecks, and correlated spans with log records
+* Explored the central collector's `spanmetrics` connector and queried auto-generated RED metrics in Prometheus
+* Understood how the `Instrumentation` CR enables zero-code auto-instrumentation for other language runtimes
 
 **Key concepts mastered**:
 
-* **OpenTelemetry SDK**: Application library generating telemetry
-* **OpenTelemetry Collector**: Telemetry aggregation and routing service
-* **Auto-instrumentation**: Zero-code telemetry injection via operator
-* **Collector pipeline**: Receivers → Processors → Exporters data flow
-* **Unified context**: Trace IDs shared across metrics, logs, and traces
+* **Sidecar mode**: The operator injects the collector as a second container into annotated pods
+* **k8sattributes and resourcedetection**: Processors that attach Kubernetes context metadata to all telemetry
+* **Two-tier architecture**: Sidecar handles application-facing collection; central collector handles backend-facing export and routing
+* **spanmetrics connector**: Generates Prometheus-queryable RED metrics automatically from trace spans
+* **Auto-instrumentation**: `Instrumentation` CR + pod annotation enables agent injection for Java, Python, Node.js, and .NET without code changes
 
-**OpenTelemetry components**:
-
-* **Receivers**: Accept telemetry (OTLP, Jaeger, Prometheus)
-* **Processors**: Transform telemetry (batch, filter, enrich)
-* **Exporters**: Send telemetry to backends (Prometheus, Tempo, Loki, logging)
-* **Instrumentation**: Auto-inject SDKs into applications
-
-**Production best practices learned**:
-
-* Use collectors for centralized configuration and routing
-* Apply batch processing for efficiency
-* Configure memory limiters to prevent OOM issues
-* Use auto-instrumentation for existing applications
-* Set appropriate sampling rates for traces
-* Add custom attributes for filtering and grouping
-
-Continue to the xref:07-conclusion.adoc[Workshop Completion] page to review your achievements and next steps.
+You have now completed the core modules of the OpenShift Observability Workshop. Continue to the conclusion to review key takeaways and next steps.

@@ -3,11 +3,11 @@
 :toc: macro
 :toclevels: 1
 
-With metrics from Module 1 and centralized logging from Module 2, you can now detect issues and understand what went wrong. However, a challenge remains: when applications experience slow response times, metrics show overall slowness, but identifying which specific microservice causes the bottleneck requires additional visibility.
+With metrics from Module 1 and centralized logging from Module 2, you can now detect issues and understand what went wrong. However, a challenge remains: when your application experiences slow response times, metrics show overall slowness and logs show individual service behavior, but neither reveals _where in the call chain_ the delay originates.
 
-Your organization's application is a complex mesh of microservices. 1 user request might touch 5-8 different services. When performance degrades, metrics show overall slowness, and logs show individual service behavior, but neither reveals where in the chain the delay occurs.
+Your organization's application—the frontend, backend, and database services you deployed in Module 2—processes every user request as a chain of HTTP calls across three distinct services. When performance degrades, you need to see the complete path of each request, including the time spent in each hop.
 
-In this module, you'll implement distributed tracing with Tempo, enabling you to visualize complete request flows and pinpoint exactly where performance bottlenecks occur.
+In this module, you'll explore distributed tracing with Tempo, enable the Distributed Tracing UI plugin in the OpenShift console, and examine how the Go application is instrumented with the OpenTelemetry SDK. Traces will not yet appear until Module 4 activates the telemetry pipeline—but by the end of this module you will understand exactly how they flow.
 
 toc::[]
 
@@ -17,68 +17,71 @@ By the end of this module, you'll be able to:
 
 * Understand distributed tracing concepts (spans, traces, context propagation)
 * Deploy and configure Tempo for trace storage and visualization
-* Instrument applications to emit trace data
-* Analyze trace waterfalls to identify performance bottlenecks
-* Correlate traces with logs and metrics for comprehensive investigation
+* Instrument applications to emit trace data using the OpenTelemetry SDK
+* Enable and navigate the Distributed Tracing UI plugin in the OpenShift console
+* Understand the relationship between traces, metrics, and logs for incident investigation
 
 == Understanding distributed tracing
 
-Before implementing tracing, you need to understand how distributed tracing works in microservices architectures.
+Before enabling tracing, you need to understand how distributed tracing works in microservice architectures.
 
 === Core tracing concepts
 
-**Trace**: Complete journey of a request through your system
+**Trace**: The complete journey of a single request through your system.
 
-* Example: User clicks "checkout" → API gateway → auth service → inventory service → payment service → order service
+* Example: A user submits a note → frontend service → backend service → database service
+* A trace captures the entire chain, start to finish, with timing and status at each step.
 
-**Span**: 1 operation within a trace
+**Span**: One unit of work within a trace.
 
-* Example: "Query inventory database" (1 step in the checkout trace)
-* Contains: operation name, start time, duration, status, metadata
+* Example: `backend: POST /api/notes` — one hop in the note-creation trace
+* Contains: operation name, start time, duration, HTTP status code, and key-value attributes
 
-**Context propagation**: Passing trace ID through service calls
+**Context propagation**: The mechanism that ties spans together across service boundaries.
 
-* Each service adds its span to the same trace
-* Enables correlation across service boundaries
-* Typically uses HTTP headers (W3C Trace Context standard)
+* Each service receives an incoming trace context via the `traceparent` HTTP header
+* It creates a child span linked to the caller's span, then propagates the context further downstream
+* Uses the W3C Trace Context standard (`traceparent`, `tracestate` headers)
 
-**Parent-child relationships**: Spans form a tree structure
+**Parent-child relationships**: Spans form a tree.
 
-* Parent span: "Process checkout"
-* Child spans: "Authenticate user", "Check inventory", "Process payment"
+* Root span: `frontend: GET /new-note`
+* Child span: `backend: POST /api/notes` (called by frontend)
+* Grandchild span: `database: POST /api/events` (called by backend)
 
 === Why distributed tracing matters
 
-**Without tracing**: You see symptoms, not causes
+**Without tracing**: You see symptoms, not causes.
 
-* Metrics show: API response time increased 200%
-* Logs show: Multiple services logged slow database queries
-* **Question**: Which service actually caused the slowdown?
+* Metrics show: 95th-percentile API response time increased from 80ms to 950ms
+* Logs show: all three services logged warnings at the same time
+* **Question**: Which service is actually slow?
 
-**With tracing**: You see the complete picture
+**With tracing**: You see the complete picture.
 
-* Trace shows: Inventory service → database query took 850ms (bottleneck found)
-* Other services functioned normally
-* **Answer**: Database query optimization needed in inventory service
+* Trace shows: frontend→backend took 20ms; backend→database took 880ms (bottleneck found)
+* Other services operated normally
+* **Answer**: The database service query needs optimization
 
 === Tempo architecture
 
-**Tempo** is a distributed tracing backend that stores and queries traces efficiently.
+**Tempo** is a distributed tracing backend optimized for storing and querying traces on cost-effective object storage.
 
 **Key components**:
 
-* **Distributor**: Receives traces from instrumented applications
-* **Ingester**: Writes traces to storage
-* **Querier**: Handles trace queries
-* **Compactor**: Optimizes stored traces
+* **Distributor**: Receives trace data from instrumented applications over OTLP (gRPC port 4317, HTTP port 4318)
+* **Ingester**: Buffers spans in memory and writes them to object storage
+* **Querier**: Serves trace queries by reading from both the ingester cache and object storage in parallel
+* **Query Frontend**: Load-balances query traffic across Querier pods
+* **Compactor**: Merges and optimizes stored trace blocks over time
 
-**Storage**: Tempo uses object storage (S3-compatible) or PersistentVolumes.
+**Storage**: Tempo requires S3-compatible object storage. In this workshop the TempoStack uses in-cluster object storage provisioned by the OpenShift Data Foundation (ODF) NooBaa Multi-Cloud Gateway.
 
-**Integration**: Works with Jaeger UI for visualization and OpenTelemetry for instrumentation.
+**Integration**: Tempo is queried by the Distributed Tracing UI plugin built into the OpenShift console via the Cluster Observability Operator. There is no separate Jaeger pod—the query interface is embedded directly in the console.
 
 == Exercise 1: Verify Tempo deployment
 
-You need to confirm that the Tempo distributed tracing stack was deployed via GitOps and is ready to receive traces.
+The Tempo distributed tracing stack was deployed via GitOps as part of the workshop infrastructure. Verify that all components are running and ready.
 
 === Steps
 
@@ -92,8 +95,8 @@ oc get pods -n openshift-tempo-operator
 .Expected output
 [source,text]
 ----
-NAME                              READY   STATUS    RESTARTS   AGE
-tempo-operator-xxxxx              1/1     Running   0          1h
+NAME                                          READY   STATUS    RESTARTS   AGE
+tempo-operator-controller-manager-xxxxx       2/2     Running   0          1h
 ----
 
 . Check the TempoStack instance:
@@ -106,579 +109,397 @@ oc get tempostack -n openshift-tempo-operator
 .Expected output
 [source,text]
 ----
-NAME    AGE   STATUS
+NAME    AGE   CONDITION
 tempo   1h    Ready
 ----
 +
-The status should be **Ready**.
+The `CONDITION` must be **Ready** before traces can be ingested.
 
-. Verify Tempo components are running:
+. Verify each Tempo component is running:
 +
 [source,bash]
 ----
-oc get pods -n openshift-tempo-operator -l app.kubernetes.io/component
+oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                                   READY   STATUS    RESTARTS   AGE
-tempo-tempo-compactor-xxxxx         1/1     Running   0          1h
-tempo-tempo-distributor-xxxxx       1/1     Running   0          1h
-tempo-tempo-ingester-0              1/1     Running   0          1h
-tempo-tempo-querier-xxxxx           1/1     Running   0          1h
-tempo-tempo-query-frontend-xxxxx    1/1     Running   0          1h
+NAME                                        READY   STATUS    RESTARTS   AGE
+tempo-tempo-compactor-xxxxx                 1/1     Running   0          1h
+tempo-tempo-distributor-xxxxx               1/1     Running   0          1h
+tempo-tempo-ingester-0                      1/1     Running   0          1h
+tempo-tempo-querier-xxxxx                   1/1     Running   0          1h
+tempo-tempo-query-frontend-xxxxx            1/1     Running   0          1h
 ----
 
-. Check if the tracing gateway route is exposed:
+. Confirm the distributor service endpoint (used by the OpenTelemetry Collector to write traces):
 +
 [source,bash]
 ----
-oc get route -n openshift-tempo-operator
+oc get svc tempo-tempo-distributor -n openshift-tempo-operator
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME                     HOST/PORT                                  
-tempo-tempo-gateway   tempo-tempo-gateway-openshift-tempo...
+NAME                      TYPE        CLUSTER-IP      PORT(S)
+tempo-tempo-distributor   ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
 ----
-
-. Access the Jaeger UI:
 +
-Get the route URL:
+Port **4317** is OTLP gRPC and port **4318** is OTLP HTTP. The central OpenTelemetry Collector forwards traces to this endpoint.
+
+. Query the Tempo status API to confirm readiness:
 +
 [source,bash]
 ----
-oc get route -n openshift-tempo-operator -l app.kubernetes.io/component=gateway -o jsonpath='{.items[0].spec.host}'
+oc exec -n openshift-tempo-operator \
+  deployment/tempo-tempo-query-frontend -- \
+  wget -qO- http://localhost:3200/ready
 ----
 +
-Open this URL in your browser (prepend https://)
+.Expected output
+[source,text]
+----
+ready
+----
 
 === Verify
 
 Check that your tracing infrastructure is operational:
 
-* ✓ Tempo Operator pod is Running
-* ✓ TempoStack instance status is Ready
-* ✓ All Tempo components (distributor, ingester, querier) are Running
-* ✓ Jaeger Query UI route exists
-* ✓ Jaeger UI is accessible in browser
+* ✓ Tempo Operator pod is Running (2/2 containers)
+* ✓ TempoStack instance condition is Ready
+* ✓ All Tempo component pods (distributor, ingester, querier, query-frontend, compactor) are Running
+* ✓ Tempo distributor service exposes ports 4317 and 4318
+* ✓ Query frontend responds with `ready`
 
-**What you learned**: Tempo stores traces, and Jaeger provides the UI for visualizing and querying them. Together, they form OpenShift's distributed tracing solution.
+**What you learned**: The TempoStack operator deploys and manages all Tempo components. The distributor is the write endpoint; the query-frontend is the read endpoint used by the OpenShift console UI plugin.
 
 === Troubleshooting
 
-**Issue**: TempoStack status shows "Degraded" or "Pending"
+**Issue**: TempoStack condition shows `Degraded` or `Progressing`
 
 **Solution**:
-. Check TempoStack pods: `oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo`
-. Describe TempoStack: `oc describe tempostack tempo -n openshift-tempo-operator`
-. Check storage configuration: `oc get pvc -n openshift-tempo-operator`
-. View operator logs: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/name=tempo-operator`
+. Describe the TempoStack for condition details: `oc describe tempostack tempo -n openshift-tempo-operator`
+. Check component pod status: `oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo`
+. Verify object storage: `oc get pvc -n openshift-tempo-operator`
+. Check operator logs: `oc logs -n openshift-tempo-operator -l control-plane=controller-manager -c manager`
 
-**Issue**: Jaeger UI route not found
-
-**Solution**:
-. List all routes: `oc get routes -n openshift-tempo-operator`
-. Find the gateway route by label: `oc get route -n openshift-tempo-operator -l app.kubernetes.io/component=gateway`
-
-**Issue**: Cannot access Jaeger UI in browser
+**Issue**: Distributor pod is CrashLoopBackOff
 
 **Solution**:
-. Verify route is created: `oc get route -n openshift-tempo-operator`
-. Check route protocol (should be https)
-. Ensure you're logged into OpenShift (may require OAuth authentication)
-. Try accessing from OpenShift console: **Observe** → **Traces**
+. View distributor logs: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/component=distributor`
+. Verify the object storage secret exists: `oc get secret -n openshift-tempo-operator | grep tempo`
 
-== Exercise 2: Deploy a traced application
+== Exercise 2: Enable the Distributed Tracing UI plugin
 
-To practice distributed tracing, you need an application that emits trace data. You'll deploy a multi-service demo application with tracing already instrumented.
+The Cluster Observability Operator ships a Distributed Tracing UI plugin that adds an **Observe → Traces** page to the OpenShift console. You register it by creating a `UIPlugin` custom resource.
 
 === Steps
 
-. Deploy a sample microservices application with tracing:
+. Verify the Cluster Observability Operator is running:
 +
 [source,bash]
 ----
-oc new-project {user}-tracing-demo
+oc get pods -n openshift-cluster-observability-operator
+----
++
+.Expected output
+[source,text]
+----
+NAME                                                          READY   STATUS    RESTARTS   AGE
+cluster-observability-operator-controller-manager-xxxxx       2/2     Running   0          1h
 ----
 
-. Deploy the frontend service:
+. Check whether the Distributed Tracing UIPlugin already exists:
++
+[source,bash]
+----
+oc get uiplugin distributed-tracing 2>/dev/null && echo "exists" || echo "not found"
+----
++
+If the output is `exists`, skip to step 4.
++
+If the output is `not found`, create it in the next step.
+
+. Create the Distributed Tracing UIPlugin:
 +
 [source,bash]
 ----
 cat <<EOF | oc apply -f -
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
 metadata:
-  name: frontend
-  namespace: {user}-tracing-demo
-  labels:
-    app: frontend
+  name: distributed-tracing
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: frontend
-  template:
-    metadata:
-      labels:
-        app: frontend
-    spec:
-      containers:
-      - name: frontend
-        image: quay.io/jaegertracing/example-hotrod:v1.62.0
-        ports:
-        - containerPort: 8080
-        env:
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://tempo-tempo-distributor.openshift-tempo-operator.svc:4318"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: frontend
-  namespace: {user}-tracing-demo
-spec:
-  selector:
-    app: frontend
-  ports:
-  - port: 8080
-    targetPort: 8080
-    name: http
----
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: frontend
-  namespace: {user}-tracing-demo
-spec:
-  to:
-    kind: Service
-    name: frontend
-  port:
-    targetPort: http
+  type: DistributedTracing
 EOF
 ----
 +
-This deploys the HotROD demo application, which simulates a ride-sharing service with multiple internal services.
+The Cluster Observability Operator detects this CR and configures the OpenShift console to load the distributed tracing frontend plugin, connecting it automatically to the TempoStack instance in the cluster.
++
+[NOTE]
+====
+The `UIPlugin` CR links the console plugin to the TempoStack query-frontend based on available `TempoStack` resources in the cluster. No manual URL configuration is required.
+====
 
-. Wait for the pod to be running:
+. Wait for the plugin to become available:
 +
 [source,bash]
 ----
-oc get pods -n {user}-tracing-demo -w
+oc get uiplugin distributed-tracing -w
 ----
 +
-Press Ctrl+C when the pod shows Running status.
-
-. Get the application route:
-+
-[source,bash]
+.Expected output
+[source,text]
 ----
-oc get route frontend -n {user}-tracing-demo -o jsonpath='{.spec.host}'
+NAME                  TYPE                AGE   AVAILABLE
+distributed-tracing   DistributedTracing  30s   true
 ----
++
+Press Ctrl+C when `AVAILABLE` shows `true`.
 
-. Access the application in your browser:
+. Reload the OpenShift console in your browser.
 +
-Open https://<route-host> in your browser.
+Navigate to **Observe** → **Traces** in the left-hand navigation.
 +
-You should see the HotROD application interface with buttons for different customers.
-
-. Generate traces by clicking on customer buttons:
+You should see a traces search page with:
 +
-Click "Customer 1", "Customer 2", "Customer 3" multiple times.
-+
-Each click triggers a simulated ride request that flows through multiple microservices (frontend → route service → driver service → database).
+* A **Namespace** filter
+* A **Service** filter
+* A scatter plot area (currently empty—no traces have been emitted yet)
+* A trace list area (also empty—this is expected)
 
 === Verify
 
-Check that your traced application is running:
+Check that the UI plugin is operational:
 
-* ✓ frontend pod is Running in {user}-tracing-demo namespace
-* ✓ Route exists and application is accessible
-* ✓ Application UI loads in browser
-* ✓ Clicking customer buttons generates activity
-* ✓ Application is configured to send traces to Tempo
+* ✓ UIPlugin resource exists with `AVAILABLE: true`
+* ✓ **Observe → Traces** appears in the OpenShift console navigation
+* ✓ Namespace and Service filter dropdowns are present
+* ✓ The page loads without error (no traces visible yet—expected)
 
-**What you learned**: Applications must be instrumented to emit traces. The HotROD demo app uses OpenTelemetry instrumentation to send trace data to Tempo's distributor endpoint.
+**What you learned**: The Distributed Tracing UI plugin is registered as a `UIPlugin` CR managed by the Cluster Observability Operator. The plugin connects to the TempoStack query-frontend and renders the trace search UI directly in the OpenShift console—no separate Jaeger deployment is required. For more information see the link:https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator/1-latest/html/ui_plugins_for_red_hat_openshift_cluster_observability_operator/distributed-tracing-ui-plugin[Distributed Tracing UI plugin documentation^].
 
 === Troubleshooting
 
-**Issue**: HotROD application not starting
+**Issue**: UIPlugin stays at `AVAILABLE: false`
 
 **Solution**:
-. Check pod status: `oc get pods -n {user}-tracing-demo`
-. View pod logs: `oc logs -n {user}-tracing-demo deployment/frontend`
-. Verify image pull: `oc describe pod -n {user}-tracing-demo -l app=frontend`
-. Check for resource constraints: `oc get events -n {user}-tracing-demo`
+. Describe the UIPlugin: `oc describe uiplugin distributed-tracing`
+. Check COO controller logs: `oc logs -n openshift-cluster-observability-operator -l control-plane=controller-manager`
+. Verify the TempoStack is in Ready state (the plugin requires a Ready TempoStack to configure its backend URL)
 
-**Issue**: Application route not accessible
+**Issue**: **Observe → Traces** does not appear after browser reload
 
 **Solution**:
-. Verify route exists: `oc get route frontend -n {user}-tracing-demo`
-. Check service: `oc get svc frontend -n {user}-tracing-demo`
-. Test from within cluster: `oc exec -n {user}-tracing-demo deployment/frontend -- curl localhost:8080`
+. Hard-refresh the browser (Ctrl+Shift+R or Cmd+Shift+R)
+. Confirm `oc get uiplugin distributed-tracing` shows `AVAILABLE: true`
+. Verify you have console access with the appropriate role
 
-== Exercise 3: Analyze traces in Jaeger UI
+== Exercise 3: Explore the Observe → Traces interface
 
-Now you'll use the Jaeger UI to visualize and analyze the traces generated by your application.
+Before traces flow, familiarize yourself with the trace search UI so you know exactly what to look for when Module 4 activates telemetry.
 
 === Steps
 
-. Open the Jaeger UI:
-+
-Navigate to **Observe** → **Traces** in the OpenShift console, or use the direct Jaeger route from Exercise 1.
+. In the OpenShift console navigate to **Observe** → **Traces**.
 
-. Select the service to query:
+. Set the namespace filter:
 +
-In the "Service" dropdown, select **frontend** (or any service name from your HotROD app).
+In the **Namespace** dropdown, select `{user}-observability-demo`.
++
+This scopes the search to the namespace where your application runs.
 
-. Click "Find Traces" to see recent traces
+. Explore the time range selector:
 +
-You should see a list of traces corresponding to the clicks you made in the HotROD app.
+The default window is the last 30 minutes. You can expand it to 1 hour or 6 hours.
++
+In Module 4, after enabling telemetry, you will change this to **Last 5 minutes** to see fresh traces immediately.
 
-. Click on a trace to view its details:
+. Review the scatter plot:
 +
-The trace view shows a waterfall diagram with all spans.
+When traces are present, each point represents a single trace:
 +
-Each horizontal bar represents a span (operation) with:
+* X-axis: trace start time
+* Y-axis: total trace duration (ms)
+* Bubble size: number of spans in the trace
 +
-* **Length**: Duration of the operation
-* **Color**: Different services have different colors
-* **Indentation**: Parent-child relationships
+Clusters of points at the top of the chart indicate slow traces. Isolated high points are outliers worth investigating.
 
-. Analyze the trace structure:
+. Review the trace list columns:
 +
-Observe the flow:
+When traces appear, the list shows:
 +
-. User request → frontend (parent span)
-. frontend → route calculation service
-. route service → driver finder service
-. driver finder → database query
-+
-Each step is a span showing how long it took.
+* **Trace name**: root span operation (for example, `frontend: GET /new-note`)
+* **Spans**: total number of spans in the trace
+* **Duration**: end-to-end time
+* **Start time**: when the root span began
 
-. Identify the slowest span:
+. Explore the **Show query** toggle:
 +
-Look for the longest horizontal bar in the waterfall.
+Click **Show query** beneath the filter bar.
 +
-This is your performance bottleneck.
+This reveals a raw **TraceQL** query field. TraceQL is the Tempo query language, similar to PromQL for Prometheus or LogQL for Loki.
 +
-Click on the span to see details:
+Find all traces from the frontend service:
 +
-* Operation name
-* Duration
-* Tags (service name, HTTP method, status code)
-* Logs (events within the span)
-
-. Compare multiple traces:
+[source,text]
+----
+{ resource.service.name = "frontend" }
+----
 +
-Search for more traces and compare durations.
+Filter by duration:
 +
-Some traces may be fast (50-100ms), others slow (500ms+).
+[source,text]
+----
+{ resource.service.name = "backend" && duration > 200ms }
+----
 +
-Click on a slow trace to identify which span caused the delay.
-
-. Use trace search filters:
+Find all errored traces:
 +
-In Jaeger, you can filter by:
-+
-* **Min/Max Duration**: Find only slow traces
-* **Tags**: Filter by HTTP status, error conditions
-* **Operation**: Specific function calls
-+
-Try filtering for traces longer than 200ms:
-+
-Set "Min Duration" to 200ms and click "Find Traces".
+[source,text]
+----
+{ status = error }
+----
 
 === Verify
 
-Check that you can analyze traces effectively:
+* ✓ **Observe → Traces** page loads cleanly for namespace `{user}-observability-demo`
+* ✓ Time range selector is functional
+* ✓ Scatter plot and trace list areas are present (empty is expected at this stage)
+* ✓ **Show query** toggle reveals the TraceQL editor
+* ✓ Basic TraceQL syntax is understood
 
-* ✓ Traces appear in Jaeger UI after generating traffic
-* ✓ Trace waterfall shows parent-child span relationships
-* ✓ Span duration is visible and clickable for details
-* ✓ Slowest spans can be identified visually
-* ✓ Filtering by duration or tags works
-* ✓ Multiple traces can be compared
+**What you learned**: The Distributed Tracing UI integrates directly into the OpenShift console. TraceQL lets you filter traces by service, operation name, duration, error status, and any custom span attribute—the same way PromQL queries metrics and LogQL queries logs.
 
-**What you learned**: The trace waterfall visualization shows the complete request flow with timing for each operation. This makes performance bottlenecks immediately visible.
+== Exercise 4: Explore the application's OpenTelemetry instrumentation
 
-=== Troubleshooting
-
-**Issue**: No traces appear in Jaeger UI
-
-**Solution**:
-. Wait 30-60 seconds for trace ingestion
-. Verify time range (expand to last 1 hour)
-. Check application is sending traces: `oc logs -n {user}-tracing-demo deployment/frontend | grep -i trace`
-. Verify Tempo distributor received traces: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/component=distributor`
-. Confirm application environment variables point to correct Tempo endpoint
-
-**Issue**: Traces appear but spans are missing
-
-**Solution**:
-. Check for sampling: Application may only send % of traces
-. Verify all services are instrumented
-. Look for errors in span export: Check application logs for "failed to export"
-
-**Issue**: Cannot filter traces by duration or tags
-
-**Solution**:
-. Ensure traces have completed ingestion (wait 1-2 minutes)
-. Check that tags are being added during instrumentation
-. Use exact tag names (case-sensitive)
-
-== Exercise 4: Correlate traces with logs and metrics
-
-The true power of observability comes from using all 3 signals together. You'll investigate a performance issue using traces, logs, and metrics.
+The three Go services—frontend, backend, and database—are already instrumented with the OpenTelemetry SDK. Telemetry generation is gated by an environment variable so it can be enabled without rebuilding the container image.
 
 === Steps
 
-. Generate a slow trace scenario:
+. Inspect the shared telemetry package:
 +
-In the HotROD app, click "Customer 3" multiple times rapidly (10+ clicks).
+The repository contains a shared `telemetry` package used by all three services at `src/telemetry/telemetry.go`.
 +
-Customer 3 is intentionally configured to trigger slower responses.
+Key points in this package:
++
+* **`Enabled()` function**: Returns `true` only when `OTEL_ENABLED=true` is set in the environment. All SDK initialization is skipped when false, so the application behaves identically to an uninstrumented binary.
+* **`Setup()` function**: Initializes three OTLP HTTP exporters when enabled—trace, metric, and log—all targeting `OTEL_EXPORTER_OTLP_ENDPOINT`. In Module 4, this will be `http://localhost:4318` (the injected sidecar collector).
 
-. Check metrics for the anomaly:
+. Inspect the backend service instrumentation:
 +
-Navigate to **Observe** → **Metrics**
-+
-Query the request duration:
-+
-[source,promql]
+[source,bash]
 ----
-histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{namespace="{user}-tracing-demo"}[5m]))
-----
-+
-This shows the 95th percentile response time.
-+
-You should see an increase corresponding to Customer 3 requests.
-
-. Find the slow trace in Jaeger:
-+
-Open Jaeger UI and filter for slow traces:
-+
-* Service: frontend
-* Min Duration: 500ms
-* Find Traces
-+
-Select 1 of the slow traces for Customer 3.
-
-. Identify the problematic span:
-+
-In the trace waterfall, find the longest span.
-+
-It's likely "FindDriver" or a database query.
-+
-Note the span's trace ID and timestamp.
-
-. Correlate with logs:
-+
-Navigate to **Observe** → **Logs**
-+
-Query logs from the same time period:
-+
-[source,logql]
-----
-{kubernetes_namespace_name="{user}-tracing-demo"} |= "Customer 3"
+grep -n "otelhttp\|otelslog\|telemetry\." src/backend/main.go | head -20
 ----
 +
-Look for log entries that match the trace timestamp.
+You will see three instrumentation layers activated when `OTEL_ENABLED=true`:
 +
-The logs might show: "Slow driver query for Customer 3" or similar messages.
+[options="header",cols="30,70"]
+|===
+|Layer |Purpose
+|`telemetry.Setup()` |Creates the global TraceProvider, MeterProvider, and LoggerProvider from the OTLP exporters
+|`otelslog.NewHandler()` |Bridges the Go standard `slog` logger to the OTel log exporter—every structured log line is emitted as an OTel log record carrying the active trace ID
+|`otelhttp.NewTransport()` |Wraps the outbound HTTP client so the W3C `traceparent` header is injected into every downstream call
+|===
 
-. Extract the trace ID from logs:
+. Understand the server-side instrumentation:
 +
-Some applications log trace IDs. If available, you can query:
+The inbound HTTP handler is wrapped with `otelhttp.NewHandler()`, which:
 +
-[source,logql]
-----
-{kubernetes_namespace_name="{user}-tracing-demo"} |= "trace_id" |= "<trace-id-from-jaeger>"
-----
-+
-This shows all logs associated with that specific trace.
+* Creates a server span for every inbound request
+* Extracts the incoming `traceparent` header and registers this span as a child of the calling service's span
+* Automatically records HTTP attributes (`http.method`, `http.route`, `http.status_code`) on the span
 
-. Document your findings:
+. Understand context propagation across services:
 +
-**Symptom** (Metrics): 95th percentile latency increased to 850ms
+The trace context flows automatically through your microservices:
 +
-**Root cause** (Trace): "FindDriver" span took 750ms
+[source,text]
+----
+Browser
+  +-- frontend (otelhttp server span: GET /new-note)
+       |  injects traceparent into outbound request
+       +-- backend (otelhttp server span: POST /api/notes)
+            |  injects traceparent into outbound request
+            +-- database (otelhttp server span: POST /api/events)
+----
 +
-**Context** (Logs): "Slow driver query for Customer 3 - insufficient drivers available"
+Because every service uses `otelhttp` for both inbound (handler) and outbound (transport) HTTP calls, the trace ID and parent span ID are automatically threaded through the entire call chain with no manual span creation required in business logic code.
+
+. Review the `enable-otel.yaml` patch file:
++
+[source,bash]
+----
+cat src/enable-otel.yaml
+----
++
+This file contains three `Deployment` patches—one per service. When applied, each patch:
++
+* Sets `OTEL_ENABLED=true` to activate the SDK
+* Sets `OTEL_SERVICE_NAME` to the service name (becomes the `service.name` resource attribute)
+* Sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` to send telemetry to the injected sidecar
+* Adds the pod annotation `sidecar.opentelemetry.io/inject: "sidecar"` to trigger sidecar injection
+* Sets `serviceAccountName: otel-collector-sidecar` for RBAC access to the Kubernetes API
+
+. Verify the current state of the deployments:
++
+[source,bash]
+----
+oc get deployment frontend backend database \
+  -n {user}-observability-demo \
+  -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
+----
++
+.Expected output
+[source,text]
+----
+NAME       CONTAINERS
+frontend   frontend
+backend    backend
+database   database
+----
++
+Each deployment currently has a single application container. After applying `enable-otel.yaml` in Module 4, each pod will gain a second container—the injected sidecar collector.
 
 === Verify
 
-Check that you can correlate all 3 signals:
+* ✓ `src/telemetry/telemetry.go` gates all SDK initialization on `OTEL_ENABLED=true`
+* ✓ `otelhttp.NewHandler()` creates server spans and extracts incoming trace context
+* ✓ `otelhttp.NewTransport()` injects the `traceparent` header into all outbound HTTP calls
+* ✓ `otelslog.NewHandler()` bridges Go structured logs to OTel log records
+* ✓ `enable-otel.yaml` contains the sidecar annotation and environment variable patches for all three services
+* ✓ Current deployments have one container each (no OTel yet)
 
-* ✓ Metrics show latency increase
-* ✓ Traces identify which operation is slow
-* ✓ Logs provide context for why it's slow
-* ✓ Time ranges align across metrics, traces, and logs
-* ✓ Trace ID can be found in logs (if instrumented)
-* ✓ Complete story from symptom to root cause is clear
-
-**What you learned**: Metrics detect issues, traces pinpoint where they occur, and logs explain why. Using all 3 together reduces investigation time from hours to minutes.
-
-=== Troubleshooting
-
-**Issue**: Cannot find matching logs for trace
-
-**Solution**:
-. Verify application logs trace IDs (requires instrumentation)
-. Use timestamp correlation instead of trace ID
-. Expand log time range to ±5 minutes of trace timestamp
-. Check log level: Debug messages may be disabled
-
-**Issue**: Metrics don't show latency increase
-
-**Solution**:
-. Generate more traffic to populate metrics
-. Check metric labels match: `namespace="{user}-tracing-demo"`
-. Allow 30-60 seconds for Prometheus scraping
-. Verify application exposes metrics: `oc exec -n {user}-tracing-demo deployment/frontend -- curl localhost:8080/metrics`
-
-== Exercise 5: Implement trace sampling
-
-In production, storing every trace can be expensive. You'll configure trace sampling to balance observability with storage costs.
-
-=== Steps
-
-. Understand sampling strategies:
-+
-**Head sampling**: Decision made at trace start
-+
-* **Probabilistic**: Sample X% of traces (e.g., 10%)
-* **Rate limiting**: Sample max N traces/second
-+
-**Tail sampling**: Decision made after trace completes
-+
-* **Error sampling**: Always sample failed requests
-* **Latency sampling**: Always sample slow requests
-
-. Configure probabilistic sampling in the application:
-+
-Update the frontend deployment with sampling configuration:
-+
-[source,bash]
-----
-oc set env deployment/frontend -n {user}-tracing-demo OTEL_TRACES_SAMPLER=parentbased_traceidratio
-oc set env deployment/frontend -n {user}-tracing-demo OTEL_TRACES_SAMPLER_ARG=0.1
-----
-+
-This samples 10% of traces (0.1 = 10%).
-
-. Restart the deployment to apply the change:
-+
-[source,bash]
-----
-oc rollout restart deployment/frontend -n {user}-tracing-demo
-oc rollout status deployment/frontend -n {user}-tracing-demo
-----
-
-. Generate traffic and observe sampling:
-+
-Click customer buttons in HotROD app many times (50+ clicks).
-+
-Check Jaeger UI:
-+
-You should see fewer traces than the number of clicks (approximately 10%).
-
-. Configure intelligent sampling for errors:
-+
-For production, you want to always sample errors regardless of rate:
-+
-[source,bash]
-----
-oc set env deployment/frontend -n {user}-tracing-demo OTEL_TRACES_SAMPLER=parentbased_always_on
-----
-+
-This samples 100% of traces.
-+
-In production, you'd use more sophisticated sampling (Tempo supports tail sampling based on error status).
-
-=== Verify
-
-Check that sampling configuration is working:
-
-* ✓ Sampling environment variables applied to deployment
-* ✓ Pod restarted with new configuration
-* ✓ Fewer traces appear in Jaeger than requests made
-* ✓ Sampling rate approximately matches configured value
-* ✓ Important traces (errors, slow requests) are captured
-
-**What you learned**: Sampling reduces trace storage costs while maintaining observability. Intelligent sampling ensures critical traces (errors, slow requests) are always captured.
-
-=== Troubleshooting
-
-**Issue**: All traces still appear despite low sampling rate
-
-**Solution**:
-. Verify environment variables: `oc set env deployment/frontend -n {user}-tracing-demo --list | grep SAMPLER`
-. Check pod was restarted: `oc get pods -n {user}-tracing-demo`
-. View application logs for sampling messages: `oc logs -n {user}-tracing-demo deployment/frontend | grep sampling`
-
-**Issue**: No traces appear after setting low sampling rate
-
-**Solution**:
-. Generate more traffic (need more requests to see sampled traces)
-. Check sampling rate isn't too low: 0.01 = 1% (very few traces)
-. Verify application still sending traces: Check distributor logs
+**What you learned**: Effective OpenTelemetry Go instrumentation uses three layers—trace provider, `otelhttp` middleware, and log bridge—to emit traces, metrics, and correlated logs from a single SDK setup call. The `otelhttp` transport ensures W3C trace context propagation across all service boundaries automatically, without any manual span creation in application code.
 
 == Learning outcomes
 
 By completing this module, you should now understand:
 
-* ✓ Distributed tracing reveals request flows across microservices using spans organized into traces
-* ✓ Tempo stores traces efficiently and integrates with Jaeger for visualization
-* ✓ Trace waterfalls show parent-child span relationships and operation durations
-* ✓ Identifying performance bottlenecks is visual: longest span = slowest operation
-* ✓ Correlating traces with logs and metrics provides complete incident context
-* ✓ Trace sampling balances observability with storage costs
+* ✓ A **trace** is the complete journey of a request; a **span** is one operation within that trace
+* ✓ **Context propagation** via W3C `traceparent` headers links spans across service boundaries automatically
+* ✓ **Tempo** stores traces on object storage with distinct distributor (write) and query-frontend (read) components
+* ✓ The **Distributed Tracing UI plugin** is registered as a `UIPlugin` CR and adds **Observe → Traces** to the OpenShift console
+* ✓ **TraceQL** filters traces by service name, operation, duration, status, and any span attribute
+* ✓ The Go application uses `otelhttp` and `otelslog` for automatic instrumentation, gated by `OTEL_ENABLED=true`
 
-**Business impact**:
-
-You've eliminated the guesswork in performance troubleshooting. Instead of manually testing each microservice, you now have:
-
-* Visual representation of complete request flows across all 12 microservices
-* Ability to identify bottlenecks in seconds, not hours
-* Correlation between performance issues (traces), symptoms (metrics), and context (logs)
-* Data-driven performance optimization decisions
-
-**Estimated improvement**: Reduced time to identify performance bottlenecks from 2-3 hours to 5-10 minutes.
-
-**Next steps**: Module 4 will unify your observability stack using OpenTelemetry, providing standardized instrumentation across all signals (metrics, logs, and traces).
+**What comes next**: Module 4 activates the full telemetry pipeline by deploying a sidecar OpenTelemetry Collector in your namespace, patching the deployments with `enable-otel.yaml`, and configuring the collector to fan out telemetry to Tempo, Prometheus, and Loki. The **Observe → Traces** page you explored in this module will then show live trace data from your own application.
 
 == Module summary
 
-You successfully implemented distributed tracing with Tempo.
-
-**What you accomplished**:
-
-* Verified the Tempo distributed tracing stack deployed via GitOps
-* Deployed a multi-service application with trace instrumentation
-* Analyzed trace waterfalls in Jaeger UI to identify performance bottlenecks
-* Correlated traces with logs and metrics for comprehensive investigation
-* Configured trace sampling to balance observability with storage costs
+You verified the Tempo distributed tracing infrastructure, enabled the Distributed Tracing UI plugin in the OpenShift console, familiarized yourself with the trace search UI, and examined the OpenTelemetry SDK instrumentation built into the workshop application.
 
 **Key concepts mastered**:
 
-* **Trace**: Complete request journey through multiple services
-* **Span**: Individual operation within a trace with timing and metadata
-* **Context propagation**: Passing trace context across service boundaries
-* **Waterfall visualization**: Graphical representation of span timing and relationships
-* **Sampling**: Selective trace capture to reduce storage requirements
+* **Trace and span**: A trace is a tree of spans; each span represents one service operation with timing and attributes
+* **Context propagation**: `traceparent` HTTP headers link spans across service boundaries using the W3C standard
+* **TempoStack**: Operator-managed, with distributor, ingester, querier, query-frontend, and compactor components
+* **UIPlugin CR**: Registers the Distributed Tracing console plugin via the Cluster Observability Operator
+* **TraceQL**: Query language for filtering traces by service, duration, status, and span attributes
+* **SDK gating**: `OTEL_ENABLED=true` activates all telemetry exporters; the application is silent without it
 
-**Tracing workflow**:
-
-1. User request enters system → root span created
-2. Each service operation creates child spans
-3. Spans include timing, status, and metadata
-4. All spans share trace ID for correlation
-5. Tempo stores complete trace
-6. Jaeger queries and visualizes traces
-
-Continue to Module 4 to implement OpenTelemetry for unified observability instrumentation.
+Continue to Module 4 to activate the telemetry pipeline and observe live traces from your own microservices.
