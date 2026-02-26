@@ -13,7 +13,9 @@ RUN mkdir -p \
       frontend/code/frontend/static \
       frontend/code/notifier \
       frontend/code/telemetry && \
-    cp go.mod go.sum deploy.yaml enable-otel.yaml  frontend/code/ && \
+    cp go.mod frontend/code/go.mod.txt && \
+    cp go.sum frontend/code/go.sum.txt && \
+    cp deploy.yaml enable-otel.yaml                frontend/code/ && \
     cp backend/main.go backend/Containerfile        frontend/code/backend/ && \
     cp database/main.go database/Containerfile      frontend/code/database/ && \
     cp frontend/main.go frontend/Containerfile      frontend/code/frontend/ && \
