@@ -1,74 +1,32 @@
-✅ OpenTelemetry Operator and collectors deployed successfully!
+✅ OpenTelemetry Operator and central collector deployed successfully!
 
 📋 Components installed:
   - OpenTelemetry Operator in namespace: {{ .Values.operator.namespace }}
-  - Instrumentation CR: {{ .Values.instrumentation.name }} in namespace: {{ .Values.namespace }}
-  - Sidecar Collector: {{ .Values.sidecarCollector.name }} (injected into pods)
-  - Central Collector: {{ .Values.centralCollector.name }} ({{ .Values.centralCollector.replicas }} replicas)
+  - Central Collector: {{ .Values.centralCollector.name }} ({{ .Values.centralCollector.replicas }} replicas) in {{ .Values.namespace }}
   - Service Accounts: {{ .Values.serviceAccounts.sidecar }}, {{ .Values.serviceAccounts.central }}
 {{- if .Values.centralCollector.spanmetrics.enabled }}
   - Spanmetrics Connector: Enabled (generates RED metrics from traces)
 {{- end }}
 
-🎯 Auto-instrumentation configuration:
-  - OTLP endpoint: {{ .Values.instrumentation.exporter.endpoint }} (sidecar collector)
-  - Sampler: {{ .Values.instrumentation.sampler.type }} ({{ .Values.instrumentation.sampler.argument }})
-  - Supported languages: Python, Node.js, Java/Quarkus, Go
+NOTE: The sidecar OpenTelemetryCollector CR and the Instrumentation CR are NOT deployed
+by this chart. Workshop students create them in their own namespaces as exercises.
 
 🔍 Verification commands:
 
 1. Check operator installation:
    oc get csv -n {{ .Values.operator.namespace }} | grep opentelemetry-product
 
-2. Check Instrumentation CR:
-   oc get instrumentation {{ .Values.instrumentation.name }} -n {{ .Values.namespace }}
+2. Check central collector:
+   oc get opentelemetrycollector {{ .Values.centralCollector.name }} -n {{ .Values.namespace }}
 
-3. Check OpenTelemetryCollector CRs:
-   oc get opentelemetrycollector -n {{ .Values.namespace }}
-
-4. Check central collector pods:
+3. Check central collector pods:
    oc get pods -n {{ .Values.namespace }} -l app.kubernetes.io/name={{ .Values.centralCollector.name }}-collector
-
-🚀 Enable auto-instrumentation for applications:
-
-To enable auto-instrumentation with zero code changes, update your deployment with annotations:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-app
-  namespace: {{ .Values.namespace }}
-spec:
-  template:
-    metadata:
-      annotations:
-        # Inject sidecar collector
-        sidecar.opentelemetry.io/inject: "{{ .Values.sidecarCollector.name }}"
-        # Enable auto-instrumentation (choose language)
-        instrumentation.opentelemetry.io/inject-python: "{{ .Values.instrumentation.name }}"
-        # OR instrumentation.opentelemetry.io/inject-nodejs: "{{ .Values.instrumentation.name }}"
-        # OR instrumentation.opentelemetry.io/inject-java: "{{ .Values.instrumentation.name }}"
-        # OR instrumentation.opentelemetry.io/inject-go: "{{ .Values.instrumentation.name }}"
-    spec:
-      serviceAccountName: {{ .Values.serviceAccounts.sidecar }}
-      containers:
-      - name: my-app
-        # ... your container spec
-```
-
-Or use kubectl patch:
-```bash
-oc patch deployment my-app -n {{ .Values.namespace }} -p '{"spec":{"template":{"metadata":{"annotations":{"sidecar.opentelemetry.io/inject":"{{ .Values.sidecarCollector.name }}","instrumentation.opentelemetry.io/inject-python":"{{ .Values.instrumentation.name }}"}},"spec":{"serviceAccountName":"{{ .Values.serviceAccounts.sidecar }}"}}}}'
-```
 
 {{- if .Values.centralCollector.spanmetrics.enabled }}
 
 📊 Query RED metrics generated from traces:
 
-The spanmetrics connector generates the following metrics in Prometheus:
-
-1. Request Rate (calls per second):
+1. Request Rate:
    sum by (service_name) (rate(traces_spanmetrics_calls_total[5m]))
 
 2. Error Rate:
@@ -77,22 +35,19 @@ The spanmetrics connector generates the following metrics in Prometheus:
 3. Latency (P95):
    histogram_quantile(0.95, sum by (service_name, le) (rate(traces_spanmetrics_latency_bucket[5m])))
 
-4. View exemplars (links to traces):
-   traces_spanmetrics_calls_total{service_name="my-service"}
-
 {{- end }}
 
 💡 Architecture:
 
-  Application (instrumented)
-      ↓ OTLP (localhost:{{ .Values.sidecarCollector.otlp.httpPort }})
-  Sidecar Collector (enriches with K8s metadata)
-      ↓ OTLP
-  Central Collector ({{ .Values.centralCollector.replicas }} replicas)
-      ├─→ Tempo (traces with X-Scope-OrgID: {{ .Values.centralCollector.tempo.tenant }})
+  Application pods (per-user namespace)
+      ↓ OTLP (localhost:4318, via sidecar -- created by students)
+  Sidecar Collector (per-user, enriches with K8s metadata)
+      ↓ OTLP gRPC
+  Central Collector ({{ .Values.centralCollector.replicas }} replicas, {{ .Values.namespace }})
+      ├─→ Tempo (traces, X-Scope-OrgID: {{ .Values.centralCollector.tempo.tenant }})
 {{- if .Values.centralCollector.spanmetrics.enabled }}
-      ├─→ Spanmetrics Connector (generates RED metrics)
+      ├─→ Spanmetrics Connector (RED metrics)
 {{- end }}
-      └─→ Prometheus (metrics{{ if .Values.centralCollector.spanmetrics.enabled }} + RED metrics{{ end }})
+      └─→ Prometheus (metrics)
 
 📚 Documentation: https://docs.openshift.com/container-platform/latest/observability/otel/otel-installing.html

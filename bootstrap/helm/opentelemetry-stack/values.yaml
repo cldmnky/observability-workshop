@@ -19,39 +19,6 @@ serviceAccounts:
   sidecar: otel-collector-sidecar
   central: otel-central-collector
 
-# Auto-instrumentation Configuration
-instrumentation:
-  # Name of the Instrumentation CR
-  name: demo-instrumentation
-  # OTLP exporter endpoint (sidecar collector)
-  exporter:
-    endpoint: http://localhost:4318
-  # Sampler configuration
-  sampler:
-    # Type: always_on, always_off, traceidratio, parentbased_always_on, parentbased_always_off, parentbased_traceidratio
-    type: parentbased_traceidratio
-    # Sampling ratio (0.0 to 1.0) - 1.0 = 100% sampling for demo
-    argument: "1.0"
-  # Propagators for trace context
-  propagators:
-    - tracecontext
-    - baggage
-
-# Sidecar Collector Configuration
-sidecarCollector:
-  # Name of the OpenTelemetryCollector CR
-  name: sidecar
-  # OTLP receiver ports
-  otlp:
-    grpcPort: 4317
-    httpPort: 4318
-  # Central collector endpoint
-  centralCollector:
-    # Service name of central collector
-    service: central-collector
-    # Port
-    port: 4317
-
 # Central Collector Configuration
 centralCollector:
   # Name of the OpenTelemetryCollector CR

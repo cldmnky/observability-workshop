@@ -86,17 +86,13 @@ spec:
           - k8s.pod.start_time
       
       {{- if .Values.centralCollector.spanmetrics.enabled }}
-      # Transform spanmetrics metric names
-      metricstransform:
-        transforms:
-        - include: calls_total
-          match_type: strict
-          action: update
-          new_name: traces_spanmetrics_calls_total
-        - include: latency
-          match_type: strict
-          action: update
-          new_name: traces_spanmetrics_latency
+      # Rename spanmetrics output metrics using OTTL transform processor
+      transform:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(name, "traces_spanmetrics_calls_total") where name == "calls_total"
+              - set(name, "traces_spanmetrics_latency") where name == "latency"
       {{- end }}
       
       # Batch processor for efficiency
@@ -156,7 +152,7 @@ spec:
           receivers:
           - spanmetrics
           processors:
-          - metricstransform
+          - transform
           - batch
           exporters:
           - prometheusremotewrite

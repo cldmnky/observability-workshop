@@ -5,7 +5,7 @@
 
 In Module 3 you verified the Tempo tracing backend, enabled the Distributed Tracing UI plugin, and explored how the Go application is instrumented with the OpenTelemetry SDK. The telemetry pipeline was not yet active—the application was running silently.
 
-In this module you will activate that pipeline end-to-end. You'll deploy a sidecar OpenTelemetry Collector in your namespace, enable the SDK on all three services, and observe live traces, metrics, and logs flowing from your application through the collector pipeline to Tempo, Prometheus, and Loki.
+In this module you will activate that pipeline end-to-end. You'll deploy a sidecar OpenTelemetry Collector and an `Instrumentation` CR in your namespace, enable the SDK on all three services, and observe live traces, metrics, and logs flowing from your application through the collector pipeline to Tempo, Prometheus, and Loki.
 
 toc::[]
 
@@ -15,6 +15,7 @@ By the end of this module, you'll be able to:
 
 * Understand the sidecar-to-central OpenTelemetry Collector architecture
 * Create a sidecar `OpenTelemetryCollector` CR and configure its pipeline
+* Create an `Instrumentation` CR for zero-code agent injection
 * Enable OpenTelemetry on the workshop application using `enable-otel.yaml`
 * Observe live traces in the **Observe → Traces** console UI
 * Understand how the central collector fans out telemetry to Tempo, Prometheus, and Loki
@@ -165,29 +166,14 @@ NAME                           TYPE        CLUSTER-IP      PORT(S)
 central-collector-collector    ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
 ----
 
-. Inspect the pre-deployed Instrumentation CR:
-+
-[source,bash]
-----
-oc get instrumentation demo-instrumentation \
-  -n observability-demo -o yaml
-----
-+
-Note the key fields:
-+
-* `spec.exporter.endpoint: http://localhost:4318` — auto-instrumented pods send to the sidecar
-* `spec.sampler.type: parentbased_traceidratio` with `argument: "1.0"` — sample 100% of traces (appropriate for a workshop environment)
-* `spec.propagators: [tracecontext, baggage]` — uses W3C Trace Context headers for context propagation
-
 === Verify
 
 * ✓ OpenTelemetry Operator pod is Running (2/2)
 * ✓ `OpenTelemetryCollector` and `Instrumentation` CRDs are registered
 * ✓ `central-collector` exists in `observability-demo` in deployment mode with 2 replicas
 * ✓ `central-collector-collector` service exposes ports 4317 and 4318
-* ✓ `demo-instrumentation` Instrumentation CR exists in `observability-demo`
 
-**What you learned**: The central collector and the auto-instrumentation Instrumentation CR are pre-deployed in the shared `observability-demo` namespace by GitOps. Your task is to wire your application namespace into this shared infrastructure.
+**What you learned**: The central collector is pre-deployed in the shared `observability-demo` namespace by GitOps. Your task is to create the per-namespace sidecar collector and Instrumentation CR in your own namespace, then wire the application into that pipeline.
 
 === Troubleshooting
 
@@ -346,7 +332,74 @@ All three signals reach the central collector over a single gRPC connection, whi
 . Check available service accounts: `oc get sa -n {user}-observability-demo`
 . Contact the workshop facilitator—the ServiceAccount should be pre-provisioned as part of the workshop setup
 
-== Exercise 3: Enable OpenTelemetry on the applications
+== Exercise 3: Create the Instrumentation CR in your namespace
+
+The `Instrumentation` CR is a template that tells the OpenTelemetry Operator how to configure the auto-instrumentation agent init-container when injecting into pods. You need one per namespace. In this exercise you create it for `{user}-observability-demo` — it will be used in Exercise 7 when you enable Python auto-instrumentation on the **notifier** service.
+
+=== Steps
+
+. Create the Instrumentation CR:
++
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: my-instrumentation
+  namespace: {user}-observability-demo
+spec:
+  exporter:
+    endpoint: http://localhost:4318
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"
+  propagators:
+    - tracecontext
+    - baggage
+  python:
+    env:
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: http/protobuf
+EOF
+----
++
+Key fields explained:
++
+* `spec.exporter.endpoint: http://localhost:4318` — the auto-instrumented process sends telemetry to the sidecar on localhost (both containers live in the same pod)
+* `spec.sampler.type: parentbased_traceidratio` with `argument: "1.0"` — 100% sampling, suitable for a workshop
+* `spec.propagators: [tracecontext, baggage]` — W3C Trace Context headers so the incoming `traceparent` from the Go backend is read and spans are linked into the existing trace
+* `spec.python.env OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf` — forces the Python SDK to use HTTP/protobuf rather than gRPC, matching the sidecar receiver on port 4318
+
+. Verify the CR was accepted:
++
+[source,bash]
+----
+oc get instrumentation my-instrumentation -n {user}-observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME                 AGE
+my-instrumentation   10s
+----
+
+=== Verify
+
+* ✓ `my-instrumentation` Instrumentation CR exists in `{user}-observability-demo`
+* ✓ `spec.exporter.endpoint` is `http://localhost:4318`
+
+**What you learned**: The `Instrumentation` CR is a per-namespace configuration template. Unlike the sidecar CR (which provides a container spec merged into application pods), the Instrumentation CR is referenced by pods via the `instrumentation.opentelemetry.io/inject-<language>` annotation — the Operator reads it and injects a language-specific agent init-container plus the necessary environment variables with no application changes required.
+
+=== Troubleshooting
+
+**Issue**: `oc apply` returns a validation error about `apiVersion`
+
+**Solution**:
+. The `Instrumentation` CRD uses `opentelemetry.io/v1alpha1`, not `v1beta1`. Confirm: `oc api-resources | grep instrumentation`
+
+== Exercise 4: Enable OpenTelemetry on the applications
 
 Now you'll activate the OpenTelemetry SDK in all three services by applying the `enable-otel.yaml` patch file. This adds the sidecar injection annotation and the SDK environment variables to each deployment without rebuilding container images.
 
@@ -495,7 +548,7 @@ This sends 30 iterations of mixed GET and POST requests, generating spans at eac
 . Confirm `enable-otel.yaml` is in the `src/` directory: `ls src/enable-otel.yaml`
 . Test the substitution: `sed "s/__NAMESPACE__/$NAMESPACE/g" src/enable-otel.yaml | head -10`
 
-== Exercise 4: View live traces in Observe → Traces
+== Exercise 5: View live traces in Observe → Traces
 
 With traffic flowing and telemetry active, you can now view real traces from your application in the OpenShift console.
 
@@ -607,7 +660,7 @@ Because the application uses `otelslog.NewHandler()`, every structured log line 
 . Check ServiceAccount permissions: `oc auth can-i get pods --as=system:serviceaccount:{user}-observability-demo:otel-collector-sidecar`
 . Check `k8sattributes` errors in sidecar logs: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container | grep -i k8s`
 
-== Exercise 5: Explore the central collector pipeline
+== Exercise 6: Explore the central collector pipeline
 
 The central collector in `observability-demo` receives telemetry from all sidecar collectors and routes it to three backends. Inspect the configuration and verify each export path.
 
@@ -713,7 +766,7 @@ processors:
 
 **What you learned**: The central collector implements a fanout pattern—one OTLP receiver, multiple exporters. The `spanmetrics` connector bridges traces and metrics, generating RED signals automatically. A single instrumentation pass captures traces, metrics, and logs simultaneously.
 
-== Exercise 6: Zero-code Python auto-instrumentation
+== Exercise 7: Zero-code Python auto-instrumentation
 
 The workshop application now includes a fourth service: **notifier**, a Python/FastAPI microservice. The backend calls notifier after every note create, update, or delete operation. The notifier records the event in the database service.
 
@@ -756,16 +809,16 @@ done
 +
 The waterfall will show three hops: `frontend → backend → database`. The backend called notifier, but no notifier span appears because the Python process emits no telemetry without an agent.
 
-=== Step 2: Inspect the pre-deployed Instrumentation CR
+=== Step 2: Inspect the Instrumentation CR you created
 
-The OpenTelemetry Operator uses an `Instrumentation` CR as a template for agent injection. A shared CR is pre-deployed in the `observability-demo` namespace.
+The OpenTelemetry Operator reads the `Instrumentation` CR you created in Exercise 3 as a template for agent injection.
 
-. Inspect it:
+. Verify it exists in your namespace:
 +
 [source,bash]
 ----
-oc get instrumentation demo-instrumentation \
-  -n observability-demo -o yaml
+oc get instrumentation my-instrumentation \
+  -n {user}-observability-demo -o yaml
 ----
 +
 Key fields:
@@ -810,7 +863,7 @@ oc patch deployment notifier \
       "path": "/spec/template/metadata/annotations",
       "value": {
         "sidecar.opentelemetry.io/inject": "sidecar",
-        "instrumentation.opentelemetry.io/inject-python": "observability-demo/demo-instrumentation"
+        "instrumentation.opentelemetry.io/inject-python": "my-instrumentation"
       }
     },
     {
@@ -821,7 +874,7 @@ oc patch deployment notifier \
   ]'
 ----
 +
-The annotation value `observability-demo/demo-instrumentation` references the Instrumentation CR in a different namespace using the `<namespace>/<name>` format.
+The annotation value `my-instrumentation` references the Instrumentation CR you created in Exercise 3 in the same namespace.
 +
 When this annotated pod is scheduled, the OpenTelemetry Operator's mutating admission webhook injects an init container that downloads `opentelemetry-distro` and `opentelemetry-instrumentation-fastapi` into a shared volume. The Python process picks them up via `PYTHONPATH` and a configurator hook—no code changes or image rebuilds required.
 
@@ -940,7 +993,7 @@ Browse the two approaches side-by-side using the *Source Code* tab in the worksh
 **Issue**: Notifier spans appear but are disconnected from the main trace
 
 **Solution**:
-. Verify `propagators` includes `tracecontext`: `oc get instrumentation demo-instrumentation -n observability-demo -o jsonpath='{.spec.propagators}'`
+. Verify `propagators` includes `tracecontext`: `oc get instrumentation my-instrumentation -n {user}-observability-demo -o jsonpath='{.spec.propagators}'`
 . Confirm `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` is injected: `oc exec -n {user}-observability-demo deployment/notifier -- env | grep OTEL`
 
 **Issue**: No traces appear for the notifier after annotation
@@ -948,7 +1001,7 @@ Browse the two approaches side-by-side using the *Source Code* tab in the worksh
 **Solution**:
 . Check if the Python bootstrap ran: `oc logs -n {user}-observability-demo deployment/notifier -c notifier | grep -i opentelemetry`
 . Verify the sidecar received data: `oc logs -n {user}-observability-demo deployment/notifier -c otc-container | grep -i "span\|error"`
-. Ensure the Instrumentation CR is referenced with the namespace prefix: `observability-demo/demo-instrumentation`
+. Ensure the Instrumentation CR exists in your namespace: `oc get instrumentation my-instrumentation -n {user}-observability-demo`
 
 == Learning outcomes
 
