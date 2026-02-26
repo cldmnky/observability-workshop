@@ -198,3 +198,165 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Tab bar
+ * ---------------------------------------------------------------------------*/
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #d8e1ef;
+  padding-bottom: 0;
+}
+
+.tab {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: transparent;
+  color: #44618d;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.tab:hover {
+  background: #ebf0fa;
+  color: #1a3560;
+}
+
+.tab-active {
+  border-bottom-color: #2563eb;
+  color: #2563eb;
+  font-weight: 700;
+  background: #f4f8ff;
+}
+
+/* ---------------------------------------------------------------------------
+ * Source Code panel
+ * ---------------------------------------------------------------------------*/
+
+.source-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 74vh;
+  border: 1px solid #d8e1ef;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 26px rgba(25, 52, 92, 0.07);
+}
+
+/* File tree sidebar */
+
+.file-tree {
+  overflow-y: auto;
+  background: #1e1e1e;
+  border-right: 1px solid #333;
+  padding: 8px 0;
+  color: #ccc;
+  font-size: 0.82rem;
+}
+
+.file-tree details {
+  margin: 0;
+}
+
+.file-tree summary.tree-dir {
+  padding: 5px 14px 5px 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #9db0cc;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.file-tree summary.tree-dir::before {
+  content: '▾';
+  display: inline-block;
+  font-size: 0.75em;
+  transition: transform 0.15s;
+}
+
+.file-tree details:not([open]) summary.tree-dir::before {
+  transform: rotate(-90deg);
+}
+
+.file-tree button.tree-file {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: #ccc;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 4px 14px 4px 28px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree button.tree-file:hover {
+  background: #2a2d2e;
+  color: #fff;
+}
+
+.file-tree button.tree-file.selected {
+  background: #094771;
+  color: #fff;
+}
+
+/* Root-level file buttons (not inside a details) */
+.file-tree > button.tree-file {
+  padding-left: 14px;
+}
+
+/* Monaco editor container */
+
+.monaco-container {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+ * Source Code tab deep-link anchors
+ * Rendered inside the workshop application's Notes/Source panels.
+ * The Antora site uses its own stylesheet; these rules only apply inside
+ * the running workshop app.
+ * ---------------------------------------------------------------------------*/
+
+a.source-tab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 2px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: #1e3a5f;
+  color: #c9d9f0;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid #2e5080;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+a.source-tab-link:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}

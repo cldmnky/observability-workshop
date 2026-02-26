@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">OpenShift Observability Workshop</p>
         <h1>Workshop Notes</h1>
-        <p class="subtitle">Capture findings while you troubleshoot and export all notes as Markdown.</p>
+        <p class="subtitle">Capture findings while you troubleshoot and explore the application source code.</p>
       </div>
       <div class="actions">
         <button id="refreshButton" class="button button-secondary" type="button">Refresh</button>
@@ -20,29 +20,45 @@
       </div>
     </header>
 
-    <main class="grid">
-      <section class="panel panel-form">
-        <h2>Create Note</h2>
-        <form id="noteForm">
-          <label for="titleInput">Title</label>
-          <input id="titleInput" name="title" placeholder="Module 2 - LogQL findings" />
+    <nav class="tab-bar" role="tablist">
+      <button id="tabNotes" class="tab tab-active" role="tab" aria-selected="true"  aria-controls="panelNotes">Notes</button>
+      <button id="tabSource" class="tab"            role="tab" aria-selected="false" aria-controls="panelSource">Source Code</button>
+    </nav>
 
-          <label for="contentInput">Content</label>
-          <textarea id="contentInput" name="content" rows="8" placeholder="Write your workshop notes here..."></textarea>
+    <!-- Notes panel -->
+    <div id="panelNotes" role="tabpanel">
+      <main class="grid">
+        <section class="panel panel-form">
+          <h2>Create Note</h2>
+          <form id="noteForm">
+            <label for="titleInput">Title</label>
+            <input id="titleInput" name="title" placeholder="Module 2 - LogQL findings" />
 
-          <button class="button button-primary" type="submit">Save Note</button>
-        </form>
-        <p id="statusMessage" class="status"></p>
-      </section>
+            <label for="contentInput">Content</label>
+            <textarea id="contentInput" name="content" rows="8" placeholder="Write your workshop notes here..."></textarea>
 
-      <section class="panel panel-list">
-        <div class="panel-header">
-          <h2>Saved Notes</h2>
-          <span id="noteCount" class="pill">0 notes</span>
-        </div>
-        <div id="notesContainer" class="notes"></div>
-      </section>
-    </main>
+            <button class="button button-primary" type="submit">Save Note</button>
+          </form>
+          <p id="statusMessage" class="status"></p>
+        </section>
+
+        <section class="panel panel-list">
+          <div class="panel-header">
+            <h2>Saved Notes</h2>
+            <span id="noteCount" class="pill">0 notes</span>
+          </div>
+          <div id="notesContainer" class="notes"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Source Code panel -->
+    <div id="panelSource" role="tabpanel" hidden>
+      <div class="source-layout">
+        <nav id="fileTree" class="file-tree" aria-label="Source files"></nav>
+        <div id="monacoContainer" class="monaco-container"></div>
+      </div>
+    </div>
   </div>
 
   <template id="noteTemplate">
@@ -59,6 +75,8 @@
     </article>
   </template>
 
+  <!-- Monaco Editor loader (AMD) from jsDelivr CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

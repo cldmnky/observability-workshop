@@ -361,6 +361,10 @@ NAMESPACE={user}-observability-demo
 
 . Review what `enable-otel.yaml` will change:
 +
+TIP: Open the *Source Code* tab in the workshop application and select `enable-otel.yaml` to browse the full patch file.
++
+Or grep for the key fields directly:
++
 [source,bash]
 ----
 grep -E "OTEL_|inject:|serviceAccountName:" src/enable-otel.yaml
@@ -715,6 +719,8 @@ The workshop application now includes a fourth service: **notifier**, a Python/F
 
 Open `src/notifier/app.py` and notice what is absent: there are **no OpenTelemetry imports** of any kind. The file contains only FastAPI route handlers and an httpx call. Yet by the end of this exercise, full traces—including spans for every notifier HTTP call—will appear in the trace waterfall.
 
+TIP: Open the *Source Code* tab in the workshop application and select `notifier/app.py` to compare it with the Go services.
+
 This demonstrates the difference between the **manual SDK approach** used by the Go services and the **zero-code auto-instrumentation** provided by the OpenTelemetry Operator.
 
 [options="header",cols="30,35,35"]
@@ -904,6 +910,12 @@ The `notifier` spans are produced entirely by `opentelemetry-instrumentation-fas
 |Custom attributes |Easy (manual API calls) |Limited without code changes
 |Best for |Apps with source access |Apps without source access or rapid onboarding
 |===
+
+Browse the two approaches side-by-side using the *Source Code* tab in the workshop application:
+
+* `telemetry/telemetry.go` — shared OTEL SDK setup (Go)
+* `backend/main.go` — manual SDK usage (Go)
+* `notifier/app.py` — zero OTEL imports (Python)
 
 === Verify
 

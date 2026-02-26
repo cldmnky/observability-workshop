@@ -6,21 +6,35 @@ import (
 	"embed"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/cldmnky/observability-workshop/src/telemetry"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/cldmnky/observability-workshop/src/telemetry"
+	"github.com/cldmnky/observability-workshop/src/telemetry
+	"github.com/cldmnky/observability-workshop/src/telemetry
+	"github.com/cldmnky/observability-workshop/src/telemetry
+	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
 //go:embed static/*
 var staticFiles embed.FS
+
+// codeFiles embeds the source files copied into code/ by the Containerfile.
+// During local development the directory is sparse (only .gitkeep) and the
+// /api/code endpoints return an empty listing – this is expected.
+//
+//go:embed all:code
+var codeFiles embed.FS
 
 type frontendApp struct {
 	client      *http.Client
@@ -67,6 +81,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 	mux.HandleFunc("/healthz", application.handleHealth)
+	mux.HandleFunc("/api/code", application.handleCodeList)
+	mux.HandleFunc("/api/code/", application.handleCodeFile)
 	mux.HandleFunc("/", application.handleHome)
 	mux.HandleFunc("/ping", application.handlePing)
 	mux.HandleFunc("/error", application.handleError)
@@ -119,6 +135,60 @@ func main() {
 
 func (application *frontendApp) handleHealth(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok", "service": application.serviceName})
+}
+
+// handleCodeList returns a JSON array of all embedded source file paths,
+// relative to the code/ root (e.g. ["backend/main.go", "go.mod", ...]).
+func (application *frontendApp) handleCodeList(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	var paths []string
+	_ = fs.WalkDir(codeFiles, "code", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		// Strip the "code/" prefix so callers use clean relative paths.
+		rel := strings.TrimPrefix(path, "code/")
+		if rel == ".gitkeep" || rel == "" {
+			return nil
+		}
+		paths = append(paths, rel)
+		return nil
+	})
+
+	if paths == nil {
+		paths = []string{}
+	}
+	sort.Strings(paths)
+	writeJSON(response, http.StatusOK, map[string]any{"files": paths})
+}
+
+// handleCodeFile returns the raw content of a single embedded source file.
+// The request path must be /api/code/<relative-path>, e.g. /api/code/backend/main.go.
+func (application *frontendApp) handleCodeFile(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	rel := strings.TrimPrefix(request.URL.Path, "/api/code/")
+	if rel == "" || strings.Contains(rel, "..") {
+		writeError(response, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	content, err := codeFiles.ReadFile("code/" + rel)
+	if err != nil {
+		writeError(response, http.StatusNotFound, "file not found")
+		return
+	}
+
+	response.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	response.WriteHeader(http.StatusOK)
+	_, _ = response.Write(content)
 }
 
 func (application *frontendApp) handleHome(response http.ResponseWriter, request *http.Request) {

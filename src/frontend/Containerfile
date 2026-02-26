@@ -3,6 +3,28 @@ WORKDIR /workspace
 COPY go.mod go.mod
 RUN go mod download
 COPY . .
+
+# Populate frontend/code/ so the source files are embedded into the binary
+# via //go:embed code. The full src/ tree is available here because the
+# Shipwright Build uses contextDir: src (and local container builds do too).
+RUN mkdir -p \
+      frontend/code/backend \
+      frontend/code/database \
+      frontend/code/frontend/static \
+      frontend/code/notifier \
+      frontend/code/telemetry && \
+    cp go.mod go.sum deploy.yaml enable-otel.yaml  frontend/code/ && \
+    cp backend/main.go backend/Containerfile        frontend/code/backend/ && \
+    cp database/main.go database/Containerfile      frontend/code/database/ && \
+    cp frontend/main.go frontend/Containerfile      frontend/code/frontend/ && \
+    cp frontend/static/app.js \
+       frontend/static/index.html \
+       frontend/static/styles.css                   frontend/code/frontend/static/ && \
+    cp notifier/app.py \
+       notifier/requirements.txt \
+       notifier/Containerfile                       frontend/code/notifier/ && \
+    cp telemetry/telemetry.go                       frontend/code/telemetry/
+
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/frontend ./frontend
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest

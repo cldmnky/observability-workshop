@@ -1,0 +1,6 @@
+# This directory is populated at container build time by the Containerfile.
+# The builder copies the relevant source files here so they are embedded
+# into the frontend binary via //go:embed code.
+#
+# Local builds (go build ./frontend) work with this sparse directory –
+# the /api/code endpoint will return an empty listing, which is expected.

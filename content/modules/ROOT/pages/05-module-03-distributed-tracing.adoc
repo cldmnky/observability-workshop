@@ -384,12 +384,18 @@ The three Go services—frontend, backend, and database—are already instrument
 +
 The repository contains a shared `telemetry` package used by all three services at `src/telemetry/telemetry.go`.
 +
+TIP: Open the *Source Code* tab in the workshop application (the running frontend) and navigate to `telemetry/telemetry.go` to browse the file with syntax highlighting.
++
 Key points in this package:
 +
 * **`Enabled()` function**: Returns `true` only when `OTEL_ENABLED=true` is set in the environment. All SDK initialization is skipped when false, so the application behaves identically to an uninstrumented binary.
 * **`Setup()` function**: Initializes three OTLP HTTP exporters when enabled—trace, metric, and log—all targeting `OTEL_EXPORTER_OTLP_ENDPOINT`. In Module 4, this will be `http://localhost:4318` (the injected sidecar collector).
 
 . Inspect the backend service instrumentation:
++
+TIP: Open the *Source Code* tab in the workshop application and select `backend/main.go` to browse the file directly.
++
+Or run the grep from the workshop terminal to scan for instrumentation lines:
 +
 [source,bash]
 ----
@@ -431,6 +437,10 @@ Browser
 Because every service uses `otelhttp` for both inbound (handler) and outbound (transport) HTTP calls, the trace ID and parent span ID are automatically threaded through the entire call chain with no manual span creation required in business logic code.
 
 . Review the `enable-otel.yaml` patch file:
++
+TIP: Open the *Source Code* tab in the workshop application and select `enable-otel.yaml` to browse the full patch file.
++
+Or view it in the terminal:
 +
 [source,bash]
 ----
