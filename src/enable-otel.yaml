@@ -2,6 +2,10 @@
 # Apply this file to enable OpenTelemetry sidecar injection and SDK activation
 # for the frontend, backend and database deployments.
 #
+# NOTE: The notifier (Python/FastAPI) service is NOT included here.
+# Notifier instrumentation is enabled via OpenTelemetry Operator auto-instrumentation
+# (Instrumentation CR + pod annotation) as a hands-on exercise in Module 4.
+#
 # What this does:
 #   1. Adds OTEL_ENABLED=true to each container – activates the Go SDK
 #   2. Adds supporting OTEL env vars (service name, endpoint, protocol)

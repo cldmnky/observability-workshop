@@ -23,6 +23,7 @@ import (
 type backendApp struct {
 	client      *http.Client
 	databaseURL string
+	notifierURL string
 	serviceName string
 }
 
@@ -37,6 +38,7 @@ type databaseEventRequest struct {
 func main() {
 	addr := envOrDefault("BACKEND_ADDR", ":8081")
 	databaseURL := strings.TrimRight(envOrDefault("DATABASE_API_URL", "http://database:8082"), "/")
+	notifierURL := strings.TrimRight(envOrDefault("NOTIFIER_URL", "http://notifier:8083"), "/")
 	serviceName := envOrDefault("SERVICE_NAME", "backend")
 
 	// ------------------------------------------------------------------
@@ -64,6 +66,7 @@ func main() {
 	application := &backendApp{
 		client:      &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
 		databaseURL: databaseURL,
+		notifierURL: notifierURL,
 		serviceName: serviceName,
 	}
 
@@ -195,7 +198,30 @@ func (application *backendApp) handleNotes(response http.ResponseWriter, request
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+
+	// For note creation, capture the request body so we can forward both to
+	// the database (via proxyDatabase) and to the notifier service.
+	var title string
+	if request.Method == http.MethodPost && request.Body != nil {
+		body, err := io.ReadAll(request.Body)
+		if err == nil {
+			request.Body = io.NopCloser(bytes.NewReader(body))
+			var nr struct {
+				Title string `json:"title"`
+			}
+			_ = json.Unmarshal(body, &nr)
+			title = nr.Title
+		}
+	}
+
 	application.proxyDatabase(response, request, "/notes")
+
+	// Notify the notifier service after a successful create. The call uses the
+	// active request context so the outgoing HTTP span is linked to the current
+	// trace. Errors are intentionally ignored – notification is best-effort.
+	if request.Method == http.MethodPost {
+		_ = application.callNotifier(request.Context(), "created", title)
+	}
 }
 
 func (application *backendApp) handleNoteByID(response http.ResponseWriter, request *http.Request) {
@@ -209,6 +235,14 @@ func (application *backendApp) handleNoteByID(response http.ResponseWriter, requ
 		return
 	}
 	application.proxyDatabase(response, request, "/notes/"+identifier)
+
+	// Send notification for mutating operations. Best-effort, errors ignored.
+	switch request.Method {
+	case http.MethodPut:
+		_ = application.callNotifier(request.Context(), "updated", "")
+	case http.MethodDelete:
+		_ = application.callNotifier(request.Context(), "deleted", "")
+	}
 }
 
 func (application *backendApp) handleNotesExport(response http.ResponseWriter, request *http.Request) {
@@ -265,6 +299,33 @@ func (application *backendApp) proxyDatabase(response http.ResponseWriter, reque
 
 	response.WriteHeader(databaseResponse.StatusCode)
 	_, _ = response.Write(responseBody)
+}
+
+// callNotifier sends a note lifecycle event to the notifier service.
+// ctx is the active request context so W3C trace context headers are forwarded,
+// linking the outgoing span to the current trace.
+func (application *backendApp) callNotifier(ctx context.Context, action, title string) error {
+	if application.notifierURL == "" {
+		return nil
+	}
+	payload, err := json.Marshal(map[string]string{"action": action, "title": title})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		application.notifierURL+"/notify", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := application.client.Do(req)
+	if err != nil {
+		slog.WarnContext(ctx, "notifier unavailable", "err", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return nil
 }
 
 // createDatabaseEvent posts an event to the database service.

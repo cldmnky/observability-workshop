@@ -77,6 +77,28 @@ spec:
   serviceAccount: builder
 ---
 apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: notifier-build
+  namespace: __NAMESPACE__
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/cldmnky/observability-workshop.git
+      revision: main
+    contextDir: src/notifier
+  strategy:
+    kind: ClusterBuildStrategy
+    name: buildah
+  paramValues:
+    - name: dockerfile
+      value: Containerfile
+  output:
+    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/notifier:latest
+  serviceAccount: builder
+---
+apiVersion: shipwright.io/v1beta1
 kind: BuildRun
 metadata:
   name: frontend-buildrun
@@ -102,6 +124,15 @@ metadata:
 spec:
   build:
     name: database-build
+---
+apiVersion: shipwright.io/v1beta1
+kind: BuildRun
+metadata:
+  name: notifier-buildrun
+  namespace: __NAMESPACE__
+spec:
+  build:
+    name: notifier-build
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -180,6 +211,8 @@ spec:
               value: :8081
             - name: DATABASE_API_URL
               value: http://database:8082
+            - name: NOTIFIER_URL
+              value: http://notifier:8083
             - name: SERVICE_NAME
               value: backend
           ports:
@@ -324,4 +357,71 @@ spec:
   ports:
     - name: http
       port: 8082
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifier
+  namespace: __NAMESPACE__
+  labels:
+    app: notifier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifier
+  template:
+    metadata:
+      labels:
+        app: notifier
+      # OpenTelemetry auto-instrumentation is intentionally NOT enabled here.
+      # Students add the sidecar + instrumentation annotations in Module 4 as
+      # a hands-on exercise demonstrating zero-code Python instrumentation.
+    spec:
+      containers:
+        - name: notifier
+          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/notifier:latest
+          imagePullPolicy: Always
+          env:
+            - name: DATABASE_API_URL
+              value: http://database:8082
+            - name: SERVICE_NAME
+              value: notifier
+          ports:
+            - containerPort: 8083
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notifier
+  namespace: __NAMESPACE__
+  labels:
+    app: notifier
+spec:
+  selector:
+    app: notifier
+  ports:
+    - name: http
+      port: 8083
       targetPort: http

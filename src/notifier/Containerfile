@@ -1,0 +1,19 @@
+FROM registry.access.redhat.com/ubi9/python-312:latest
+
+USER 0
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+# Run as non-root
+USER 1001
+
+EXPOSE 8083
+
+ENV SERVICE_NAME="notifier" \
+    DATABASE_API_URL="http://database:8082"
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8083"]
