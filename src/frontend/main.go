@@ -20,10 +20,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/cldmnky/observability-workshop/src/telemetry"
-	"github.com/cldmnky/observability-workshop/src/telemetry
-	"github.com/cldmnky/observability-workshop/src/telemetry
-	"github.com/cldmnky/observability-workshop/src/telemetry
-	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
 //go:embed static/*
