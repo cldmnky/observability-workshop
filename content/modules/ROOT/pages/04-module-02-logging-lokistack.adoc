@@ -144,6 +144,13 @@ Check that your logging infrastructure is operational:
 **Solution**:
 . Check LokiStack pods for errors: `oc get pods -n openshift-logging | grep loki`
 . Describe the LokiStack: `oc describe lokistack logging-loki -n openshift-logging`
+. If reason is `MissingObjectStorageSecret`, check sync Job status:
++
+[source,bash]
+----
+oc get job logging-loki-s3-secret-sync -n openshift-logging
+oc logs job/logging-loki-s3-secret-sync -n openshift-logging
+----
 . Check for storage issues: `oc get pvc -n openshift-logging`
 . Verify storage class exists: `oc get storageclass`
 

@@ -63,8 +63,18 @@ lokiStack:
       storageClassName: openshift-storage.noobaa.io
       # Delete bucket when chart is uninstalled
       reclaimPolicy: Delete
-      # ODF requires a LokiStack S3 secret with access_key_id/access_key_secret/bucketnames/endpoint
-      # Use values under s3.secretName to point the LokiStack to that secret
+      # Auto-sync OBC credentials into the LokiStack S3 secret expected by the operator
+      secretSync:
+        # Enable Job that creates/updates <lokiStack.name>-s3 from OBC Secret/ConfigMap
+        enabled: true
+        # Container image used to run oc commands
+        image: registry.redhat.io/openshift4/ose-cli:latest
+        # Polling interval while waiting for OBC Secret/ConfigMap
+        pollIntervalSeconds: 5
+        # Maximum number of polling attempts before failing
+        maxAttempts: 120
+        # Use HTTPS endpoint from OBC data (NooBaa often needs HTTP to avoid TLS trust issues)
+        useHttpsEndpoint: false
     
     # External S3 storage configuration (type: external)
     external:

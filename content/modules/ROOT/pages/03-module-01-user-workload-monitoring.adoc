@@ -112,7 +112,7 @@ thanos-ruler-user-workload-1           3/3     Running   0          1h
 . Access the OpenShift console monitoring interface:
 +
 * Navigate to **Observe** → **Metrics** in the left navigation
-* This opens the Prometheus query interface, make sure the namespace filter is set to `observability-demo`.
+* This opens the Prometheus query interface, make sure the namespace filter is set to `openshift-user-workload-monitoring`.
 
 . Run your first PromQL query to see cluster metrics:
 +
@@ -120,7 +120,7 @@ In the query box, enter:
 +
 [source,promql]
 ----
-up{namespace="observability-demo"}
+up{namespace="openshift-user-workload-monitoring"}
 ----
 +
 Click **Run Queries**
@@ -474,12 +474,12 @@ oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.
 +
 ServiceMonitors **must have this label** to be discovered by the COO stack.
 
-. Create a **new** ServiceMonitor with the COO label:
+. Create a **new** ServiceMonitor with the COO label, for the COO we need to use the monitoring.rhobs/v1 API group instead of the monitoring.coreos.com group used by CMO. This is because COO uses a different Prometheus operator under the hood that watches for ServiceMonitors with the `monitoring.rhobs/stack: observability-stack` label.
 +
 [source,bash]
 ----
 cat <<EOF | oc apply -f -
-apiVersion: monitoring.coreos.com/v1
+apiVersion: monitoring.rhobs/v1
 kind: ServiceMonitor
 metadata:
   name: sample-app-coo
@@ -557,17 +557,18 @@ metadata:
   labels:
     monitoring.rhobs/stack: observability-stack
 spec:
-  default: true
-  display:
-    name: "{user} - Prometheus"
-    description: "Direct connection to Prometheus in observability-demo MonitoringStack"
-  plugin:
-    kind: PrometheusDatasource
-    spec:
-      proxy:
-        kind: HTTPProxy
-        spec:
-          url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
+  config:
+    default: true
+    display:
+      name: "{user} - Prometheus"
+      description: "Direct connection to Prometheus in observability-demo MonitoringStack"
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
 EOF
 ----
 +
@@ -808,6 +809,20 @@ Check that your alerting rules are working:
 . Verify PrometheusRule exists: `oc get prometheusrule -n {user}-observability-demo`
 . Check syntax errors in PromQL expression
 . Wait 1-2 minutes for Prometheus to reload configuration
+
+**Issue**: Alerting page shows **Restricted access** with `prometheuses/api` or `alertmanagers/api` forbidden
+
+**Solution**:
+. This indicates missing RBAC for monitoring API subresources used by the OpenShift console
+. Ask a cluster admin to run `make deploy` (with cluster-admin credentials) so workshop monitoring API RoleBindings are applied
+. Verify access after RBAC update:
++
+[source,bash]
+----
+oc auth can-i get prometheuses.monitoring.coreos.com/api -n openshift-user-workload-monitoring
+oc auth can-i get alertmanagers.monitoring.coreos.com/api -n openshift-user-workload-monitoring
+----
+. Refresh the Alerting page after both checks return `yes`
 
 **Issue**: Alert never fires
 

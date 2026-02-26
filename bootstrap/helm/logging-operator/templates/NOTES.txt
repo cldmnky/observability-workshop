@@ -57,11 +57,14 @@ ODF ObjectBucketClaim created:
   - OBC: {{ .Values.lokiStack.s3.odf.bucketName }}
   - Namespace: {{ .Values.lokiStack.namespace }}
 
-Create a LokiStack S3 secret with keys:
-  access_key_id, access_key_secret, bucketnames, endpoint
-using the OBC Secret/ConfigMap values, then set it in the LokiStack spec.
-Secret name:
+LokiStack S3 secret is auto-synchronized from OBC values by Job:
+  - Job: {{ .Values.lokiStack.name }}-s3-secret-sync
+  - Secret name:
   {{ default (printf "%s-s3" .Values.lokiStack.name) .Values.lokiStack.s3.secretName }}
+  - Endpoint mode:
+    {{- if .Values.lokiStack.s3.odf.secretSync.useHttpsEndpoint }} HTTPS (OBC host:port)
+    {{- else }} HTTP on port 80 (recommended for NooBaa self-signed environments)
+    {{- end }}
 {{- else if eq .Values.lokiStack.s3.type "external" }}
 
 External S3 secret:
