@@ -31,11 +31,12 @@ centralCollector:
   
   # Tempo configuration
   tempo:
-    # Tempo distributor endpoint
-    endpoint: tempo-tempo-distributor.openshift-tempo-operator.svc:4317
+    # Tempo gateway endpoint (handles auth + tenant routing, service-ca TLS)
+    endpoint: tempo-tempo-gateway.openshift-tempo-operator.svc:8090
     # Tenant ID for X-Scope-OrgID header
     tenant: dev
-    # Note: TLS verification is skipped (Tempo uses cert-manager certs, not service-ca)
+    # TLS CA file - gateway is signed by OpenShift service-ca
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
   
   # Prometheus remote write configuration
   prometheus:

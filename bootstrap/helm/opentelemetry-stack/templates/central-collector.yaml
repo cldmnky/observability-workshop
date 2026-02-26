@@ -125,19 +125,21 @@ spec:
     
     # Exporters - send telemetry to backends
     exporters:
-      # Tempo exporter for traces (otlp_grpc replaces deprecated otlp alias)
-      # TLS required by Tempo distributor; skip verify (cert-manager cert, not service-ca)
-      # No bearertokenauth - distributor does not require auth; X-Scope-OrgID header sets tenant
-      otlp_grpc/tempo:
+      # Tempo exporter for traces - via Tempo gateway (service-ca TLS, bearertokenauth, tenant header)
+      otlp/tempo:
         endpoint: {{ .Values.centralCollector.tempo.endpoint }}
         tls:
-          insecure_skip_verify: true
+          ca_file: {{ .Values.centralCollector.tempo.caFile }}
+        auth:
+          authenticator: bearertokenauth
         headers:
           X-Scope-OrgID: {{ .Values.centralCollector.tempo.tenant }}
       
       # Prometheus remote write for metrics
       prometheusremotewrite:
         endpoint: {{ .Values.centralCollector.prometheus.endpoint }}
+        tls:
+          insecure: true
         resource_to_telemetry_conversion:
           enabled: true
       
@@ -172,7 +174,7 @@ spec:
           - k8sattributes
           - batch
           exporters:
-          - otlp_grpc/tempo
+          - otlp/tempo
           {{- if .Values.centralCollector.spanmetrics.enabled }}
           - spanmetrics
           {{- end }}
