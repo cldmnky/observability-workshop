@@ -42,6 +42,13 @@ centralCollector:
   prometheus:
     # Prometheus endpoint
     endpoint: http://observability-stack-prometheus.observability-demo.svc:9090/api/v1/write
+
+  # LokiStack log forwarding configuration
+  loki:
+    # LokiStack gateway OTLP/HTTP endpoint (openshift-logging tenants mode)
+    endpoint: https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application/otlp
+    # TLS CA file path
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
   
   # Spanmetrics connector configuration
   spanmetrics:

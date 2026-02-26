@@ -29,3 +29,36 @@ subjects:
 - kind: ServiceAccount
   name: {{ .Values.serviceAccounts.central }}
   namespace: {{ .Values.namespace }}
+---
+# ClusterRole allowing the central collector SA to push logs to the LokiStack
+# application tenant (openshift-logging tenants mode).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector-logs-writer
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+rules:
+- apiGroups:
+  - loki.grafana.com
+  resources:
+  - application
+  resourceNames:
+  - logs
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.serviceAccounts.central }}-logs-writer
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-collector-logs-writer
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceAccounts.central }}
+  namespace: {{ .Values.namespace }}

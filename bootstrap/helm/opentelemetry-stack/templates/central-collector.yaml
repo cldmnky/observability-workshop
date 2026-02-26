@@ -95,6 +95,29 @@ spec:
               - set(name, "traces_spanmetrics_latency") where name == "latency"
       {{- end }}
       
+      # Map OTEL resource attributes to Loki label keys expected by openshift-logging tenancy mode
+      resource/logs:
+        attributes:
+          - key: kubernetes.namespace_name
+            from_attribute: k8s.namespace.name
+            action: upsert
+          - key: kubernetes.pod_name
+            from_attribute: k8s.pod.name
+            action: upsert
+          - key: kubernetes.container_name
+            from_attribute: k8s.container.name
+            action: upsert
+          - key: log_type
+            value: application
+            action: upsert
+      
+      # Derive a 'level' log attribute from the OTEL severity_text field
+      transform/logs:
+        log_statements:
+          - context: log
+            statements:
+              - set(attributes["level"], ConvertCase(severity_text, "lower")) where severity_text != ""
+      
       # Batch processor for efficiency
       batch:
         timeout: 10s
@@ -118,6 +141,15 @@ spec:
         endpoint: {{ .Values.centralCollector.prometheus.endpoint }}
         resource_to_telemetry_conversion:
           enabled: true
+      
+      # LokiStack OTLP/HTTP log forwarder (openshift-logging application tenant)
+      otlphttp/logs:
+        endpoint: {{ .Values.centralCollector.loki.endpoint }}
+        encoding: json
+        tls:
+          ca_file: {{ .Values.centralCollector.loki.caFile }}
+        auth:
+          authenticator: bearertokenauth
       
       # Debug exporter for troubleshooting
       debug:
@@ -170,7 +202,7 @@ spec:
           exporters:
           - prometheusremotewrite
         
-        # Logs pipeline - debug only
+        # Logs pipeline - forward to LokiStack
         logs:
           receivers:
           - otlp
@@ -178,6 +210,9 @@ spec:
           - memory_limiter
           - resourcedetection
           - k8sattributes
+          - resource/logs
+          - transform/logs
           - batch
           exporters:
+          - otlphttp/logs
           - debug
