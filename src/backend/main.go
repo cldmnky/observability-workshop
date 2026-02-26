@@ -14,9 +14,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cldmnky/observability-workshop/src/telemetry"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
 type backendApp struct {

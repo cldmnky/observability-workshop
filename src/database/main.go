@@ -14,15 +14,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
-"
-"
 
 	_ "github.com/chaisql/chai"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/cldmnky/observability-workshop/src/telemetry
-	"github.com/cldmnky/observability-workshop/src/telemetry
 	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
