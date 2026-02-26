@@ -21,4 +21,12 @@ spec:
   storageClassName: {{ .Values.lokiStack.storageClassName }}
   tenants:
     mode: {{ .Values.lokiStack.tenantMode }}
+  rules:
+    enabled: true
+    selector:
+      matchLabels:
+        openshift.io/loki-rules: "true"
+    namespaceSelector:
+      matchLabels:
+        openshift.io/loki-rules: "true"
 {{- end }}

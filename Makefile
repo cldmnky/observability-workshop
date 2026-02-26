@@ -21,6 +21,8 @@ MONITORING_API_CLUSTERROLE ?= workshop-monitoring-api
 MONITORING_API_NAMESPACES ?= openshift-monitoring openshift-user-workload-monitoring observability-demo
 APPLICATION_LOGS_CLUSTERROLE ?= cluster-logging-application-view
 APPLICATION_LOGS_ROLEBINDING ?= view-application-logs
+LOKI_RULES_CLUSTERROLE ?= alertingrules.loki.grafana.com-v1-admin
+LOKI_RULES_ROLEBINDING ?= loki-alertingrules-admin
 
 # Local dev configuration
 DEV_POD_NAME ?= showroom-dev-pod
@@ -143,6 +145,7 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 		for suffix in $(EXERCISE_NAMESPACE_SUFFIXES); do \
 			user_ns=$${user}-$${suffix}; \
 			oc create namespace $$user_ns 2>/dev/null || true; \
+			oc label namespace $$user_ns openshift.io/loki-rules=true --overwrite; \
 			printf '%s\n' \
 				'apiVersion: rbac.authorization.k8s.io/v1' \
 				'kind: RoleBinding' \
@@ -181,6 +184,20 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 				'  apiGroup: rbac.authorization.k8s.io' \
 				'  kind: ClusterRole' \
 				'  name: $(APPLICATION_LOGS_CLUSTERROLE)' \
+				'subjects:' \
+				'- kind: User' \
+				'  apiGroup: rbac.authorization.k8s.io' \
+				"  name: $$user" | oc apply -f -; \
+			printf '%s\n' \
+				'apiVersion: rbac.authorization.k8s.io/v1' \
+				'kind: RoleBinding' \
+				'metadata:' \
+				'  name: $(LOKI_RULES_ROLEBINDING)' \
+				"  namespace: $$user_ns" \
+				'roleRef:' \
+				'  apiGroup: rbac.authorization.k8s.io' \
+				'  kind: ClusterRole' \
+				'  name: $(LOKI_RULES_CLUSTERROLE)' \
 				'subjects:' \
 				'- kind: User' \
 				'  apiGroup: rbac.authorization.k8s.io' \

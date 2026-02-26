@@ -348,7 +348,35 @@ This calculates the rate of 404 errors per second over the last 5 minutes.
 {kubernetes_namespace_name="{user}-observability-demo"} |json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
 ----
 +
-This uses `|json` to parse the structured log and formats output as pod name plus the parsed `message` field.
+The `|json` stage parses the collector's JSON envelope, extracting labeled fields such as `message`, `kubernetes_pod_name`, and `kubernetes_namespace_name`. `line_format` then templates a new display line from those fields.
+
+. Use `| unwrap` to compute average response latency directly from log fields:
++
+[NOTE]
+====
+**LogQL unwrapping** enables metric-style aggregations over numeric values embedded in log lines. The pipeline follows three stages:
+
+. *Parse* — `|json`, `| logfmt`, or `| regexp` extracts named labels from the log line
+. *Unwrap* — `| unwrap <field>` promotes a label to a numeric sample value; optionally use `duration()` or `bytes()` for unit conversion
+. *Aggregate* — range-vector functions `avg_over_time`, `sum_over_time`, `max_over_time`, `min_over_time`, `quantile_over_time` operate on the unwrapped samples
+
+This is valuable when a key signal (latency, error codes, payload size) lives only in log lines and has not yet been instrumented as a Prometheus metric.
+====
++
+[source,logql]
+----
+avg_over_time(
+  {
+    kubernetes_namespace_name="{user}-observability-demo",
+    kubernetes_pod_name=~"frontend.*"
+  }
+  |json
+  | regexp `duration_ms=(?P<duration_ms>\d+)`
+  | unwrap duration_ms [5m]
+)
+----
++
+`|json` parses the JSON envelope; `| regexp` extracts `duration_ms` from the `message` field as a new label; `| unwrap duration_ms` promotes it to a numeric sample value; `avg_over_time` computes the average frontend response time in milliseconds over the last 5 minutes — without requiring a separate Prometheus metric.
 
 === Verify
 
@@ -359,8 +387,9 @@ Check that you can query logs effectively:
 * ✓ Pod-specific queries work with regex patterns
 * ✓ Rate calculations show error frequency
 * ✓ Logs from multiple applications can be queried together
+* ✓ `| unwrap` computes numeric aggregations over values embedded in log lines
 
-**What you learned**: LogQL uses labels (like namespace, pod name) to select log streams, then filters content with operators like `|=` (contains) and `!=` (does not contain).
+**What you learned**: LogQL uses labels (like namespace, pod name) to select log streams, then filters content with operators like `|=` (contains) and `!=` (does not contain). Parsing stages (`|json`, `| regexp`) extract structured fields, and `| unwrap` unlocks metric-style aggregations over those fields.
 
 === Troubleshooting
 
@@ -477,6 +506,12 @@ Just as you created metric-based alerts in Module 1, you can create alerts based
 
 . Create an AlertingRule that triggers on high error log rates:
 +
+[NOTE]
+====
+For the `application` tenant, AlertingRules must be created *in your application namespace*, not in `openshift-logging`.
+The namespace must carry the label `openshift.io/loki-rules: "true"`, which the workshop pre-provisions.
+====
++
 [source,bash]
 ----
 cat <<EOF | oc apply -f -
@@ -484,9 +519,9 @@ apiVersion: loki.grafana.com/v1
 kind: AlertingRule
 metadata:
   name: high-error-rate
-  namespace: openshift-logging
+  namespace: {user}-observability-demo
   labels:
-    app: loki
+    openshift.io/loki-rules: "true"
 spec:
   tenantID: application
   groups:
@@ -512,7 +547,7 @@ This alert fires if error logs exceed 0.5 entries per second for 2 minutes.
 +
 [source,bash]
 ----
-oc get alertingrule -n openshift-logging
+oc get alertingrule -n {user}-observability-demo
 ----
 
 . Trigger the alert by generating sustained errors:
@@ -556,8 +591,9 @@ Check that log-based alerting works:
 **Solution**:
 . Check API availability: `oc api-resources | grep alertingrule`
 . If API not available, check Loki Operator version
-. Verify namespace: AlertingRules must be in openshift-logging for Loki
-. Check for syntax errors: `oc describe alertingrule high-error-rate -n openshift-logging`
+. Verify namespace: for `application` tenant, AlertingRules must be in your application namespace (e.g. `{user}-observability-demo`), not `openshift-logging`
+. Verify the namespace has the `openshift.io/loki-rules=true` label: `oc get namespace {user}-observability-demo --show-labels`
+. Check for syntax errors: `oc describe alertingrule high-error-rate -n {user}-observability-demo`
 
 **Issue**: Alert never fires
 
@@ -571,7 +607,7 @@ Check that log-based alerting works:
 
 **Solution**:
 . Log-based alerts may only appear in Loki-specific interfaces
-. Check Loki rules: `oc get alertingrule -n openshift-logging`
+. Check Loki rules: `oc get alertingrule -n {user}-observability-demo`
 . For integration with Alertmanager, additional configuration may be needed
 
 == Learning outcomes
@@ -625,5 +661,7 @@ You successfully implemented centralized logging with LokiStack.
 * `|~`: Regex match filter
 * `rate()`: Calculate rate of log entries
 * `regexp`: Extract structured data from logs
+* `| unwrap <field>`: Promote a parsed label to a numeric sample for metric aggregations
+* `avg_over_time / sum_over_time / max_over_time`: Aggregate unwrapped numeric values over a time window
 
 Continue to Module 3 to add distributed tracing capabilities.
