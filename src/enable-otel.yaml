@@ -36,6 +36,9 @@ metadata:
   name: frontend
   namespace: __NAMESPACE__
 spec:
+  selector:
+    matchLabels:
+      app: frontend
   template:
     metadata:
       annotations:
@@ -43,6 +46,8 @@ spec:
         # The value must match the name of the OpenTelemetryCollector CR
         # (mode: sidecar) deployed in this namespace.
         sidecar.opentelemetry.io/inject: "sidecar"
+      labels:
+        app: frontend
     spec:
       serviceAccountName: otel-collector-sidecar
       containers:
@@ -63,10 +68,15 @@ metadata:
   name: backend
   namespace: __NAMESPACE__
 spec:
+  selector:
+    matchLabels:
+      app: backend
   template:
     metadata:
       annotations:
         sidecar.opentelemetry.io/inject: "sidecar"
+      labels:
+        app: backend
     spec:
       serviceAccountName: otel-collector-sidecar
       containers:
@@ -87,10 +97,15 @@ metadata:
   name: database
   namespace: __NAMESPACE__
 spec:
+  selector:
+    matchLabels:
+      app: database
   template:
     metadata:
       annotations:
         sidecar.opentelemetry.io/inject: "sidecar"
+      labels:
+        app: database
     spec:
       serviceAccountName: otel-collector-sidecar
       containers:
