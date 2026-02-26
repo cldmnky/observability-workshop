@@ -263,24 +263,32 @@ spec:
         timeout: 10s
         send_batch_size: 1024
     exporters:
-      otlp:
+      otlp_grpc:
         endpoint: central-collector-collector.observability-demo.svc:4317
         tls:
           insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 5000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
     service:
       pipelines:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection, k8sattributes, batch]
-          exporters: [otlp]
+          exporters: [otlp_grpc]
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection, k8sattributes, batch]
-          exporters: [otlp]
+          exporters: [otlp_grpc]
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection, k8sattributes, batch]
-          exporters: [otlp]
+          exporters: [otlp_grpc]
 EOF
 ----
 
@@ -317,8 +325,8 @@ The sidecar carries **all three signal types** over the same processor chain:
                     |
               batch        -- buffer and flush (max 10s / 1024 records)
                     |
-         otlp exporter  -> central-collector-collector.observability-demo.svc:4317
-                            (gRPC, insecure – TLS terminated at central)
+            otlp_grpc exporter -> central-collector-collector.observability-demo.svc:4317
+                      (gRPC, insecure + retry queue for resiliency)
 ----
 
 The sidecar does **not** route signals to different destinations—that responsibility belongs to the central collector. All signals arrive at the central on a single gRPC stream.
@@ -328,7 +336,7 @@ The sidecar does **not** route signals to different destinations—that responsi
 * ✓ `otel-collector-sidecar` ServiceAccount exists in `{user}-observability-demo`
 * ✓ `sidecar` OpenTelemetryCollector CR exists in `sidecar` mode
 * ✓ CR configuration includes all three pipelines (traces, metrics, logs)
-* ✓ Exporter endpoint points to `central-collector-collector.observability-demo.svc:4317`
+* ✓ Exporter is `otlp_grpc` with queue/retry enabled and endpoint `central-collector-collector.observability-demo.svc:4317`
 
 === Troubleshooting
 

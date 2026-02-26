@@ -6,6 +6,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -90,10 +91,14 @@ func Setup(ctx context.Context, serviceName string) (shutdown func(context.Conte
 	add(mp.Shutdown)
 
 	// --- Logs ---
-	logExp, err := otlploghttp.New(ctx,
+	logOptions := []otlploghttp.Option{
 		otlploghttp.WithEndpointURL(endpoint),
 		otlploghttp.WithInsecure(),
-	)
+	}
+	if !endpointHasPath(endpoint) {
+		logOptions = append(logOptions, otlploghttp.WithURLPath("/v1/logs"))
+	}
+	logExp, err := otlploghttp.New(ctx, logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("telemetry: log exporter: %w", err)
 	}
@@ -134,4 +139,15 @@ func endpointFromEnv() string {
 		return "http://localhost:4318"
 	}
 	return ep
+}
+
+func endpointHasPath(endpoint string) bool {
+	if !strings.Contains(endpoint, "://") {
+		return false
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return false
+	}
+	return parsed.Path != "" && parsed.Path != "/"
 }
