@@ -414,7 +414,7 @@ my-instrumentation   10s
 
 == Exercise 4: Enable OpenTelemetry on the applications
 
-Now you'll activate the OpenTelemetry SDK in all three services by applying the `enable-otel.yaml` patch file. This adds the sidecar injection annotation and the SDK environment variables to each deployment without rebuilding container images.
+Now you'll activate the OpenTelemetry SDK in all three services. This adds the sidecar injection annotation, the SDK environment variables, and the correct ServiceAccount to each deployment without rebuilding container images.
 
 === Steps
 
@@ -425,39 +425,65 @@ Now you'll activate the OpenTelemetry SDK in all three services by applying the 
 NAMESPACE="{user}-observability-demo"
 ----
 
-. Review what `enable-otel.yaml` will change:
-+
-TIP: Open the *Source Code* tab in the workshop application and select `enable-otel.yaml` to browse the full patch file.
-+
-Or inspect the key fields directly from GitHub:
+. Add the OTEL environment variables to all three deployments:
 +
 [source,bash]
 ----
-curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/enable-otel.yaml \
-  | grep -E "OTEL_|inject:|serviceAccountName:"
-----
-+
-You will see three key changes per deployment:
-+
-* `sidecar.opentelemetry.io/inject: "sidecar"` — triggers sidecar injection by matching the CR name you created
-* `OTEL_ENABLED: "true"` — activates the Go SDK
-* `OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"` — routes telemetry to the injected sidecar
-
-. Apply the patch to your namespace:
-+
-[source,bash]
-----
-curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/enable-otel.yaml \
-  | sed "s/__NAMESPACE__/${NAMESPACE}/g" \
-  | oc apply -f -
+for app in frontend backend database; do
+  oc set env deployment/${app} -n ${NAMESPACE} \
+    OTEL_ENABLED=true \
+    OTEL_SERVICE_NAME=${app} \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
+    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+done
 ----
 +
 .Expected output
 [source,text]
 ----
-deployment.apps/frontend configured
-deployment.apps/backend configured
-deployment.apps/database configured
+deployment.apps/frontend updated
+deployment.apps/backend updated
+deployment.apps/database updated
+----
+
+. Add the sidecar injection annotation to each pod template:
++
+[source,bash]
+----
+for app in frontend backend database; do
+  oc patch deployment/${app} -n ${NAMESPACE} \
+    --type=strategic \
+    -p='{"spec":{"template":{"metadata":{"annotations":{"sidecar.opentelemetry.io/inject":"sidecar"}}}}}'
+done
+----
++
+The annotation value `sidecar` must match the name of the `OpenTelemetryCollector` CR you created in Exercise 2. When the operator sees this annotation on a pod being created, it injects the collector container spec from that CR.
++
+.Expected output
+[source,text]
+----
+deployment.apps/frontend patched
+deployment.apps/backend patched
+deployment.apps/database patched
+----
+
+. Set the ServiceAccount on all three deployments so the injected sidecar can call the Kubernetes API:
++
+[source,bash]
+----
+for app in frontend backend database; do
+  oc set serviceaccount deployment/${app} \
+    otel-collector-sidecar \
+    -n ${NAMESPACE}
+done
+----
++
+.Expected output
+[source,text]
+----
+deployment.apps/frontend serviceaccount updated
+deployment.apps/backend serviceaccount updated
+deployment.apps/database serviceaccount updated
 ----
 
 . Monitor the rolling restart:
@@ -465,7 +491,7 @@ deployment.apps/database configured
 [source,bash]
 ----
 oc rollout status deployment/frontend deployment/backend deployment/database \
-  -n {user}-observability-demo
+  -n ${NAMESPACE}
 ----
 +
 .Expected output
@@ -480,7 +506,7 @@ deployment "database" successfully rolled out
 +
 [source,bash]
 ----
-oc get pods -n {user}-observability-demo \
+oc get pods -n ${NAMESPACE} \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
 ----
 +
@@ -499,7 +525,7 @@ The `otc-container` is the injected OpenTelemetry Collector sidecar. Each pod no
 +
 [source,bash]
 ----
-oc logs -n {user}-observability-demo \
+oc logs -n ${NAMESPACE} \
   -l app=frontend -c otc-container | tail -10
 ----
 +
@@ -517,7 +543,7 @@ Pipeline started (logs).
 [source,bash]
 ----
 FRONTEND_URL=$(oc get route frontend \
-  -n {user}-observability-demo \
+  -n ${NAMESPACE} \
   -o jsonpath='{.spec.host}')
 
 for i in $(seq 1 30); do
@@ -533,7 +559,8 @@ This sends 30 iterations of mixed GET and POST requests, generating spans at eac
 
 === Verify
 
-* ✓ `enable-otel.yaml` applied cleanly to all three deployments
+* ✓ OTEL environment variables set on all three deployments
+* ✓ Sidecar injection annotation present on all three pod templates
 * ✓ All three deployments rolled out successfully
 * ✓ Each pod has two containers: the application and `otc-container` (sidecar)
 * ✓ Sidecar logs show all three pipelines started
@@ -546,23 +573,16 @@ This sends 30 iterations of mixed GET and POST requests, generating spans at eac
 **Issue**: Pods show only 1 container after rollout
 
 **Solution**:
-. Check that the annotation was applied: `oc get deployment frontend -n {user}-observability-demo -o jsonpath='{.spec.template.metadata.annotations}'`
-. Verify the sidecar CR exists: `oc get opentelemetrycollector sidecar -n {user}-observability-demo`
+. Check that the annotation was applied: `oc get deployment frontend -n ${NAMESPACE} -o jsonpath='{.spec.template.metadata.annotations}'`
+. Verify the sidecar CR exists: `oc get opentelemetrycollector sidecar -n ${NAMESPACE}`
 . Check operator logs for injection errors: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator | grep -i inject`
 
 **Issue**: Sidecar container is in `CrashLoopBackOff`
 
 **Solution**:
-. View sidecar logs: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container`
-. Common cause: ServiceAccount lacks permissions for `k8sattributes`—verify the ServiceAccount RBAC
-. Check central collector reachability: `oc exec -n {user}-observability-demo deployment/frontend -c otc-container -- wget -qO- http://central-collector-collector.observability-demo.svc:13133/`
-
-**Issue**: `sed` substitution produces empty output
-
-**Solution**:
-. Verify the variable is set: `echo $NAMESPACE`
-. Test the full pipeline: `curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/enable-otel.yaml | sed "s/__NAMESPACE__/${NAMESPACE}/g" | head -20`
-. If `curl` fails, check network connectivity from the terminal pod
+. View sidecar logs: `oc logs -n ${NAMESPACE} deployment/frontend -c otc-container`
+. Common cause: ServiceAccount lacks permissions for `k8sattributes`—verify: `oc auth can-i get pods --as=system:serviceaccount:${NAMESPACE}:otel-collector-sidecar`
+. Check central collector reachability: `oc exec -n ${NAMESPACE} deployment/frontend -c otc-container -- wget -qO- http://central-collector-collector.observability-demo.svc:13133/`
 
 == Exercise 5: View live traces in Observe → Traces
 
