@@ -28,39 +28,45 @@ Before enabling telemetry, understand how data flows from the application to eac
 
 === Two-tier collector pattern
 
-This workshop uses a two-tier OpenTelemetry Collector topology:
+This workshop uses a two-tier OpenTelemetry Collector topology. Every signal—traces, metrics, and logs—flows through the same two hops before reaching a purpose-built backend:
 
 [source,text]
 ----
 Application pods ({user}-observability-demo)
-  +------------------------------------------+
-  |  frontend                                |
-  |  +----------+   OTLP (localhost:4318)    |
-  |  | app      |---> sidecar collector      |
-  |  +----------+                            |
-  +------------------------------------------+
-         |
-         | OTLP gRPC (cluster DNS)
+  +--------------------------------------------------------+
+  |  frontend / backend / database / notifier              |
+  |  +----------+  OTLP HTTP (localhost:4318)              |
+  |  | app      |---> otc-container (sidecar collector)   |
+  |  +----------+                                          |
+  +--------------------------------------------------------+
+         | All signals: traces + metrics + logs
+         | OTLP gRPC (cluster DNS, port 4317)
          v
   central-collector-collector.observability-demo.svc:4317
-  +----------------------------------------------------------+
-  |  Central collector (observability-demo namespace)        |
-  |                                                          |
-  |  Receivers:  otlp (4317, 4318)                           |
-  |  Connectors: spanmetrics (traces -> RED metrics)         |
-  |  Exporters:                                              |
-  |   +-- otlp/tempo  -> tempo-tempo-distributor:4317        |
-  |   +-- prometheusremotewrite -> COO Prometheus :9090      |
-  |   +-- otlphttp/logs -> LokiStack gateway :8080           |
-  +----------------------------------------------------------+
+  +------------------------------------------------------------------+
+  |  Central collector – deployment mode, 2 replicas                 |
+  |  (namespace: observability-demo)                                 |
+  |                                                                  |
+  |  Signal routing:                                                 |
+  |  traces  --> otlp/tempo     --> TempoStack distributor :4317     |
+  |              (TLS + bearer token + X-Scope-OrgID: dev)           |
+  |  traces  --> spanmetrics    --> traces/spanmetrics pipeline       |
+  |              connector (RED metrics from spans)                  |
+  |  metrics --> prometheusremotewrite                               |
+  |              --> COO Prometheus /api/v1/write :9090              |
+  |  span    --> transform (rename) + prometheusremotewrite          |
+  |  metrics     --> COO Prometheus /api/v1/write :9090              |
+  |  logs    --> resource/logs + transform/logs + otlphttp/logs      |
+  |              --> LokiStack gateway :8080 (application tenant)    |
+  +------------------------------------------------------------------+
 ----
 
 **Why two tiers?**
 
-* **Sidecar collector**: Runs within the application pod, receives telemetry on `localhost:4318`, enriches it with Kubernetes pod metadata via the `k8sattributes` processor, and forwards to the central collector.
-* **Central collector**: Runs as a `Deployment` in the shared `observability-demo` namespace with 2 replicas for resilience. Handles backend-specific protocols (TLS for Tempo, remote-write for Prometheus, OTLP/HTTP for Loki), applies the `spanmetrics` connector to generate RED metrics from traces, and holds the authentication tokens for each backend.
+* **Sidecar collector**: Runs within the application pod as a second container (`otc-container`). The app sends to `localhost:4318` (no network hop). The sidecar enriches every span, metric data point, and log record with Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`) via the `k8sattributes` processor, then forwards all three signals over a single gRPC connection to the central collector.
+* **Central collector**: Runs as a shared `Deployment` (2 replicas) in `observability-demo`. It receives all signals from every user's sidecar and routes them to different backends using different protocols and auth mechanisms. It also runs the `spanmetrics` connector, which generates RED metrics directly from incoming trace spans.
 
-This pattern decouples application-facing collection (simple, low-overhead sidecar) from backend-facing export (complex, authenticated, shared).
+This pattern keeps the sidecar simple (no secrets, no TLS config, no auth tokens) while centralising the complex backend integrations in one place.
 
 === Processors in the sidecar collector
 
@@ -83,7 +89,7 @@ The central collector uses a `spanmetrics` connector to generate **RED metrics**
 * **Errors**: `traces_spanmetrics_calls_total{status.code="STATUS_CODE_ERROR"}` — error count
 * **Duration**: `traces_spanmetrics_latency_bucket` — latency histogram with configurable buckets
 
-These metrics are published to the COO-managed Prometheus instance via remote write, providing service-level latency histograms without any Prometheus client instrumentation in the application code.
+These metrics are published to the COO-managed Prometheus instance via `prometheusremotewrite`. The COO `MonitoringStack` has `enableRemoteWriteReceiver: true` set, which activates the `/api/v1/write` endpoint that Prometheus exposes for ingest. Without that flag the push would be silently rejected with HTTP 404.
 
 == Exercise 1: Verify the OpenTelemetry operator and pre-deployed components
 
@@ -296,19 +302,26 @@ In `sidecar` mode, the operator does not create a standalone `Deployment`. Inste
 
 === Understand the pipeline
 
-The sidecar pipeline has three signal paths—traces, metrics, and logs—all using the same processor chain:
+The sidecar carries **all three signal types** over the same processor chain:
 
 [source,text]
 ----
-otlp receiver (localhost:4318)
-  -> memory_limiter  (drop data if memory pressure)
-  -> resourcedetection (add cluster.name)
-  -> k8sattributes  (add pod/namespace/deployment metadata)
-  -> batch          (buffer and flush)
-  -> otlp exporter  (forward to central-collector:4317)
+              otlp receiver  (localhost:4317 gRPC / localhost:4318 HTTP)
+                    |
+         memory_limiter  -- drop if pod memory > 75%
+                    |
+         resourcedetection -- add k8s.cluster.name, cloud.platform
+                    |
+         k8sattributes   -- add k8s.pod.name, k8s.deployment.name,
+                            k8s.namespace.name, k8s.pod.uid
+                    |
+              batch        -- buffer and flush (max 10s / 1024 records)
+                    |
+         otlp exporter  -> central-collector-collector.observability-demo.svc:4317
+                            (gRPC, insecure – TLS terminated at central)
 ----
 
-All three signals reach the central collector over a single gRPC connection, which then routes each to its appropriate backend.
+The sidecar does **not** route signals to different destinations—that responsibility belongs to the central collector. All signals arrive at the central on a single gRPC stream.
 
 === Verify
 
@@ -675,11 +688,12 @@ oc get opentelemetrycollector central-collector \
   -o jsonpath='{.spec.config}' | yq .
 ----
 +
-Note the three export destinations:
+Note the four export destinations:
 +
-* `otlp/tempo` → `tempo-tempo-distributor.openshift-tempo-operator.svc:4317` (traces, with TLS and bearer token auth)
-* `prometheusremotewrite` → COO Prometheus remote-write endpoint (metrics and span metrics)
-* Logs pipeline (uses `debug` exporter by default in this workshop)
+* `otlp/tempo` → `tempo-tempo-distributor.openshift-tempo-operator.svc:4317` — traces, TLS + bearer token auth + `X-Scope-OrgID: dev` header
+* `prometheusremotewrite` → COO Prometheus `/api/v1/write` — application metrics pushed from pods
+* `prometheusremotewrite` (via `traces/spanmetrics` pipeline) → same endpoint — span-derived RED metrics
+* `otlphttp/logs` → LokiStack gateway at `openshift-logging` — logs, OTLP/HTTP JSON + bearer token + service CA TLS
 
 . Inspect the spanmetrics connector:
 +
@@ -728,43 +742,57 @@ oc exec -n observability-demo \
 Server available, lifetime uptime xxx seconds
 ----
 
-. Understand the full Loki export path:
+. Understand the logs pipeline:
 +
-A complete production LokiStack log export from the OpenTelemetry Collector requires a dedicated logs pipeline with the `otlphttp/logs` exporter, bearer token authentication against the LokiStack gateway, and attribute remapping. The following excerpt shows the required exporter and processor configuration, as documented in the link:https://docs.redhat.com/en/documentation/red_hat_build_of_opentelemetry/3.9/html/forwarding_telemetry_data/otel-forwarding-telemetry[Red Hat build of OpenTelemetry 3.9 forwarding documentation^]:
+The central collector runs a dedicated logs pipeline that maps OTEL resource attributes to the label keys expected by the LokiStack `openshift-logging` multi-tenancy gateway:
 +
 [source,yaml]
 ----
+processors:
+  resource/logs:            # <1>
+    attributes:
+      - {key: kubernetes.namespace_name, from_attribute: k8s.namespace.name, action: upsert}
+      - {key: kubernetes.pod_name,       from_attribute: k8s.pod.name,       action: upsert}
+      - {key: kubernetes.container_name, from_attribute: k8s.container.name, action: upsert}
+      - {key: log_type, value: application, action: upsert}
+  transform/logs:           # <2>
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["level"], ConvertCase(severity_text, "lower"))
 exporters:
-  otlphttp/logs:
+  otlphttp/logs:            # <3>
     endpoint: https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application/otlp
     encoding: json
     tls:
-      ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
     auth:
-      authenticator: bearertokenauth
-processors:
-  resource:
-    attributes:
-      - key: kubernetes.namespace_name
-        from_attribute: k8s.namespace.name
-        action: upsert
-      - key: kubernetes.pod_name
-        from_attribute: k8s.pod.name
-        action: upsert
-      - key: log_type
-        value: application
-        action: upsert
+      authenticator: bearertokenauth  # <4>
 ----
+<1> LokiStack in `openshift-logging` tenancy mode requires `kubernetes.namespace_name` (not `k8s.namespace.name`) for tenant routing.
+<2> Derives a `level` field from OTEL `severity_text` (lowercased) for log filtering in the Loki UI.
+<3> Sends log records as OTLP/HTTP JSON to the LokiStack gateway's application tenant endpoint.
+<4> Uses the pod's service account token for bearer auth — the central collector SA has `loki.grafana.com/application` create rights via ClusterRoleBinding.
++
+Verify a log record arrived in Loki by navigating to **Observe** → **Logs** in the OpenShift console and querying:
++
+[source,logql]
+----
+{kubernetes_namespace_name="{user}-observability-demo"} | json
+----
++
+You should see structured log records from `frontend`, `backend`, and `database`, each containing `traceID` and `spanID` fields that link them to the traces you viewed in Exercise 5.
 
 === Verify
 
-* ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and logs exporters
+* ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and `otlphttp/logs` exporters
 * ✓ `spanmetrics` connector configuration is visible
 * ✓ `traces_spanmetrics_calls_total` metric exists in Prometheus for your services
 * ✓ `traces_spanmetrics_latency_bucket` histogram is queryable for p95 latency
 * ✓ Central collector health endpoint returns `Server available`
+* ✓ **Observe → Logs** shows structured log records from `{user}-observability-demo` with `traceID` fields
 
-**What you learned**: The central collector implements a fanout pattern—one OTLP receiver, multiple exporters. The `spanmetrics` connector bridges traces and metrics, generating RED signals automatically. A single instrumentation pass captures traces, metrics, and logs simultaneously.
+**What you learned**: The central collector is a fanout hub — one OTLP receiver, four exporters. Each signal type is independently processed and routed: traces go to Tempo (with TLS and multi-tenancy headers), metrics are remote-written to COO Prometheus (which must have `enableRemoteWriteReceiver: true`), span-derived RED metrics follow the same path via the `spanmetrics` connector, and logs are attribute-remapped and forwarded to the LokiStack application tenant using service-account bearer auth.
 
 == Exercise 7: Zero-code Python auto-instrumentation
 
@@ -1030,11 +1058,12 @@ You activated the full OpenTelemetry telemetry pipeline for the workshop applica
 **What you accomplished**:
 
 * Verified the OpenTelemetry Operator and the pre-deployed central collector in `observability-demo`
-* Created a sidecar `OpenTelemetryCollector` CR in your namespace with a three-signal pipeline (traces, metrics, logs)
-* Applied `enable-otel.yaml` to activate the Go SDK and trigger sidecar injection on all three Go deployments
+* Created a sidecar `OpenTelemetryCollector` CR in your namespace — carries all three signals (traces, metrics, logs) to the central collector over a single gRPC connection
+* Created an `Instrumentation` CR in your namespace — used as the agent injection template for Python auto-instrumentation
+* Applied `enable-otel.yaml` to activate the Go SDK and trigger sidecar injection on the three Go deployments
 * Analyzed live traces in **Observe → Traces**, identified span-level bottlenecks, and correlated spans with log records
-* Explored the central collector's `spanmetrics` connector and queried auto-generated RED metrics in Prometheus
-* Enabled zero-code Python auto-instrumentation on the **notifier** service using a single pod annotation and the `Instrumentation` CR
+* Explored the central collector's full routing: traces → Tempo, metrics + RED metrics → COO Prometheus remote write, logs → LokiStack application tenant
+* Enabled zero-code Python auto-instrumentation on the **notifier** service using a single pod annotation
 * Observed a **four-hop trace** (`frontend → backend → notifier → database`) with full context propagation across Go and Python services
 
 **Key concepts mastered**:
