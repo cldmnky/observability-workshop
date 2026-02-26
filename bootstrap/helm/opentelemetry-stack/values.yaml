@@ -66,10 +66,10 @@ centralCollector:
       - 5s
       - 10s
     # Dimensions to extract from spans
+    # Note: span.name is a built-in dimension and must NOT be listed here
     dimensions:
       - name: http.method
       - name: http.status_code
-      - name: span.name
     # Enable exemplars for trace-metric correlation
     exemplarsEnabled: true
     # Metrics flush interval
