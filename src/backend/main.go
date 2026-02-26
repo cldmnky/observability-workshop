@@ -45,6 +45,9 @@ func main() {
 	mux.HandleFunc("/api/ok", application.handleOK)
 	mux.HandleFunc("/api/error", application.handleError)
 	mux.HandleFunc("/api/events", application.handleEvents)
+	mux.HandleFunc("/api/notes/export.md", application.handleNotesExport)
+	mux.HandleFunc("/api/notes", application.handleNotes)
+	mux.HandleFunc("/api/notes/", application.handleNoteByID)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -147,6 +150,87 @@ func (application *backendApp) handleEvents(response http.ResponseWriter, reques
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(databaseResponse.StatusCode)
 	_, _ = response.Write(body)
+}
+
+func (application *backendApp) handleNotes(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet && request.Method != http.MethodPost {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	application.proxyDatabase(response, request, "/notes")
+}
+
+func (application *backendApp) handleNoteByID(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet && request.Method != http.MethodPut && request.Method != http.MethodDelete {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	identifier := strings.TrimPrefix(request.URL.Path, "/api/notes/")
+	if identifier == "" || strings.Contains(identifier, "/") {
+		writeError(response, http.StatusBadRequest, "invalid note id")
+		return
+	}
+
+	application.proxyDatabase(response, request, "/notes/"+identifier)
+}
+
+func (application *backendApp) handleNotesExport(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	application.proxyDatabase(response, request, "/notes/export.md")
+}
+
+func (application *backendApp) proxyDatabase(response http.ResponseWriter, request *http.Request, path string) {
+	targetURL := application.databaseURL + path
+	var bodyBuffer []byte
+
+	if request.Body != nil {
+		readBody, err := io.ReadAll(request.Body)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "failed reading request body")
+			return
+		}
+		bodyBuffer = readBody
+	}
+
+	databaseRequest, err := http.NewRequestWithContext(request.Context(), request.Method, targetURL, bytes.NewReader(bodyBuffer))
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "failed to build request")
+		return
+	}
+
+	contentType := request.Header.Get("Content-Type")
+	if contentType != "" {
+		databaseRequest.Header.Set("Content-Type", contentType)
+	}
+
+	databaseResponse, err := application.client.Do(databaseRequest)
+	if err != nil {
+		writeError(response, http.StatusBadGateway, "database service unavailable")
+		return
+	}
+	defer databaseResponse.Body.Close()
+
+	responseBody, err := io.ReadAll(databaseResponse.Body)
+	if err != nil {
+		writeError(response, http.StatusBadGateway, "failed reading database response")
+		return
+	}
+
+	if downstreamType := databaseResponse.Header.Get("Content-Type"); downstreamType != "" {
+		response.Header().Set("Content-Type", downstreamType)
+	}
+	if disposition := databaseResponse.Header.Get("Content-Disposition"); disposition != "" {
+		response.Header().Set("Content-Disposition", disposition)
+	}
+
+	response.WriteHeader(databaseResponse.StatusCode)
+	_, _ = response.Write(responseBody)
 }
 
 func (application *backendApp) createDatabaseEvent(payload databaseEventRequest) error {

@@ -215,6 +215,19 @@ oc get pods -n {user}-observability-demo -l app=backend
 oc get pods -n {user}-observability-demo -l app=database
 ----
 
+. Verify the frontend Route and open the UI:
++
+[source,bash]
+----
+oc get route frontend -n {user}-observability-demo
+FRONTEND_HOST=$(oc get route frontend -n {user}-observability-demo -o jsonpath='{.spec.host}')
+echo "https://${FRONTEND_HOST}"
+----
+
+. Open the frontend URL in your browser, create at least two workshop notes, and click **Export Markdown**.
++
+The exported file (`workshop-notes.md`) confirms notes are persisted and downloadable from the frontend.
+
 . Generate traffic with mixed success and failure responses:
 +
 [source,bash]
@@ -237,9 +250,12 @@ oc logs -n {user}-observability-demo deployment/database --tail=20
 .Sample output
 [source,text]
 ----
+2026/02/11 10:23:14 service=frontend method=POST path=/api/notes status=201 duration_ms=5
 2026/02/11 10:23:15 service=frontend method=GET path=/ping status=200 duration_ms=3
 2026/02/11 10:23:16 service=frontend method=GET path=/error status=404 duration_ms=4
+2026/02/11 10:23:14 service=backend method=POST path=/api/notes status=201 duration_ms=3
 2026/02/11 10:23:16 service=backend method=GET path=/api/error status=404 duration_ms=2
+2026/02/11 10:23:14 service=database method=POST path=/notes status=201 duration_ms=1
 2026/02/11 10:23:16 service=database method=POST path=/events status=201 duration_ms=1
 ----
 
@@ -249,6 +265,8 @@ Check that logs are being generated:
 
 * ✓ `frontend` logs include `/ping` (200) and `/error` (404)
 * ✓ `backend` logs show forwarded `/api/ok` and `/api/error` requests
+* ✓ Frontend Route is reachable and serves the notes UI
+* ✓ Notes can be exported from the frontend as `workshop-notes.md`
 * ✓ `database` logs show persisted `/events` API calls
 * ✓ Logs visible via `oc logs` command
 * ✓ Multiple applications are running in the {user}-observability-demo namespace
@@ -295,6 +313,15 @@ The `|=` operator filters for log lines containing "404".
 ----
 +
 The `=~` operator matches a regular expression.
+
+. Query frontend note activity generated from the UI:
++
+[source,logql]
+----
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes"
+----
+
+This shows note creation and note update calls from the frontend route.
 
 . Combine multiple filters to find successful frontend requests:
 +

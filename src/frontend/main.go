@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"io"
 	"log"
@@ -12,6 +14,9 @@ import (
 	"syscall"
 	"time"
 )
+
+//go:embed static/*
+var staticFiles embed.FS
 
 type frontendApp struct {
 	client      *http.Client
@@ -31,11 +36,15 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 	mux.HandleFunc("/healthz", application.handleHealth)
 	mux.HandleFunc("/", application.handleHome)
 	mux.HandleFunc("/ping", application.handlePing)
 	mux.HandleFunc("/error", application.handleError)
 	mux.HandleFunc("/events", application.handleEvents)
+	mux.HandleFunc("/api/notes/export.md", application.handleNotesExport)
+	mux.HandleFunc("/api/notes", application.handleNotes)
+	mux.HandleFunc("/api/notes/", application.handleNoteByID)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -77,7 +86,15 @@ func (application *frontendApp) handleHome(response http.ResponseWriter, request
 		return
 	}
 
-	writeJSON(response, http.StatusOK, map[string]string{"message": "frontend is running", "service": application.serviceName})
+	content, err := staticFiles.ReadFile("static/index.html")
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "failed to load frontend")
+		return
+	}
+
+	response.Header().Set("Content-Type", "text/html; charset=utf-8")
+	response.WriteHeader(http.StatusOK)
+	_, _ = response.Write(content)
 }
 
 func (application *frontendApp) handlePing(response http.ResponseWriter, request *http.Request) {
@@ -85,7 +102,7 @@ func (application *frontendApp) handlePing(response http.ResponseWriter, request
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	application.forward(response, request, "/api/ok")
+	application.forwardGet(response, request, "/api/ok")
 }
 
 func (application *frontendApp) handleError(response http.ResponseWriter, request *http.Request) {
@@ -93,7 +110,7 @@ func (application *frontendApp) handleError(response http.ResponseWriter, reques
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	application.forward(response, request, "/api/error")
+	application.forwardGet(response, request, "/api/error")
 }
 
 func (application *frontendApp) handleEvents(response http.ResponseWriter, request *http.Request) {
@@ -101,15 +118,72 @@ func (application *frontendApp) handleEvents(response http.ResponseWriter, reque
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	application.forward(response, request, "/api/events")
+	application.forwardGet(response, request, "/api/events")
 }
 
-func (application *frontendApp) forward(response http.ResponseWriter, request *http.Request, path string) {
+func (application *frontendApp) handleNotes(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet && request.Method != http.MethodPost {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	application.forwardWithRequestMethod(response, request, "/api/notes")
+}
+
+func (application *frontendApp) handleNoteByID(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet && request.Method != http.MethodPut && request.Method != http.MethodDelete {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	identifier := strings.TrimPrefix(request.URL.Path, "/api/notes/")
+	if identifier == "" || strings.Contains(identifier, "/") {
+		writeError(response, http.StatusBadRequest, "invalid note id")
+		return
+	}
+
+	application.forwardWithRequestMethod(response, request, "/api/notes/"+identifier)
+}
+
+func (application *frontendApp) handleNotesExport(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	application.forwardGet(response, request, "/api/notes/export.md")
+}
+
+func (application *frontendApp) forwardGet(response http.ResponseWriter, request *http.Request, path string) {
+	application.proxyToBackend(response, request, http.MethodGet, path)
+}
+
+func (application *frontendApp) forwardWithRequestMethod(response http.ResponseWriter, request *http.Request, path string) {
+	application.proxyToBackend(response, request, request.Method, path)
+}
+
+func (application *frontendApp) proxyToBackend(response http.ResponseWriter, request *http.Request, method string, path string) {
 	target := application.backendURL + path
-	backendRequest, err := http.NewRequestWithContext(request.Context(), http.MethodGet, target, nil)
+	var requestBody []byte
+
+	if request.Body != nil {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			writeError(response, http.StatusBadRequest, "failed to read request body")
+			return
+		}
+		requestBody = body
+	}
+
+	backendRequest, err := http.NewRequestWithContext(request.Context(), method, target, bytes.NewReader(requestBody))
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "failed to build backend request")
 		return
+	}
+
+	contentType := request.Header.Get("Content-Type")
+	if contentType != "" {
+		backendRequest.Header.Set("Content-Type", contentType)
 	}
 
 	backendResponse, err := application.client.Do(backendRequest)
@@ -125,11 +199,13 @@ func (application *frontendApp) forward(response http.ResponseWriter, request *h
 		return
 	}
 
-	contentType := backendResponse.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/json"
+	if downstreamType := backendResponse.Header.Get("Content-Type"); downstreamType != "" {
+		response.Header().Set("Content-Type", downstreamType)
 	}
-	response.Header().Set("Content-Type", contentType)
+	if disposition := backendResponse.Header.Get("Content-Disposition"); disposition != "" {
+		response.Header().Set("Content-Disposition", disposition)
+	}
+
 	response.WriteHeader(backendResponse.StatusCode)
 	_, _ = response.Write(body)
 }
