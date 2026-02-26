@@ -27,6 +27,9 @@ spec:
   # Prometheus configuration
   prometheusConfig:
     replicas: {{ .Values.monitoringStack.prometheus.replicas }}
+    # Enable /api/v1/write endpoint so the OTEL central collector can push
+    # metrics via prometheusremotewrite exporter
+    enableRemoteWriteReceiver: true
   
   # Alertmanager configuration
   alertmanagerConfig:
