@@ -126,11 +126,11 @@ spec:
     # Exporters - send telemetry to backends
     exporters:
       # Tempo exporter for traces (otlp_grpc replaces deprecated otlp alias)
+      # Use insecure (plaintext gRPC) per RH docs - bearertokenauth handles auth
       otlp_grpc/tempo:
         endpoint: {{ .Values.centralCollector.tempo.endpoint }}
         tls:
-          # Tempo operator uses cert-manager certs not signed by service-ca; skip verify
-          insecure_skip_verify: true
+          insecure: true
         auth:
           authenticator: bearertokenauth
         headers:
