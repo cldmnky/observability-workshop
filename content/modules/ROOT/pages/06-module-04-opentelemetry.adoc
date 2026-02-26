@@ -422,18 +422,19 @@ Now you'll activate the OpenTelemetry SDK in all three services by applying the 
 +
 [source,bash]
 ----
-NAMESPACE={user}-observability-demo
+NAMESPACE="{user}-observability-demo"
 ----
 
 . Review what `enable-otel.yaml` will change:
 +
 TIP: Open the *Source Code* tab in the workshop application and select `enable-otel.yaml` to browse the full patch file.
 +
-Or grep for the key fields directly:
+Or inspect the key fields directly from GitHub:
 +
 [source,bash]
 ----
-grep -E "OTEL_|inject:|serviceAccountName:" src/enable-otel.yaml
+curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/enable-otel.yaml \
+  | grep -E "OTEL_|inject:|serviceAccountName:"
 ----
 +
 You will see three key changes per deployment:
@@ -446,7 +447,9 @@ You will see three key changes per deployment:
 +
 [source,bash]
 ----
-sed "s/__NAMESPACE__/$NAMESPACE/g" src/enable-otel.yaml | oc apply -f -
+curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/enable-otel.yaml \
+  | sed "s/__NAMESPACE__/${NAMESPACE}/g" \
+  | oc apply -f -
 ----
 +
 .Expected output
@@ -558,8 +561,8 @@ This sends 30 iterations of mixed GET and POST requests, generating spans at eac
 
 **Solution**:
 . Verify the variable is set: `echo $NAMESPACE`
-. Confirm `enable-otel.yaml` is in the `src/` directory: `ls src/enable-otel.yaml`
-. Test the substitution: `sed "s/__NAMESPACE__/$NAMESPACE/g" src/enable-otel.yaml | head -10`
+. Test the full pipeline: `curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/enable-otel.yaml | sed "s/__NAMESPACE__/${NAMESPACE}/g" | head -20`
+. If `curl` fails, check network connectivity from the terminal pod
 
 == Exercise 5: View live traces in Observe → Traces
 
