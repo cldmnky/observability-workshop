@@ -125,12 +125,12 @@ spec:
     
     # Exporters - send telemetry to backends
     exporters:
-      # Tempo exporter for traces
-      otlp/tempo:
+      # Tempo exporter for traces (otlp_grpc replaces deprecated otlp alias)
+      otlp_grpc/tempo:
         endpoint: {{ .Values.centralCollector.tempo.endpoint }}
         tls:
-          ca_file: {{ .Values.centralCollector.tempo.caFile }}
-          insecure: false
+          # Tempo operator uses cert-manager certs not signed by service-ca; skip verify
+          insecure_skip_verify: true
         auth:
           authenticator: bearertokenauth
         headers:
@@ -142,8 +142,8 @@ spec:
         resource_to_telemetry_conversion:
           enabled: true
       
-      # LokiStack OTLP/HTTP log forwarder (openshift-logging application tenant)
-      otlphttp/logs:
+      # LokiStack OTLP/HTTP log forwarder (otlp_http replaces deprecated otlphttp alias)
+      otlp_http/logs:
         endpoint: {{ .Values.centralCollector.loki.endpoint }}
         encoding: json
         tls:
@@ -173,7 +173,7 @@ spec:
           - k8sattributes
           - batch
           exporters:
-          - otlp/tempo
+          - otlp_grpc/tempo
           {{- if .Values.centralCollector.spanmetrics.enabled }}
           - spanmetrics
           {{- end }}
@@ -215,5 +215,5 @@ spec:
           - transform/logs
           - batch
           exporters:
-          - otlphttp/logs
+          - otlp_http/logs
           - debug

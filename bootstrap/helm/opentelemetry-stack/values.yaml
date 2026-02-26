@@ -35,8 +35,7 @@ centralCollector:
     endpoint: tempo-tempo-distributor.openshift-tempo-operator.svc:4317
     # Tenant ID for X-Scope-OrgID header
     tenant: dev
-    # TLS CA file path
-    caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+    # Note: TLS verification is skipped (Tempo uses cert-manager certs, not service-ca)
   
   # Prometheus remote write configuration
   prometheus:
