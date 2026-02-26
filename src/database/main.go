@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,8 +14,16 @@ import (
 	"strings"
 	"syscall"
 	"time"
+"
+"
 
 	_ "github.com/chaisql/chai"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/cldmnky/observability-workshop/src/telemetry
+	"github.com/cldmnky/observability-workshop/src/telemetry
+	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
 type event struct {
@@ -50,8 +58,10 @@ type createNoteRequest struct {
 }
 
 type app struct {
-	db          *sql.DB
-	serviceName string
+	db            *sql.DB
+	serviceName   string
+	eventsCreated metric.Int64Counter
+	notesCreated  metric.Int64Counter
 }
 
 func main() {
@@ -59,27 +69,61 @@ func main() {
 	databaseFile := envOrDefault("DATABASE_FILE", "/var/lib/chai/eventsdb")
 	serviceName := envOrDefault("SERVICE_NAME", "database")
 
+	// ------------------------------------------------------------------
+	// Telemetry – set up traces, metrics and logs when OTEL_ENABLED=true
+	// ------------------------------------------------------------------
+	ctx := context.Background()
+	telShutdown, err := telemetry.Setup(ctx, serviceName)
+	if err != nil {
+		slog.Error("telemetry setup failed", "service", serviceName, "err", err)
+	}
+	defer func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = telShutdown(shutCtx)
+	}()
+	if telemetry.Enabled() {
+		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
+	}
+
+	// Custom OTEL metrics – track how many events and notes are created.
+	// These are no-ops when OTEL is disabled (global noop meter).
+	meter := otel.Meter(serviceName)
+	eventsCounter, _ := meter.Int64Counter(
+		"database.events.created",
+		metric.WithDescription("Total number of events written to the database"),
+	)
+	notesCounter, _ := meter.Int64Counter(
+		"database.notes.created",
+		metric.WithDescription("Total number of notes written to the database"),
+	)
+
 	if databaseFile != ":memory:" {
-		err := os.MkdirAll(filepath.Dir(databaseFile), 0o755)
+		err = os.MkdirAll(filepath.Dir(databaseFile), 0o755)
 		if err != nil {
-			log.Fatalf("service=%s msg=failed_to_prepare_db_directory err=%v", serviceName, err)
+			slog.Error("failed to prepare db directory", "service", serviceName, "err", err)
+			os.Exit(1)
 		}
 	}
 
 	db, err := sql.Open("chai", databaseFile)
 	if err != nil {
-		log.Fatalf("service=%s msg=failed_to_open_db err=%v", serviceName, err)
+		slog.Error("failed to open db", "service", serviceName, "err", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	err = ensureSchema(db)
 	if err != nil {
-		log.Fatalf("service=%s msg=failed_to_ensure_schema err=%v", serviceName, err)
+		slog.Error("failed to ensure schema", "service", serviceName, "err", err)
+		os.Exit(1)
 	}
 
 	application := &app{
-		db:          db,
-		serviceName: serviceName,
+		db:            db,
+		serviceName:   serviceName,
+		eventsCreated: eventsCounter,
+		notesCreated:  notesCounter,
 	}
 
 	mux := http.NewServeMux()
@@ -90,7 +134,16 @@ func main() {
 	mux.HandleFunc("/notes", application.handleNotes)
 	mux.HandleFunc("/notes/", application.handleNoteByID)
 
-	handler := loggingMiddleware(serviceName, mux)
+	// otelhttp outermost so the span-enriched context flows into loggingMiddleware.
+	var handler http.Handler = loggingMiddleware(serviceName, mux)
+	if telemetry.Enabled() {
+		handler = otelhttp.NewHandler(handler, serviceName,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return r.Method + " " + r.URL.Path
+			}),
+		)
+	}
+
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -98,9 +151,10 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("service=%s msg=starting addr=%s database_file=%s", serviceName, addr, databaseFile)
+		slog.Info("starting", "service", serviceName, "addr", addr, "database_file", databaseFile)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("service=%s msg=listen_failed err=%v", serviceName, err)
+			slog.Error("listen failed", "service", serviceName, "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -113,10 +167,9 @@ func main() {
 
 	err = server.Shutdown(shutdownContext)
 	if err != nil {
-		log.Printf("service=%s msg=shutdown_failed err=%v", serviceName, err)
+		slog.Error("shutdown failed", "service", serviceName, "err", err)
 	}
-
-	log.Printf("service=%s msg=shutdown_complete", serviceName)
+	slog.Info("shutdown complete", "service", serviceName)
 }
 
 func ensureSchema(db *sql.DB) error {
@@ -285,6 +338,9 @@ func (application *app) createEvent(response http.ResponseWriter, request *http.
 		return
 	}
 
+	// Increment the OTEL counter (no-op when telemetry is disabled).
+	application.eventsCreated.Add(request.Context(), 1)
+
 	writeJSON(response, http.StatusCreated, event{
 		ID:        nextID,
 		Source:    input.Source,
@@ -425,6 +481,9 @@ func (application *app) createNote(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusInternalServerError, "failed to create note")
 		return
 	}
+
+	// Increment the OTEL counter (no-op when telemetry is disabled).
+	application.notesCreated.Add(request.Context(), 1)
 
 	writeJSON(response, http.StatusCreated, note{
 		ID:        nextID,
@@ -577,15 +636,15 @@ func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
 		next.ServeHTTP(recorder, request)
 		duration := time.Since(start)
-
-		log.Printf(
-			"service=%s method=%s path=%s status=%d duration_ms=%d remote_addr=%s",
-			serviceName,
-			request.Method,
-			request.URL.Path,
-			recorder.status,
-			duration.Milliseconds(),
-			request.RemoteAddr,
+		slog.InfoContext(
+			request.Context(),
+			"http request",
+			"service", serviceName,
+			"method", request.Method,
+			"path", request.URL.Path,
+			"status", recorder.status,
+			"duration_ms", duration.Milliseconds(),
+			"remote_addr", request.RemoteAddr,
 		)
 	})
 }

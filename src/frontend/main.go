@@ -6,13 +6,17 @@ import (
 	"embed"
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/cldmnky/observability-workshop/src/telemetry"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 //go:embed static/*
@@ -29,8 +33,33 @@ func main() {
 	backendURL := strings.TrimRight(envOrDefault("BACKEND_URL", "http://backend:8081"), "/")
 	serviceName := envOrDefault("SERVICE_NAME", "frontend")
 
+	// ------------------------------------------------------------------
+	// Telemetry – set up traces, metrics and logs when OTEL_ENABLED=true
+	// ------------------------------------------------------------------
+	ctx := context.Background()
+	telShutdown, err := telemetry.Setup(ctx, serviceName)
+	if err != nil {
+		slog.Error("telemetry setup failed", "service", serviceName, "err", err)
+	}
+	defer func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = telShutdown(shutCtx)
+	}()
+	// When OTEL is active route all structured log output via the SDK so
+	// that log records are correlated with the active trace.
+	if telemetry.Enabled() {
+		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
+	}
+
+	// HTTP client – wrap transport with otelhttp so outgoing requests
+	// carry W3C trace-context and are recorded as child spans.
+	clientTransport := http.DefaultTransport
+	if telemetry.Enabled() {
+		clientTransport = otelhttp.NewTransport(http.DefaultTransport)
+	}
 	application := &frontendApp{
-		client:      &http.Client{Timeout: 10 * time.Second},
+		client:      &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
 		backendURL:  backendURL,
 		serviceName: serviceName,
 	}
@@ -46,16 +75,32 @@ func main() {
 	mux.HandleFunc("/api/notes", application.handleNotes)
 	mux.HandleFunc("/api/notes/", application.handleNoteByID)
 
+	// otelhttp.NewHandler is the outermost layer: it extracts the incoming
+	// traceparent header, creates a server span, and enriches the request
+	// context before control passes inward.  loggingMiddleware sits *inside*
+	// otelhttp so that slog.InfoContext receives a context that already holds
+	// the active span – enabling trace_id / span_id in every log record.
+	var handler http.Handler = loggingMiddleware(serviceName, mux)
+	if telemetry.Enabled() {
+		handler = otelhttp.NewHandler(handler, serviceName,
+			// Name spans "METHOD /path" so they are readable in Tempo.
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return r.Method + " " + r.URL.Path
+			}),
+		)
+	}
+
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           loggingMiddleware(serviceName, mux),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
-		log.Printf("service=%s msg=starting addr=%s backend_url=%s", serviceName, addr, backendURL)
+		slog.Info("starting", "service", serviceName, "addr", addr, "backend_url", backendURL)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("service=%s msg=listen_failed err=%v", serviceName, err)
+			slog.Error("listen failed", "service", serviceName, "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -67,9 +112,9 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownContext); err != nil {
-		log.Printf("service=%s msg=shutdown_failed err=%v", serviceName, err)
+		slog.Error("shutdown failed", "service", serviceName, "err", err)
 	}
-	log.Printf("service=%s msg=shutdown_complete", serviceName)
+	slog.Info("shutdown complete", "service", serviceName)
 }
 
 func (application *frontendApp) handleHealth(response http.ResponseWriter, _ *http.Request) {
@@ -126,7 +171,6 @@ func (application *frontendApp) handleNotes(response http.ResponseWriter, reques
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
 	application.forwardWithRequestMethod(response, request, "/api/notes")
 }
 
@@ -135,13 +179,11 @@ func (application *frontendApp) handleNoteByID(response http.ResponseWriter, req
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
 	identifier := strings.TrimPrefix(request.URL.Path, "/api/notes/")
 	if identifier == "" || strings.Contains(identifier, "/") {
 		writeError(response, http.StatusBadRequest, "invalid note id")
 		return
 	}
-
 	application.forwardWithRequestMethod(response, request, "/api/notes/"+identifier)
 }
 
@@ -150,7 +192,6 @@ func (application *frontendApp) handleNotesExport(response http.ResponseWriter, 
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
 	application.forwardGet(response, request, "/api/notes/export.md")
 }
 
@@ -234,15 +275,17 @@ func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
 		next.ServeHTTP(recorder, request)
 		duration := time.Since(start)
-
-		log.Printf(
-			"service=%s method=%s path=%s status=%d duration_ms=%d remote_addr=%s",
-			serviceName,
-			request.Method,
-			request.URL.Path,
-			recorder.status,
-			duration.Milliseconds(),
-			request.RemoteAddr,
+		// Use slog with the request context so that – when OTEL is active –
+		// log records are automatically correlated with the active trace span.
+		slog.InfoContext(
+			request.Context(),
+			"http request",
+			"service", serviceName,
+			"method", request.Method,
+			"path", request.URL.Path,
+			"status", recorder.status,
+			"duration_ms", duration.Milliseconds(),
+			"remote_addr", request.RemoteAddr,
 		)
 	})
 }

@@ -1,0 +1,102 @@
+# enable-otel.yaml
+# Apply this file to enable OpenTelemetry sidecar injection and SDK activation
+# for the frontend, backend and database deployments.
+#
+# What this does:
+#   1. Adds OTEL_ENABLED=true to each container – activates the Go SDK
+#   2. Adds supporting OTEL env vars (service name, endpoint, protocol)
+#   3. Annotates each pod template so the OpenTelemetry Operator injects the
+#      "sidecar" OpenTelemetryCollector as an extra container in each pod.
+#      The sidecar receives OTLP data on localhost:4318 and forwards it to
+#      the central collector which exports to Tempo (traces) and Prometheus
+#      (metrics + spanmetrics).
+#   4. Sets serviceAccountName to "otel-collector-sidecar" so the sidecar's
+#      k8sattributes/resourcedetection processors can query the Kubernetes API.
+#
+# Usage:
+#   # Enable OTEL for all three services:
+#   oc apply -f enable-otel.yaml
+#
+#   # Disable (remove the patches and rollout):
+#   oc apply -f deploy.yaml
+#
+# Prerequisites:
+#   - opentelemetry-stack Helm chart deployed (provides the "sidecar"
+#     OpenTelemetryCollector CR and the otel-collector-sidecar ServiceAccount)
+#   - deploy.yaml already applied (Deployments must already exist)
+#   - Namespace must match __NAMESPACE__ substituted value
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: __NAMESPACE__
+spec:
+  template:
+    metadata:
+      annotations:
+        # Triggers sidecar injection by the OpenTelemetry Operator.
+        # The value must match the name of the OpenTelemetryCollector CR
+        # (mode: sidecar) deployed in this namespace.
+        sidecar.opentelemetry.io/inject: "sidecar"
+    spec:
+      serviceAccountName: otel-collector-sidecar
+      containers:
+        - name: frontend
+          env:
+            - name: OTEL_ENABLED
+              value: "true"
+            - name: OTEL_SERVICE_NAME
+              value: "frontend"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://localhost:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: __NAMESPACE__
+spec:
+  template:
+    metadata:
+      annotations:
+        sidecar.opentelemetry.io/inject: "sidecar"
+    spec:
+      serviceAccountName: otel-collector-sidecar
+      containers:
+        - name: backend
+          env:
+            - name: OTEL_ENABLED
+              value: "true"
+            - name: OTEL_SERVICE_NAME
+              value: "backend"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://localhost:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  namespace: __NAMESPACE__
+spec:
+  template:
+    metadata:
+      annotations:
+        sidecar.opentelemetry.io/inject: "sidecar"
+    spec:
+      serviceAccountName: otel-collector-sidecar
+      containers:
+        - name: database
+          env:
+            - name: OTEL_ENABLED
+              value: "true"
+            - name: OTEL_SERVICE_NAME
+              value: "database"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://localhost:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"

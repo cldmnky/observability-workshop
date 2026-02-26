@@ -6,13 +6,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/cldmnky/observability-workshop/src/telemetry"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type backendApp struct {
@@ -34,8 +38,30 @@ func main() {
 	databaseURL := strings.TrimRight(envOrDefault("DATABASE_API_URL", "http://database:8082"), "/")
 	serviceName := envOrDefault("SERVICE_NAME", "backend")
 
+	// ------------------------------------------------------------------
+	// Telemetry – set up traces, metrics and logs when OTEL_ENABLED=true
+	// ------------------------------------------------------------------
+	ctx := context.Background()
+	telShutdown, err := telemetry.Setup(ctx, serviceName)
+	if err != nil {
+		slog.Error("telemetry setup failed", "service", serviceName, "err", err)
+	}
+	defer func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = telShutdown(shutCtx)
+	}()
+	if telemetry.Enabled() {
+		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
+	}
+
+	// HTTP client – otelhttp transport propagates trace context downstream.
+	clientTransport := http.DefaultTransport
+	if telemetry.Enabled() {
+		clientTransport = otelhttp.NewTransport(http.DefaultTransport)
+	}
 	application := &backendApp{
-		client:      &http.Client{Timeout: 10 * time.Second},
+		client:      &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
 		databaseURL: databaseURL,
 		serviceName: serviceName,
 	}
@@ -49,16 +75,27 @@ func main() {
 	mux.HandleFunc("/api/notes", application.handleNotes)
 	mux.HandleFunc("/api/notes/", application.handleNoteByID)
 
+	// otelhttp outermost so the span-enriched context flows into loggingMiddleware.
+	var handler http.Handler = loggingMiddleware(serviceName, mux)
+	if telemetry.Enabled() {
+		handler = otelhttp.NewHandler(handler, serviceName,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return r.Method + " " + r.URL.Path
+			}),
+		)
+	}
+
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           loggingMiddleware(serviceName, mux),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
-		log.Printf("service=%s msg=starting addr=%s database_api_url=%s", serviceName, addr, databaseURL)
+		slog.Info("starting", "service", serviceName, "addr", addr, "database_api_url", databaseURL)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("service=%s msg=listen_failed err=%v", serviceName, err)
+			slog.Error("listen failed", "service", serviceName, "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -70,9 +107,9 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownContext); err != nil {
-		log.Printf("service=%s msg=shutdown_failed err=%v", serviceName, err)
+		slog.Error("shutdown failed", "service", serviceName, "err", err)
 	}
-	log.Printf("service=%s msg=shutdown_complete", serviceName)
+	slog.Info("shutdown complete", "service", serviceName)
 }
 
 func (application *backendApp) handleHealth(response http.ResponseWriter, _ *http.Request) {
@@ -85,7 +122,7 @@ func (application *backendApp) handleOK(response http.ResponseWriter, request *h
 		return
 	}
 
-	err := application.createDatabaseEvent(databaseEventRequest{
+	err := application.createDatabaseEvent(request.Context(), databaseEventRequest{
 		Source:  application.serviceName,
 		Method:  request.Method,
 		Route:   request.URL.Path,
@@ -106,7 +143,7 @@ func (application *backendApp) handleError(response http.ResponseWriter, request
 		return
 	}
 
-	err := application.createDatabaseEvent(databaseEventRequest{
+	err := application.createDatabaseEvent(request.Context(), databaseEventRequest{
 		Source:  application.serviceName,
 		Method:  request.Method,
 		Route:   request.URL.Path,
@@ -157,7 +194,6 @@ func (application *backendApp) handleNotes(response http.ResponseWriter, request
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
 	application.proxyDatabase(response, request, "/notes")
 }
 
@@ -166,13 +202,11 @@ func (application *backendApp) handleNoteByID(response http.ResponseWriter, requ
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
 	identifier := strings.TrimPrefix(request.URL.Path, "/api/notes/")
 	if identifier == "" || strings.Contains(identifier, "/") {
 		writeError(response, http.StatusBadRequest, "invalid note id")
 		return
 	}
-
 	application.proxyDatabase(response, request, "/notes/"+identifier)
 }
 
@@ -181,7 +215,6 @@ func (application *backendApp) handleNotesExport(response http.ResponseWriter, r
 		writeError(response, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
 	application.proxyDatabase(response, request, "/notes/export.md")
 }
 
@@ -233,13 +266,15 @@ func (application *backendApp) proxyDatabase(response http.ResponseWriter, reque
 	_, _ = response.Write(responseBody)
 }
 
-func (application *backendApp) createDatabaseEvent(payload databaseEventRequest) error {
+// createDatabaseEvent posts an event to the database service.
+// ctx is threaded through so that outgoing HTTP calls carry the active span.
+func (application *backendApp) createDatabaseEvent(ctx context.Context, payload databaseEventRequest) error {
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/events", application.databaseURL), bytes.NewReader(jsonPayload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/events", application.databaseURL), bytes.NewReader(jsonPayload))
 	if err != nil {
 		return err
 	}
@@ -282,15 +317,15 @@ func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
 		next.ServeHTTP(recorder, request)
 		duration := time.Since(start)
-
-		log.Printf(
-			"service=%s method=%s path=%s status=%d duration_ms=%d remote_addr=%s",
-			serviceName,
-			request.Method,
-			request.URL.Path,
-			recorder.status,
-			duration.Milliseconds(),
-			request.RemoteAddr,
+		slog.InfoContext(
+			request.Context(),
+			"http request",
+			"service", serviceName,
+			"method", request.Method,
+			"path", request.URL.Path,
+			"status", recorder.status,
+			"duration_ms", duration.Milliseconds(),
+			"remote_addr", request.RemoteAddr,
 		)
 	})
 }
