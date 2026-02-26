@@ -179,8 +179,9 @@ spec:
           {{- end }}
         
         {{- if .Values.centralCollector.spanmetrics.enabled }}
-        # Spanmetrics pipeline - RED metrics from traces
-        traces/spanmetrics:
+        # Spanmetrics pipeline - RED metrics generated from traces by the spanmetrics connector
+        # Must be a metrics pipeline: spanmetrics connector produces metrics, not traces
+        metrics/spanmetrics:
           receivers:
           - spanmetrics
           processors:
