@@ -202,6 +202,27 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 				'- kind: User' \
 				'  apiGroup: rbac.authorization.k8s.io' \
 				"  name: $$user" | oc apply -f -; \
+			if [ "$$suffix" = "observability-demo" ]; then \
+				printf '%s\n' \
+					'apiVersion: v1' \
+					'kind: ServiceAccount' \
+					'metadata:' \
+					'  name: otel-collector-sidecar' \
+					"  namespace: $$user_ns" | oc apply -f -; \
+				printf '%s\n' \
+					'apiVersion: rbac.authorization.k8s.io/v1' \
+					'kind: ClusterRoleBinding' \
+					'metadata:' \
+					"  name: otel-collector-sidecar-$$user_ns" \
+					'roleRef:' \
+					'  apiGroup: rbac.authorization.k8s.io' \
+					'  kind: ClusterRole' \
+					'  name: otel-collector' \
+					'subjects:' \
+					'- kind: ServiceAccount' \
+					"  name: otel-collector-sidecar" \
+					"  namespace: $$user_ns" | oc apply -f -; \
+			fi; \
 		done; \
 	done
 	@printf '%b\n' "$(GREEN)Applying ApplicationSet...$(NC)"
