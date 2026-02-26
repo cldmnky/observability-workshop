@@ -1,0 +1,357 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-builder
+  namespace: __NAMESPACE__
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-builder-edit
+  namespace: __NAMESPACE__
+subjects:
+  - kind: ServiceAccount
+    name: app-builder
+    namespace: __NAMESPACE__
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-builder-image-builder
+  namespace: __NAMESPACE__
+subjects:
+  - kind: ServiceAccount
+    name: app-builder
+    namespace: __NAMESPACE__
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:image-builder
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: namespace-image-puller
+  namespace: __NAMESPACE__
+subjects:
+  - kind: Group
+    name: system:serviceaccounts:__NAMESPACE__
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:image-puller
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: database-data
+  namespace: __NAMESPACE__
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: frontend-build
+  namespace: __NAMESPACE__
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/cldmnky/observability-workshop.git
+      revision: main
+    contextDir: src
+  strategy:
+    kind: ClusterBuildStrategy
+    name: buildah
+  paramValues:
+    - name: dockerfile
+      value: frontend/Containerfile
+  output:
+    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/frontend:latest
+  serviceAccount: app-builder
+---
+apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: backend-build
+  namespace: __NAMESPACE__
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/cldmnky/observability-workshop.git
+      revision: main
+    contextDir: src
+  strategy:
+    kind: ClusterBuildStrategy
+    name: buildah
+  paramValues:
+    - name: dockerfile
+      value: backend/Containerfile
+  output:
+    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/backend:latest
+  serviceAccount: app-builder
+---
+apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: database-build
+  namespace: __NAMESPACE__
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/cldmnky/observability-workshop.git
+      revision: main
+    contextDir: src
+  strategy:
+    kind: ClusterBuildStrategy
+    name: buildah
+  paramValues:
+    - name: dockerfile
+      value: database/Containerfile
+  output:
+    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/database:latest
+  serviceAccount: app-builder
+---
+apiVersion: shipwright.io/v1beta1
+kind: BuildRun
+metadata:
+  name: frontend-buildrun
+  namespace: __NAMESPACE__
+spec:
+  build:
+    name: frontend-build
+---
+apiVersion: shipwright.io/v1beta1
+kind: BuildRun
+metadata:
+  name: backend-buildrun
+  namespace: __NAMESPACE__
+spec:
+  build:
+    name: backend-build
+---
+apiVersion: shipwright.io/v1beta1
+kind: BuildRun
+metadata:
+  name: database-buildrun
+  namespace: __NAMESPACE__
+spec:
+  build:
+    name: database-build
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: __NAMESPACE__
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/frontend:latest
+          imagePullPolicy: Always
+          env:
+            - name: FRONTEND_ADDR
+              value: :8080
+            - name: BACKEND_URL
+              value: http://backend:8081
+            - name: SERVICE_NAME
+              value: frontend
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: __NAMESPACE__
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/backend:latest
+          imagePullPolicy: Always
+          env:
+            - name: BACKEND_ADDR
+              value: :8081
+            - name: DATABASE_API_URL
+              value: http://database:8082
+            - name: SERVICE_NAME
+              value: backend
+          ports:
+            - containerPort: 8081
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  namespace: __NAMESPACE__
+  labels:
+    app: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+        - name: database
+          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/database:latest
+          imagePullPolicy: Always
+          env:
+            - name: DATABASE_ADDR
+              value: :8082
+            - name: DATABASE_FILE
+              value: /var/lib/chai/eventsdb
+            - name: SERVICE_NAME
+              value: database
+          ports:
+            - containerPort: 8082
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          volumeMounts:
+            - mountPath: /var/lib/chai
+              name: database-storage
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: database-storage
+          persistentVolumeClaim:
+            claimName: database-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: __NAMESPACE__
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: __NAMESPACE__
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database
+  namespace: __NAMESPACE__
+  labels:
+    app: database
+spec:
+  selector:
+    app: database
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http

@@ -167,134 +167,91 @@ oc logs job/logging-loki-s3-secret-sync -n openshift-logging
 
 == Exercise 2: Generate application logs
 
-To practice querying logs, you need an application that generates diverse log entries. You'll use the sample application from Module 1 and enhance it to produce more interesting logs.
+To practice querying logs, you need an application that generates diverse log entries. In this exercise, you'll deploy a simple three-service Go application:
+
+* `frontend` receives HTTP requests and forwards them to `backend`
+* `backend` writes request events to `database`
+* `database` exposes a REST API backed by persistent ChaiSQL storage on disk
+
+Each service writes structured request logs to stdout, which Loki collects.
 
 === Steps
 
-. Verify the sample application from Module 1 is still running:
+. Verify Shipwright build APIs are available:
 +
 [source,bash]
 ----
-oc get pods -n {user}-observability-demo
+oc api-resources | grep -E 'builds.shipwright.io|buildruns.shipwright.io'
+oc get clusterbuildstrategy buildah
 ----
 +
-If the pods aren't running, redeploy:
+If either command fails, stop here and ask your workshop administrator to enable the OpenShift Builds (Shipwright) operator.
+
+. Deploy the logging demo application manifest from GitHub:
 +
 [source,bash]
 ----
-oc apply -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: sample-app
-  namespace: {user}-observability-demo
-  labels:
-    app: sample-app
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: sample-app
-  template:
-    metadata:
-      labels:
-        app: sample-app
-    spec:
-      containers:
-      - name: app
-        image: quay.io/brancz/prometheus-example-app:v0.3.0
-        ports:
-        - containerPort: 8080
-          name: http
-EOF
+NAMESPACE="{user}-observability-demo"
+curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/deploy.yaml \
+  | sed "s/__NAMESPACE__/${NAMESPACE}/g" \
+  | oc apply -f -
+----
+
+. Wait for image builds to complete:
++
+[source,bash]
+----
+oc wait --for=condition=Succeeded -n {user}-observability-demo buildrun/frontend-buildrun --timeout=20m
+oc wait --for=condition=Succeeded -n {user}-observability-demo buildrun/backend-buildrun --timeout=20m
+oc wait --for=condition=Succeeded -n {user}-observability-demo buildrun/database-buildrun --timeout=20m
+----
+
+. Verify the three deployments are running:
++
+[source,bash]
+----
+oc get pods -n {user}-observability-demo -l app=frontend
+oc get pods -n {user}-observability-demo -l app=backend
+oc get pods -n {user}-observability-demo -l app=database
 ----
 
 . Generate traffic with mixed success and failure responses:
 +
 [source,bash]
 ----
-for i in {1..50}; do
-  # Successful requests
-  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
-
-  # Failed requests (404 errors)
-  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080/nonexistent > /dev/null
-
-  echo "Completed request pair $i"
-  sleep 0.5
-done
+oc run -n {user}-observability-demo traffic-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
+  sh -c 'for i in $(seq 1 50); do curl -s http://frontend:8080/ping >/dev/null; curl -s -o /dev/null http://frontend:8080/error; echo "Completed request pair $i"; sleep 0.5; done'
 ----
 +
 This generates a mix of 200 (success) and 404 (error) responses, creating varied log entries.
 
-. View logs directly from a pod to see what's being generated:
+. View logs from each tier to see request traces:
 +
 [source,bash]
 ----
-oc logs -n {user}-observability-demo deployment/sample-app --tail=20
+oc logs -n {user}-observability-demo deployment/frontend --tail=20
+oc logs -n {user}-observability-demo deployment/backend --tail=20
+oc logs -n {user}-observability-demo deployment/database --tail=20
 ----
 +
 .Sample output
 [source,text]
 ----
-2026/02/11 10:23:15 HTTP GET /: 200
-2026/02/11 10:23:16 HTTP GET /nonexistent: 404
-2026/02/11 10:23:17 HTTP GET /: 200
-2026/02/11 10:23:18 HTTP GET /nonexistent: 404
-----
-
-. Deploy an additional application to simulate a multi-service environment:
-+
-[source,bash]
-----
-oc apply -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: api-backend
-  namespace: {user}-observability-demo
-  labels:
-    app: api-backend
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: api-backend
-  template:
-    metadata:
-      labels:
-        app: api-backend
-    spec:
-      containers:
-      - name: backend
-        image: quay.io/brancz/prometheus-example-app:v0.3.0
-        ports:
-        - containerPort: 8080
-          name: http
-        env:
-        - name: APP_NAME
-          value: "api-backend"
-EOF
-----
-
-. Generate logs from the backend service:
-+
-[source,bash]
-----
-for i in {1..20}; do
-  oc exec -n {user}-observability-demo deployment/api-backend -- curl -s localhost:8080 > /dev/null
-  sleep 1
-done
+2026/02/11 10:23:15 service=frontend method=GET path=/ping status=200 duration_ms=3
+2026/02/11 10:23:16 service=frontend method=GET path=/error status=404 duration_ms=4
+2026/02/11 10:23:16 service=backend method=GET path=/api/error status=404 duration_ms=2
+2026/02/11 10:23:16 service=database method=POST path=/events status=201 duration_ms=1
 ----
 
 === Verify
 
 Check that logs are being generated:
 
-* ✓ sample-app pods are producing logs with 200 and 404 status codes
-* ✓ api-backend pod is running and generating logs
+* ✓ `frontend` logs include `/ping` (200) and `/error` (404)
+* ✓ `backend` logs show forwarded `/api/ok` and `/api/error` requests
+* ✓ `database` logs show persisted `/events` API calls
 * ✓ Logs visible via `oc logs` command
-* ✓ Multiple applications running in observability-demo namespace
+* ✓ Multiple applications are running in the {user}-observability-demo namespace
 
 **What you learned**: Applications write logs to stdout/stderr, which OpenShift captures and forwards to your logging backend. Multiple services can run in the same namespace.
 
@@ -334,19 +291,19 @@ The `|=` operator filters for log lines containing "404".
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"sample-app.*"}
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"}
 ----
 +
 The `=~` operator matches a regular expression.
 
-. Combine multiple filters to find successful requests to the sample-app:
+. Combine multiple filters to find successful frontend requests:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"sample-app.*"} |= "200" != "404"
+{kubernetes_namespace_name="{user}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200"
 ----
 +
-This shows lines containing "200" but not "404".
+This shows successful `/ping` requests from the frontend pod.
 
 . Use LogQL to count error rates:
 +
@@ -412,13 +369,11 @@ The real power of observability comes from correlating different signals. You'll
 +
 [source,bash]
 ----
-for i in {1..100}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
-  sleep 0.1
-done
+oc run -n {user}-observability-demo error-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
+  sh -c 'for i in $(seq 1 100); do curl -s -o /dev/null http://frontend:8080/error; sleep 0.1; done'
 ----
 
-. Check metrics to detect the error spike:
+. Check metrics to detect the traffic spike:
 +
 Navigate to **Observe** → **Metrics**
 +
@@ -426,10 +381,10 @@ Query:
 +
 [source,promql]
 ----
-rate(http_requests_total{namespace="{user}-observability-demo", code="404"}[5m])
+sum(rate(container_network_receive_bytes_total{namespace="{user}-observability-demo",pod=~"frontend-.*"}[5m]))
 ----
 +
-You should see a spike in the error rate.
+You should see a traffic spike while the error generator is running.
 
 . Switch to **Observe** → **Logs** and correlate with log data:
 +
@@ -462,7 +417,7 @@ This extracts timestamp, HTTP method, and status code from log lines.
 
 Check that you can correlate metrics and logs:
 
-* ✓ Metric query shows error rate spike
+* ✓ Metric query shows frontend traffic spike
 * ✓ Log query reveals error messages during the same time period
 * ✓ Time ranges align between metrics and logs views
 * ✓ Structured data can be extracted from log lines
@@ -537,10 +492,8 @@ oc get alertingrule -n openshift-logging
 +
 [source,bash]
 ----
-for i in {1..200}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -- curl -s localhost:8080/error > /dev/null 2>&1
-  sleep 0.5
-done
+oc run -n {user}-observability-demo alert-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
+  sh -c 'for i in $(seq 1 200); do curl -s -o /dev/null http://frontend:8080/error; sleep 0.5; done'
 ----
 +
 This generates errors for about 100 seconds, which should trigger the alert after 2 minutes.

@@ -1,0 +1,14 @@
+FROM golang:1.25 AS builder
+WORKDIR /workspace
+COPY go.mod go.mod
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/backend ./backend
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+USER 0
+RUN microdnf install -y ca-certificates && microdnf clean all
+COPY --from=builder /out/backend /usr/local/bin/backend
+USER 1001
+EXPOSE 8081
+ENTRYPOINT ["/usr/local/bin/backend"]
