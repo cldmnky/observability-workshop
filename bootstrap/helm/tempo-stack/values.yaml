@@ -32,7 +32,19 @@ storage:
     storageClassName: openshift-storage.noobaa.io
     # Delete bucket when chart is uninstalled
     reclaimPolicy: Delete
-  
+    # Auto-sync OBC credentials into the tempo-storage secret expected by the operator
+    secretSync:
+      # Enable Job that creates/updates tempo-storage from OBC Secret/ConfigMap
+      enabled: true
+      # Container image used to run oc commands
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      # Polling interval while waiting for OBC Secret/ConfigMap
+      pollIntervalSeconds: 5
+      # Maximum number of polling attempts before failing
+      maxAttempts: 120
+      # Use HTTPS endpoint from OBC data (NooBaa HTTP port 80 avoids TLS trust issues)
+      useHttpsEndpoint: false
+
   # External S3 storage configuration (type: external)
   external:
     # Secret name for S3 credentials
