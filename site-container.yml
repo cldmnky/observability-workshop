@@ -27,6 +27,7 @@ runtime:
 
 antora:
   extensions:
+    - require: ./content/lib/compute-attributes.js
     - require: ./content/lib/dev-mode.js
       enabled: false
 
