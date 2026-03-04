@@ -1,0 +1,492 @@
+# =============================================================================
+# Perses v0.53.0 — Standalone deployment (no operator)
+# =============================================================================
+# Deploys Perses with Kubernetes authentication backed by OCP RBAC.
+# Pre-configured GlobalDatasources for:
+#   - COO ThanosQuerier (Prometheus)
+#   - TempoStack query-frontend (distributed tracing)
+#   - LokiStack gateway / application tenant (logging)
+#
+# Prerequisites:
+#   - COO MonitoringStack "observability-stack" in namespace "observability-demo"
+#   - TempoStack "tempo" in namespace "openshift-tempo-operator"
+#   - LokiStack "logging-loki" in namespace "openshift-logging"
+#
+# Deploy:
+#   oc apply -f docs/perses-standalone.yaml
+#
+# After deploy, get the Route URL:
+#   oc get route perses-dev -n perses-dev -o jsonpath='{.spec.host}'
+#
+# Log in with your OCP bearer token: oc whoami -t
+# =============================================================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: perses-dev
+
+---
+# ServiceAccount used by the Perses pod.
+# Its auto-mounted projected token is also used by the datasource proxy to
+# authenticate against Prometheus, Tempo and Loki (via ocp-sa-bearer secret).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: perses-sa
+  namespace: perses-dev
+  annotations:
+    # Register this SA as an OAuthClient in OpenShift.
+    # oauth-proxy uses the SA identity to register the redirect reference.
+    # OCP derives the allowed redirect URI from the named Route.
+    serviceaccounts.openshift.io/oauth-redirectreference.perses: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"perses-dev"}}'
+
+---
+# Minimum RBAC for the Kubernetes authn/authz provider:
+# Perses uses TokenReview to authenticate OCP users and SubjectAccessReview
+# to authorize them against OCP RBAC.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: perses-dev-k8s-authn-authz
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: perses-dev-k8s-authn-authz
+subjects:
+  - kind: ServiceAccount
+    name: perses-sa
+    namespace: perses-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: perses-dev-k8s-authn-authz
+
+---
+# ClusterRole granting all authenticated OCP users read access to Perses resources
+# (GlobalDatasource, GlobalVariable, Folder, etc.) checked via SubjectAccessReview
+# by the Perses Kubernetes authorization provider.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: perses-dev-viewer
+rules:
+  - apiGroups: ["perses.dev"]
+    resources:
+      - globaldatasources
+      - globalsecrets
+      - globalvariables
+      - globalroles
+      - globalrolebindings
+      - projects
+      - folders
+      - dashboards
+      - datasources
+      - variables
+      - roles
+      - rolebindings
+    verbs: ["get", "list", "watch"]
+
+---
+# Bind the viewer role to all authenticated OCP users so they can browse Perses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: perses-dev-viewer
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:authenticated
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: perses-dev-viewer
+
+---
+# Allows the Perses SA (datasource proxy identity) to query OCP monitoring APIs.
+# Built-in OCP ClusterRole — grants read access to Prometheus/Thanos query endpoints.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: perses-dev-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: perses-sa
+    namespace: perses-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+
+---
+# Allows the Perses SA to read application logs via the LokiStack gateway.
+# cluster-logging-application-view is created by the Loki Operator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: perses-dev-logging-view
+subjects:
+  - kind: ServiceAccount
+    name: perses-sa
+    namespace: perses-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-logging-application-view
+
+---
+# OCP auto-injects the cluster service-CA bundle into this ConfigMap.
+# Mounted into the pod so the datasource proxy can verify TLS certs signed by
+# the OpenShift internal CA (ThanosQuerier, Tempo query-frontend, Loki gateway).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perses-service-ca
+  namespace: perses-dev
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+
+---
+# Cookie secret for the oauth-proxy sidecar.
+# The decoded value must be exactly 16, 24, or 32 bytes for AES encryption.
+# To regenerate: python3 -c "import base64,os; print(base64.urlsafe_b64encode(os.urandom(16)).decode())"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: perses-oauth-proxy-cookie
+  namespace: perses-dev
+type: Opaque
+data:
+  # base64("perses-oauth2016") — 16 bytes; change in production
+  cookie-secret: cGVyc2VzLW9hdXRoMjAxNg==
+
+---
+# Perses v0.53.0 upstream config schema.
+# NOTE: This differs from the COO-patched version used by the operator CRD:
+#   - authentication.providers.kubernetes: "enable" (no trailing "d")
+#   - authorization: nested under "provider" (not flat keys)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perses-config
+  namespace: perses-dev
+data:
+  config.yaml: |
+    database:
+      file:
+        folder: /perses
+        extension: yaml
+
+    provisioning:
+      folders:
+        - /etc/perses/provisioning
+
+    security:
+      # Authentication is handled by the oauth-proxy sidecar (OCP OAuth).
+      # All requests reaching Perses have already been authenticated.
+      enable_auth: false
+
+---
+# Provisioning: Perses loads all files in this folder at startup into its
+# file database, creating/updating resources as needed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perses-provisioning
+  namespace: perses-dev
+data:
+  # GlobalSecret — SA bearer token + TLS CA used by all three datasources.
+  # credentialsFile is read live at each proxy request; OCP rotates projected
+  # SA tokens automatically so the token is always fresh.
+  00-secret.yaml: |
+    kind: GlobalSecret
+    metadata:
+      name: ocp-sa-bearer
+    spec:
+      authorization:
+        type: Bearer
+        credentialsFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        caFile: /etc/perses/service-ca/service-ca.crt
+
+  # COO Prometheus — direct Prometheus in observability-demo
+  # Service: observability-stack-prometheus.observability-demo.svc:9090 (plain HTTP, no auth)
+  01-datasource-prometheus.yaml: |
+    kind: GlobalDatasource
+    metadata:
+      name: coo-prometheus
+    spec:
+      default: true
+      display:
+        name: "COO Prometheus"
+        description: "COO MonitoringStack Prometheus"
+      plugin:
+        kind: PrometheusDatasource
+        spec:
+          proxy:
+            kind: HTTPProxy
+            spec:
+              url: http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090
+
+  # Tempo — query-frontend HTTP API in openshift-tempo-operator
+  # Service: tempo-tempo-query-frontend.openshift-tempo-operator.svc:3200 (service-ca TLS)
+  02-datasource-tempo.yaml: |
+    kind: GlobalDatasource
+    metadata:
+      name: tempo
+    spec:
+      default: true
+      display:
+        name: "Tempo"
+        description: "TempoStack distributed tracing backend"
+      plugin:
+        kind: TempoDatasource
+        spec:
+          proxy:
+            kind: HTTPProxy
+            spec:
+              url: https://tempo-tempo-query-frontend.openshift-tempo-operator.svc.cluster.local:3200
+              secret: ocp-sa-bearer
+              allowedEndpoints:
+                - endpointPattern: /api/echo
+                  method: GET
+                - endpointPattern: /api/search
+                  method: GET
+                - endpointPattern: /api/search/tags
+                  method: GET
+                - endpointPattern: /api/search/tag/.+/values
+                  method: GET
+                - endpointPattern: /api/traces/.+
+                  method: GET
+                - endpointPattern: /api/v2/search/tags
+                  method: GET
+                - endpointPattern: /api/v2/search/tag/.+/values
+                  method: GET
+
+  # Loki — LokiStack gateway, application tenant (openshift-logging)
+  # Service: logging-loki-gateway-http.openshift-logging.svc:8080 (service-ca TLS)
+  # URL includes the OCP tenant path prefix; Perses appends standard Loki API paths:
+  #   https://<gateway>:8080/api/logs/v1/application  +  /loki/api/v1/query_range
+  03-datasource-loki.yaml: |
+    kind: GlobalDatasource
+    metadata:
+      name: loki
+    spec:
+      default: true
+      display:
+        name: "Loki"
+        description: "LokiStack application logs (openshift-logging)"
+      plugin:
+        kind: LokiDatasource
+        spec:
+          proxy:
+            kind: HTTPProxy
+            spec:
+              url: https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application
+              secret: ocp-sa-bearer
+              allowedEndpoints:
+                - endpointPattern: /loki/api/v1/query
+                  method: POST
+                - endpointPattern: /loki/api/v1/query
+                  method: GET
+                - endpointPattern: /loki/api/v1/query_range
+                  method: POST
+                - endpointPattern: /loki/api/v1/query_range
+                  method: GET
+                - endpointPattern: /loki/api/v1/labels
+                  method: GET
+                - endpointPattern: /loki/api/v1/label/([a-zA-Z0-9_-]+)/values
+                  method: GET
+                - endpointPattern: /loki/api/v1/series
+                  method: POST
+                - endpointPattern: /loki/api/v1/series
+                  method: GET
+                - endpointPattern: /loki/api/v1/tail
+                  method: GET
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: perses-data
+  namespace: perses-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Service exposes both Perses (8080, internal) and oauth-proxy (8443, public).
+# The serving-cert annotation causes OCP to inject a service-serving TLS cert
+# into the Secret "perses-tls" — used by the oauth-proxy sidecar.
+apiVersion: v1
+kind: Service
+metadata:
+  name: perses-dev
+  namespace: perses-dev
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: perses-tls
+spec:
+  selector:
+    app.kubernetes.io/name: perses-dev
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: oauth-proxy
+      port: 8443
+      targetPort: 8443
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: perses-dev
+  namespace: perses-dev
+spec:
+  to:
+    kind: Service
+    name: perses-dev
+  port:
+    targetPort: oauth-proxy
+  tls:
+    # reencrypt: OCP terminates TLS at the edge then re-encrypts to the oauth-proxy.
+    # The oauth-proxy uses a service-serving cert (signed by OCP's service CA)
+    # so OCP trusts it without needing an explicit destinationCACertificate.
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: perses-dev
+  namespace: perses-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: perses-dev
+  serviceName: perses-dev
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: perses-dev
+    spec:
+      serviceAccountName: perses-sa
+      containers:
+        - name: perses
+          image: docker.io/persesdev/perses:v0.53.0
+          args:
+            - --config=/etc/perses/config/config.yaml
+            - --log.level=info
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/perses/config
+              readOnly: true
+            - name: provisioning
+              mountPath: /etc/perses/provisioning
+              readOnly: true
+            - name: service-ca
+              mountPath: /etc/perses/service-ca
+              readOnly: true
+            - name: data
+              mountPath: /perses
+            - name: plugins
+              mountPath: /etc/perses/plugins
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        # oauth-proxy sidecar — handles OCP OAuth SSO for browser users.
+        # Flow: browser → Route (edge TLS) → oauth-proxy (OCP OAuth dance) → Perses (localhost:8080)
+        # oauth-proxy injects "Authorization: Bearer <ocp-token>" into every upstream request.
+        # Perses validates the token via TokenReview, then authorises via SubjectAccessReview.
+        - name: oauth-proxy
+          image: quay.io/openshift/origin-oauth-proxy:4.16
+          args:
+            - --https-address=:8443
+            - --http-address=
+            - --provider=openshift
+            - --openshift-service-account=perses-sa
+            - --upstream=http://localhost:8080
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/oauth/cookie-secret
+            - --pass-user-bearer-token=true
+            - --scope=user:info
+            - --cookie-expire=8h
+          ports:
+            - containerPort: 8443
+              name: oauth-proxy
+          volumeMounts:
+            - name: perses-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: perses-oauth-cookie
+              mountPath: /etc/oauth
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: perses-config
+        - name: provisioning
+          configMap:
+            name: perses-provisioning
+        - name: service-ca
+          configMap:
+            name: perses-service-ca
+        - name: data
+          persistentVolumeClaim:
+            claimName: perses-data
+        - name: plugins
+          emptyDir: {}
+        - name: perses-tls
+          secret:
+            secretName: perses-tls
+        - name: perses-oauth-cookie
+          secret:
+            secretName: perses-oauth-proxy-cookie
+            items:
+              - key: cookie-secret
+                path: cookie-secret
