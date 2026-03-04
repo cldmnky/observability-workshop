@@ -215,17 +215,17 @@
     '  position: absolute; top: 8px; right: 8px;',
     '  display: inline-flex; align-items: center;',
     '  padding: 3px 10px; font-size: 11px; font-family: inherit; font-weight: 500;',
-    '  color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.07);',
-    '  border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;',
+    '  color: #444; background: #fff;',
+    '  border: 1px solid #bbb; border-radius: 6px;',
     '  cursor: pointer; opacity: 0; line-height: 1.6; user-select: none;',
     '  letter-spacing: 0.01em;',
     '  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;',
     '  z-index: 10;',
     '}',
     '.listingblock .content:hover .copy-btn { opacity: 1; }',
-    '.copy-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.9); }',
+    '.copy-btn:hover { background: #e8e8e8; border-color: #888; color: #111; }',
     '.copy-btn:active { transform: scale(0.97); }',
-    '.copy-btn.copied { color: #4ade80; border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.08); opacity: 1; }'
+    '.copy-btn.copied { color: #16a34a; border-color: #86efac; background: #f0fdf4; opacity: 1; }'
   ].join('\n');
   document.head.appendChild(style);
 
