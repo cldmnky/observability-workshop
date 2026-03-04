@@ -903,16 +903,17 @@ Wait 2-3 minutes without generating any traffic. The alert should transition fro
 +
 [source,bash]
 ----
-for i in $(seq 1 200); do
-  r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ")
-  case $(( r % 10 )) in
-    7|8) ep="/err" ;;
-    9)   ep="/internal-err" ;;
-    *)   ep="/" ;;
-  esac
-  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080$ep > /dev/null
-  sleep $(awk 'BEGIN{srand(); printf "%.2f\n", rand() * 0.9 + 0.1}')
-done
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c \
+  'for i in $(seq 1 200); do
+     r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ");
+     case $(( r % 10 )) in
+       7|8) ep="/err" ;;
+       9)   ep="/internal-err" ;;
+       *)   ep="/" ;;
+     esac;
+     curl -s localhost:8080$ep > /dev/null;
+     sleep $(awk "BEGIN{srand(); printf \"%.2f\\n\", rand() * 0.9 + 0.1}");
+   done'
 ----
 +
 After a few minutes, the alert should transition back to **Inactive**.
