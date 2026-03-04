@@ -61,7 +61,7 @@ The LokiStack instance and logging operator were pre-configured, so you'll confi
 
 === Steps
 
-. Log into the OpenShift console at {openshift_console_url} (if not already logged in)
+. Log into the OpenShift console at {openshift_console_url}[OpenShift Console^] (if not already logged in)
 
 . Verify the logging operator is running:
 +

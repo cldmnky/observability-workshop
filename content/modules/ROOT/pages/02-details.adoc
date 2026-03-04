@@ -98,7 +98,7 @@ oc get pods -n openshift-tempo-operator
 → **Solution**: Verify you're using the correct namespace. Check with `oc project` and switch if needed using `oc project <namespace-name>`.
 
 **Problem**: "Unable to connect to OpenShift console"
-→ **Solution**: Verify you're using the correct console URL from the lab interface: {openshift_console_url}
+→ **Solution**: Verify you're using the correct console URL from the lab interface: {openshift_console_url}[OpenShift Console^]
 
 **Problem**: "Prometheus metrics not appearing"
 → **Solution**: Check ServiceMonitor configuration and verify pods are running: `oc get servicemonitor`
@@ -109,7 +109,7 @@ oc get pods -n openshift-tempo-operator
 === During workshop support
 
 * Use the lab terminal for all command line operations
-* Console access is available via {openshift_console_url}
+* Console access is available via {openshift_console_url}[OpenShift Console^]
 * All credentials are provided in the lab interface
 * Sample applications are pre-deployed for testing
 
