@@ -33,3 +33,42 @@ video {
     width: 100%;
     background-color: #131313;
 }
+
+/* Copy button for code blocks */
+.listingblock .content {
+    position: relative;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #ccc;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+    z-index: 10;
+    line-height: 1.4;
+    user-select: none;
+}
+
+.listingblock .content:hover .copy-btn {
+    opacity: 1;
+}
+
+.copy-btn:hover {
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+}
+
+.copy-btn.copied {
+    color: #3ddc84;
+    border-color: #3ddc84;
+    opacity: 1;
+}

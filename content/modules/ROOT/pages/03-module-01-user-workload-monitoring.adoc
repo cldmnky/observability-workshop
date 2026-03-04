@@ -372,21 +372,23 @@ Enter this PromQL query:
 +
 [source,promql]
 ----
-http_requests_total{namespace="{user}-observability-demo"}
+http_requests_total{}
 ----
 +
 Click **Run Queries**
 +
 You should see results showing the counter values for each pod.
 
-. Query the rate of requests over time:
+. Query the rate of requests over time, you can add a new query:
 +
 [source,promql]
 ----
-rate(http_requests_total{namespace="{user}-observability-demo"}[5m])
+rate(http_requests_total{}[5m])
 ----
 +
 This shows requests per second averaged over 5 minutes.
+
+image::user-workload-queries.png[PromQL queries for application metrics]
 
 === Verify
 
