@@ -84,7 +84,7 @@ The observability stack was pre-configured via GitOps, so Prometheus and Alertma
 
 === Steps
 
-. Log into the OpenShift console at {openshift_console_url}
+. Log into the OpenShift console at {openshift_cluster_console_url}[OpenShift Console^]
 +
 Use the credentials provided in your lab interface:
 +
@@ -357,10 +357,20 @@ sample-app-monitor   10s
 +
 [source,bash]
 ----
-oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c 'for i in {1..50}; do curl -s localhost:8080 > /dev/null; done'
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c \
+  'for i in $(seq 1 60); do
+     r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ");
+     case $(( r % 10 )) in
+       7|8) ep="/err" ;;
+       9)   ep="/internal-err" ;;
+       *)   ep="/" ;;
+     esac;
+     curl -s localhost:8080$ep > /dev/null;
+     sleep $(awk "BEGIN{srand(); printf \"%.2f\\n\", rand() * 0.4}");
+   done'
 ----
 +
-This sends 50 HTTP requests to the application using the debug sidecar, which will increment the `http_requests_total` metric.
+This sends 60 HTTP requests using the debug sidecar: ~70% to `/` (200 OK), ~20% to `/err` (404), and ~10% to `/internal-err` (500). The mix populates `http_requests_total` with multiple `code` label values, producing visible error rates alongside the success rate in Prometheus.
 
 . Wait 1-2 minutes for Prometheus to scrape the metrics, then query them:
 +
@@ -611,12 +621,15 @@ spec:
       spec:
         display:
           name: HTTP Request Rate
-          description: Requests per second by pod
+          description: HTTP request metrics for sample-app
         plugin:
           kind: TimeSeriesChart
           spec:
-            legend:
-              position: bottom
+            yAxis:
+              show: true
+              label: ""
+              format:
+                unit: requests/sec
         queries:
           - kind: TimeSeriesQuery
             spec:
@@ -626,18 +639,21 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
-                  query: sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m])) by (pod)
-    totalRequests:
+                  query: sum(rate(http_requests_total{namespace="user4-observability-demo"}[5m]))
+                    by (pod)
+    httpErrorRate:
       kind: Panel
       spec:
         display:
-          name: Total HTTP Requests
-          description: Cumulative request count by pod
+          name: Error Rate %
         plugin:
           kind: TimeSeriesChart
           spec:
-            legend:
-              position: bottom
+            yAxis:
+              show: true
+              label: ""
+              format:
+                unit: percent-decimal
         queries:
           - kind: TimeSeriesQuery
             spec:
@@ -647,27 +663,88 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
-                  query: sum(http_requests_total{namespace="{user}-observability-demo"}) by (pod)
+                  query: sum(rate(http_requests_total{namespace="user4-observability-demo",
+                    code=~"[45].."}[5m])) by (pod)
+    httpDuration:
+      kind: Panel
+      spec:
+        display:
+          name: Duration
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+              mode: table
+            yAxis:
+              show: true
+              label: ""
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: {user}-prometheus
+                  query: sum(rate(http_request_duration_seconds_sum{namespace="user4-observability-demo"}[5m]))
+                    by (pod) /
+                    sum(rate(http_request_duration_seconds_count{namespace="user4-observability-demo"}[5m]))
+                    by (pod)
+                  seriesNameFormat: Avg Latenct
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: {user}-prometheus
+                  query: histogram_quantile(0.95,
+                    sum(rate(http_request_duration_seconds_bucket{namespace="user4-observability-demo"}[5m]))
+                    by (pod, le))
+                  seriesNameFormat: P95 Latency
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: {user}-prometheus
+                  query: histogram_quantile(0.99,
+                    sum(rate(http_request_duration_seconds_bucket{namespace="user4-observability-demo"}[5m]))
+                    by (pod, le))
+                  seriesNameFormat: P99 Latency
   layouts:
     - kind: Grid
       spec:
         display:
-          title: Request Metrics
+          title: RED Metrics
           collapse:
             open: true
         items:
           - x: 0
-            y: 0
+            "y": 0
             width: 12
             height: 6
             content:
-              \$ref: '#/spec/panels/httpRequestRate'
+              \$ref: "#/spec/panels/httpRequestRate"
+          - x: 12
+            "y": 0
+            width: 12
+            height: 6
+            content:
+              \$ref: "#/spec/panels/httpErrorRate"
           - x: 0
-            y: 6
-            width: 12
-            height: 6
+            "y": 6
+            width: 24
+            height: 11
             content:
-              \$ref: '#/spec/panels/totalRequests'
+              \$ref: "#/spec/panels/httpDuration"
 EOF
 ----
 +
@@ -678,8 +755,20 @@ This creates a Perses dashboard with 2 panels that reference the shared datasour
 +
 [source,bash]
 ----
-oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c 'for i in {1..100}; do curl -s localhost:8080 > /dev/null; sleep 0.1; done'
+oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c \
+  'for i in $(seq 1 100); do
+     r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ");
+     case $(( r % 10 )) in
+       7|8) ep="/err" ;;
+       9)   ep="/internal-err" ;;
+       *)   ep="/" ;;
+     esac;
+     curl -s localhost:8080$ep > /dev/null;
+     sleep $(awk "BEGIN{srand(); printf \"%.2f\\n\", rand() * 1.4 + 0.1}");
+   done'
 ----
++
+The mix of ~70% 200, ~20% 404, and ~10% 500 responses with random delays produces realistic traffic patterns — you will see separate time series per `code` label in both dashboard panels.
 
 . Access your custom dashboard in the OpenShift console:
 +
@@ -814,9 +903,15 @@ Wait 2-3 minutes without generating any traffic. The alert should transition fro
 +
 [source,bash]
 ----
-for i in {1..200}; do
-  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080 > /dev/null
-  sleep 0.5
+for i in $(seq 1 200); do
+  r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ")
+  case $(( r % 10 )) in
+    7|8) ep="/err" ;;
+    9)   ep="/internal-err" ;;
+    *)   ep="/" ;;
+  esac
+  oc exec -n {user}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080$ep > /dev/null
+  sleep $(awk 'BEGIN{srand(); printf "%.2f\n", rand() * 0.9 + 0.1}')
 done
 ----
 +
