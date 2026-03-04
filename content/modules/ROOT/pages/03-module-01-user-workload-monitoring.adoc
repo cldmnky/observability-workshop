@@ -482,6 +482,10 @@ oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.
 +
 ServiceMonitors **must have this label** to be discovered by the COO stack.
 
+You can also see the COO stack in the console: click on **Topology** in the left navigation and select the `observability-demo` namespace. You should see the `observability-stack` operator-backed service managed by `cluster-observability-operator`, consisting of Prometheus (3 pods), Thanos Querier (1 pod), and Alertmanager (2 pods). You may also notice the `opentelemetry` application containing the `central-collector` deployment — this is the OpenTelemetry Collector configured in a later module.
+
+image::observability-stack.png[Monitoring topology showing COO stack in observability-demo namespace]
+
 . Create a **new** ServiceMonitor with the COO label, for the COO we need to use the monitoring.rhobs/v1 API group instead of the monitoring.coreos.com group used by CMO. This is because COO uses a different Prometheus operator under the hood that watches for ServiceMonitors with the `monitoring.rhobs/stack: observability-stack` label.
 +
 [source,bash]
@@ -669,6 +673,7 @@ EOF
 +
 This creates a Perses dashboard with 2 panels that reference the shared datasource: request rate and total requests.
 
+
 . Generate traffic to populate the dashboard:
 +
 [source,bash]
@@ -678,13 +683,32 @@ oc exec -n {user}-observability-demo deployment/sample-app -c debug -- sh -c 'fo
 
 . Access your custom dashboard in the OpenShift console:
 +
-* Navigate to **Observe** → **Dashboards**
+* Navigate to **Observe** → **Dashboards (Perses)** in the left navigation
 * In the dashboard dropdown, select **Sample Application Metrics**
-* You should see 2 panels showing request rate and total requests
+* You should see a **Request Metrics** section with 2 panels: **HTTP Request Rate** and **Total HTTP Requests**, each showing a time-series graph for your `sample-app` pod
++
+image::perses-dashboards.png[Perses dashboard showing HTTP Request Rate and Total HTTP Requests panels for the sample application in the OpenShift console]
 
 . Verify the dashboard is using COO metrics:
 +
 The dashboard queries the COO Prometheus service in the `observability-demo` namespace through the Perses datasource (not user workload monitoring).
+
+. Explore and build dashboards with the standalone Perses UI:
++
+A standalone Perses instance is available in the workshop environment for interactive dashboard creation. This is a great way to build and prototype dashboards visually before exporting them as YAML to apply to the cluster.
++
+Navigate to the Perses UI at {perses_url}[{perses_url}^]
++
+From the Perses UI you can:
++
+* Browse existing dashboards and datasources
+* Create new dashboards using the visual editor
+* Build and test PromQL queries interactively against the COO Prometheus
+* Export any dashboard as ready-to-apply Kubernetes YAML via **Dashboard** → **Export** → **Download as YAML**
++
+The exported YAML can be applied directly with `oc apply -f`, just remember to add the `monitoring.rhobs/stack: observability-stack` label so COO picks it up.
++
+NOTE: The Perses standalone UI is a shared environment — use your `{user}` prefix when naming dashboards to avoid conflicts with other workshop users.
 
 === Verify
 
