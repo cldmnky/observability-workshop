@@ -109,6 +109,12 @@ thanos-ruler-user-workload-0           3/3     Running   0          1h
 thanos-ruler-user-workload-1           3/3     Running   0          1h
 ----
 
+You can also see the workload monitoring stack in the console:
+. In the OpenShift console, navigate to the project **openshift-user-workload-monitoring** → **Workloads** and verify user workload monitoring is enabled:
++
+image::user-workload-monitoring-console.png[User workload monitoring in OpenShift console]
++
+
 . Access the OpenShift console monitoring interface:
 +
 * Navigate to **Observe** → **Metrics** in the left navigation
@@ -126,6 +132,8 @@ up{namespace="openshift-user-workload-monitoring"}
 Click **Run Queries**
 +
 This shows all targets being scraped in the user workload monitoring namespace. Each target should show `value: 1` (up and healthy).
+
+image::user-workload-metrics.png[User workload monitoring targets in Prometheus]
 
 === Verify
 
