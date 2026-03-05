@@ -90,14 +90,14 @@ logging-loki-query-frontend-xxxxx              1/1     Running   0          1h
 +
 [source,bash]
 ----
-oc get lokistack -n openshift-logging
+oc get lokistack -n openshift-logging logging-loki -o custom-columns=Name:metadata.name,Size:.spec.size
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME           AGE   SIZE             MODE      STATUS
-logging-loki   1h    1x.extra-small   static    Ready
+Name           Size
+logging-loki   1x.extra-small
 ----
 +
 The status should be **Ready**.
@@ -106,21 +106,21 @@ The status should be **Ready**.
 +
 [source,bash]
 ----
-oc get clusterlogforwarder -n openshift-logging
+oc get clusterlogforwarder -n openshift-logging instance -o custom-columns=Name:metadata.name,Outputs:.spec.outputs[0].name
 ----
 +
 .Expected output
 [source,text]
 ----
-NAME       AGE
-instance   1h
+Name       Outputs
+instance   lokistack
 ----
 
 . View the ClusterLogForwarder configuration:
 +
 [source,bash]
 ----
-oc get clusterlogforwarder instance -n openshift-logging -o yaml
+oc get clusterlogforwarder -n openshift-logging instance -o json| jq .spec
 ----
 +
 Look for pipelines that forward application and infrastructure logs to the default output (LokiStack).
@@ -205,6 +205,12 @@ oc wait --for=condition=Succeeded -n {user}-observability-demo buildrun/frontend
 oc wait --for=condition=Succeeded -n {user}-observability-demo buildrun/backend-buildrun --timeout=20m
 oc wait --for=condition=Succeeded -n {user}-observability-demo buildrun/database-buildrun --timeout=20m
 ----
++
+[NOTE]
+====
+This will build container images for the frontend, backend, and database services using Shipwright. It may take several minutes to complete. If the deployment fails with an image pull error, try a `oc rollout restart` on the affected deployment after the build completes.
+====
++
 
 . Verify the three deployments are running:
 +
@@ -226,8 +232,10 @@ echo "https://${FRONTEND_HOST}"
 
 . Open the frontend URL in your browser, create at least two workshop notes, and click **Export Markdown**.
 +
+image::demo-app.png[Demo application UI] 
++
 The exported file (`workshop-notes.md`) confirms notes are persisted and downloadable from the frontend.
-
++
 . Generate traffic with mixed success and failure responses:
 +
 [source,bash]
@@ -258,6 +266,10 @@ oc logs -n {user}-observability-demo deployment/database --tail=20
 2026/02/11 10:23:14 service=database method=POST path=/notes status=201 duration_ms=1
 2026/02/11 10:23:16 service=database method=POST path=/events status=201 duration_ms=1
 ----
++
+Open the console and navigate to Workloads → Pods -> Aggregated Logs to see logs from all pods in the namespace.
++
+image::aggregated-logs-pod.png[Aggregated logs view in OpenShift Console]
 
 === Verify
 
