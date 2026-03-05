@@ -252,7 +252,7 @@ This generates a mix of 200 (success) and 404 (error) responses, creating varied
 ----
 oc logs -n {user}-observability-demo deployment/frontend --tail=20
 oc logs -n {user}-observability-demo deployment/backend --tail=20
-oc logs -n {user}-observability-demo deployment/database --tail=20
+oc logs -n {user}-observability-demo statefulset/database --tail=20
 ----
 +
 .Sample output

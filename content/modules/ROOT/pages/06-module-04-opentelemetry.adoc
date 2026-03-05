@@ -433,17 +433,22 @@ Now you'll activate the OpenTelemetry SDK in all three services. This adds the s
 NAMESPACE="{user}-observability-demo"
 ----
 
-. Add the OTEL environment variables to all three deployments:
+. Add the OTEL environment variables to all three services:
 +
 [source,bash]
 ----
-for app in frontend backend database; do
+for app in frontend backend; do
   oc set env deployment/${app} -n ${NAMESPACE} \
     OTEL_ENABLED=true \
     OTEL_SERVICE_NAME=${app} \
     OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
     OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 done
+oc set env statefulset/database -n ${NAMESPACE} \
+  OTEL_ENABLED=true \
+  OTEL_SERVICE_NAME=database \
+  OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
+  OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ----
 +
 .Expected output
@@ -451,18 +456,21 @@ done
 ----
 deployment.apps/frontend updated
 deployment.apps/backend updated
-deployment.apps/database updated
+statefulset.apps/database updated
 ----
 
 . Add the sidecar injection annotation to each pod template:
 +
 [source,bash]
 ----
-for app in frontend backend database; do
+for app in frontend backend; do
   oc patch deployment/${app} -n ${NAMESPACE} \
     --type=strategic \
     -p='{"spec":{"template":{"metadata":{"annotations":{"sidecar.opentelemetry.io/inject":"sidecar"}}}}}'
 done
+oc patch statefulset/database -n ${NAMESPACE} \
+  --type=strategic \
+  -p='{"spec":{"template":{"metadata":{"annotations":{"sidecar.opentelemetry.io/inject":"sidecar"}}}}}'
 ----
 +
 The annotation value `sidecar` must match the name of the `OpenTelemetryCollector` CR you created in Exercise 2. When the operator sees this annotation on a pod being created, it injects the collector container spec from that CR.
@@ -472,18 +480,21 @@ The annotation value `sidecar` must match the name of the `OpenTelemetryCollecto
 ----
 deployment.apps/frontend patched
 deployment.apps/backend patched
-deployment.apps/database patched
+statefulset.apps/database patched
 ----
 
-. Set the ServiceAccount on all three deployments so the injected sidecar can call the Kubernetes API:
+. Set the ServiceAccount on all three services so the injected sidecar can call the Kubernetes API:
 +
 [source,bash]
 ----
-for app in frontend backend database; do
+for app in frontend backend; do
   oc set serviceaccount deployment/${app} \
     otel-collector-sidecar \
     -n ${NAMESPACE}
 done
+oc set serviceaccount statefulset/database \
+  otel-collector-sidecar \
+  -n ${NAMESPACE}
 ----
 +
 .Expected output
@@ -491,14 +502,21 @@ done
 ----
 deployment.apps/frontend serviceaccount updated
 deployment.apps/backend serviceaccount updated
-deployment.apps/database serviceaccount updated
+statefulset.apps/database serviceaccount updated
 ----
 
 . Monitor the rolling restart:
 +
+[NOTE]
+====
+`database` is a StatefulSet with a `ReadWriteOnce` PVC. Its default `RollingUpdate` strategy terminates the existing pod before starting the replacement, so the volume is cleanly released. Expect a few seconds of database unavailability during this step.
+====
++
 [source,bash]
 ----
-oc rollout status deployment/frontend deployment/backend deployment/database \
+oc rollout status deployment/frontend deployment/backend \
+  -n ${NAMESPACE}
+oc rollout status statefulset/database \
   -n ${NAMESPACE}
 ----
 +
@@ -507,7 +525,9 @@ oc rollout status deployment/frontend deployment/backend deployment/database \
 ----
 deployment "frontend" successfully rolled out
 deployment "backend" successfully rolled out
-deployment "database" successfully rolled out
+statefulset rolling to 1 pods at revision database-xxxxx
+waiting for statefulset rolling update to complete 0 pods at revision database-xxxxx...
+statefulset rolling update complete 1 pods at revision database-xxxxx...
 ----
 
 . Verify sidecar injection occurred:
@@ -524,7 +544,7 @@ oc get pods -n ${NAMESPACE} \
 NAME                        CONTAINERS
 frontend-xxxxx              frontend, otc-container
 backend-xxxxx               backend, otc-container
-database-xxxxx              database, otc-container
+database-0                  database, otc-container
 ----
 +
 The `otc-container` is the injected OpenTelemetry Collector sidecar. Each pod now has two containers: the application and its dedicated collector.

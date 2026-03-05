@@ -92,7 +92,7 @@ spec:
               value: "http/protobuf"
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: database
   namespace: __NAMESPACE__

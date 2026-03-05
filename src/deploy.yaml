@@ -1,15 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: database-data
-  namespace: __NAMESPACE__
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: shipwright.io/v1beta1
 kind: Build
 metadata:
@@ -239,13 +227,14 @@ spec:
             periodSeconds: 20
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: database
   namespace: __NAMESPACE__
   labels:
     app: database
 spec:
+  serviceName: database
   replicas: 1
   selector:
     matchLabels:
@@ -291,10 +280,15 @@ spec:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20
-      volumes:
-        - name: database-storage
-          persistentVolumeClaim:
-            claimName: database-data
+  volumeClaimTemplates:
+    - metadata:
+        name: database-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
 ---
 apiVersion: v1
 kind: Service

@@ -395,13 +395,6 @@ Key points in this package:
 +
 TIP: Open the *Source Code* tab in the workshop application and select `backend/main.go` to browse the file directly.
 +
-Or run the grep from the workshop terminal to scan for instrumentation lines:
-+
-[source,bash]
-----
-grep -n "otelhttp\|otelslog\|telemetry\." src/backend/main.go | head -20
-----
-+
 You will see three instrumentation layers activated when `OTEL_ENABLED=true`:
 +
 [options="header",cols="30,70"]
@@ -442,11 +435,6 @@ TIP: Open the *Source Code* tab in the workshop application and select `enable-o
 +
 Or view it in the terminal:
 +
-[source,bash]
-----
-cat src/enable-otel.yaml
-----
-+
 This file contains three `Deployment` patches—one per service. When applied, each patch:
 +
 * Sets `OTEL_ENABLED=true` to activate the SDK
@@ -459,7 +447,10 @@ This file contains three `Deployment` patches—one per service. When applied, e
 +
 [source,bash]
 ----
-oc get deployment frontend backend database \
+oc get deployment frontend backend \
+  -n {user}-observability-demo \
+  -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
+oc get statefulset database \
   -n {user}-observability-demo \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
 ----
@@ -470,10 +461,11 @@ oc get deployment frontend backend database \
 NAME       CONTAINERS
 frontend   frontend
 backend    backend
+NAME       CONTAINERS
 database   database
 ----
 +
-Each deployment currently has a single application container. After applying `enable-otel.yaml` in Module 4, each pod will gain a second container—the injected sidecar collector.
+Each service currently has a single application container. After applying `enable-otel.yaml` in Module 4, each pod will gain a second container—the injected sidecar collector.
 
 === Verify
 
