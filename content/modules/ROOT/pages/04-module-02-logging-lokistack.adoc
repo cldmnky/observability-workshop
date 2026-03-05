@@ -287,7 +287,7 @@ Check that logs are being generated:
 
 == Exercise 3: Query logs with LogQL
 
-Now you'll access the Loki web interface and write LogQL queries to search logs across all your applications.
+Now you'll access the console's Observe/Logs web interface and write LogQL queries to search logs across all your applications.
 
 **LogQL** is Loki's query language, similar to PromQL but for logs instead of metrics.
 
@@ -296,6 +296,15 @@ Now you'll access the Loki web interface and write LogQL queries to search logs 
 . Access the OpenShift console and navigate to **Observe** → **Logs**
 +
 This opens the log query interface powered by Loki.
+
+[NOTE]
+====
+The Logs interface will display a warning saying "Forbidden: Missing permissions to get logs". This is expected and can be ignored, as the query interface will still work for Loki queries.
+====
+
+Click on the "show query" button to open the LogQL query editor
+
+image::observe-logs-query.png[LogQL query editor in OpenShift Console]
 
 . Write your first LogQL query to see all logs from your namespace:
 +
@@ -307,7 +316,9 @@ This opens the log query interface powered by Loki.
 Click **Run query**
 +
 You should see log entries from all pods in the {user}-observability-demo namespace.
-
++
+image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
++
 . Filter logs to show only error responses (404):
 +
 [source,logql]
@@ -480,6 +491,15 @@ Compare the timestamp of log entries with the metric spike time.
 ----
 +
 This extracts timestamp, HTTP method, and status code from log lines.
+
+[NOTE]
+====
+OpenShift also provides out-of-the-box correlation between metrics and logs in the console.
+====
+
+Navigate to Workloads → Deployments → In the top right, click the "dotted kube" icon → "Signal Correlation"
+
+image::korrel8.png[Signal correlation view in OpenShift Console]
 
 === Verify
 
