@@ -54,13 +54,15 @@ def get_user_info(username):
     user_info = user_data_cache.get(username, {})
     
     # Build response with defaults
+    ingress_domain = user_info.get('openshift_cluster_ingress_domain', DEFAULT_INGRESS_DOMAIN)
     return {
         'user': username,
         'console_url': user_info.get('console_url', user_info.get('openshift_console_url', DEFAULT_CONSOLE_URL)),
         'password': user_info.get('password', ''),
         'login_command': user_info.get('login_command', f'oc login --insecure-skip-tls-verify=false -u {username} -p <password> {DEFAULT_API_URL}'),
-        'openshift_cluster_ingress_domain': user_info.get('openshift_cluster_ingress_domain', DEFAULT_INGRESS_DOMAIN),
-        'api_url': user_info.get('api_url', DEFAULT_API_URL)
+        'openshift_cluster_ingress_domain': ingress_domain,
+        'api_url': user_info.get('api_url', DEFAULT_API_URL),
+        'perses_url': user_info.get('perses_url', f'https://perses-dev-perses-dev.{ingress_domain}')
     }
 
 @app.route('/healthz')

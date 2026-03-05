@@ -66,6 +66,14 @@ spec:
               name: oauth-tls
         {{- end }}
         {{- if and .Values.multiUser.enabled .Values.multiUser.userInfoAPI.enabled }}
+        {{- /* Resolve cluster ingress domain: explicit value > OpenShift API lookup */}}
+        {{- $clusterDomain := .Values.multiUser.clusterDomain }}
+        {{- if not $clusterDomain }}
+          {{- $clusterIngress := (lookup "config.openshift.io/v1" "Ingress" "" "cluster") }}
+          {{- if $clusterIngress }}
+            {{- $clusterDomain = $clusterIngress.spec.domain }}
+          {{- end }}
+        {{- end }}
         # User Info API sidecar
         - name: user-info-api
           image: {{ .Values.multiUser.userInfoAPI.image }}
@@ -79,6 +87,14 @@ spec:
               value: /etc/user-data/users.yaml
             - name: PORT
               value: "{{ .Values.multiUser.userInfoAPI.port }}"
+            {{- if $clusterDomain }}
+            - name: DEFAULT_INGRESS_DOMAIN
+              value: {{ $clusterDomain | quote }}
+            - name: DEFAULT_CONSOLE_URL
+              value: {{ printf "https://console-openshift-console.%s" $clusterDomain | quote }}
+            - name: DEFAULT_API_URL
+              value: {{ printf "https://api.%s:6443" ($clusterDomain | replace "apps." "") | quote }}
+            {{- end }}
           {{- if .Values.multiUser.userInfoAPI.resources }}
           resources:
             {{- toYaml .Values.multiUser.userInfoAPI.resources | nindent 12 }}

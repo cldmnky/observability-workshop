@@ -84,7 +84,7 @@ The observability stack was pre-configured via GitOps, so Prometheus and Alertma
 
 === Steps
 
-. Log into the OpenShift console at {openshift_cluster_console_url}[OpenShift Console^]
+. Log into the OpenShift console at link:{openshift_cluster_console_url}[OpenShift Console^]
 +
 Use the credentials provided in your lab interface:
 +
@@ -786,7 +786,7 @@ The dashboard queries the COO Prometheus service in the `observability-demo` nam
 +
 A standalone Perses instance is available in the workshop environment for interactive dashboard creation. This is a great way to build and prototype dashboards visually before exporting them as YAML to apply to the cluster.
 +
-Navigate to the Perses UI at {perses_url}[{perses_url}^]
+Navigate to the Perses UI at link:{perses_url}[{perses_url}^]
 +
 From the Perses UI you can:
 +

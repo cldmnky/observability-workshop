@@ -57,6 +57,10 @@ multiUser:
   enabled: true
   # User data Secret (managed outside this chart by `make deploy`)
   userDataSecret: workshop-users-secret
+  # Cluster-wide defaults used by user-info-api when a value is absent from users.yaml.
+  # Set clusterDomain to the apps ingress domain (e.g. apps.cluster-xyz.example.com).
+  # The API derives perses_url automatically from clusterDomain when not explicitly set per user.
+  clusterDomain: ""
   # User Info API sidecar configuration
   userInfoAPI:
     enabled: true

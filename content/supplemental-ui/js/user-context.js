@@ -9,10 +9,13 @@
     '{user}': 'user',
     '{openshift_console_url}': 'console_url',
     '{openshift_cluster_console_url}': 'console_url',
+    '%openshift_cluster_console_url%': 'console_url',
     '{password}': 'password',
     '{login_command}': 'login_command',
     '{openshift_cluster_ingress_domain}': 'openshift_cluster_ingress_domain',
-    '{openshift_api_url}': 'api_url'
+    '{openshift_api_url}': 'api_url',
+    '%perses_url%': 'perses_url',
+    '{perses_url}': 'perses_url'
   };
 
   // Namespace literals used in workshop exercises that must be user-specific
