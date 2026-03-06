@@ -168,7 +168,7 @@ metadata:
 type: Opaque
 data:
   # base64("perses-oauth2016") — 16 bytes; change in production
-  cookie-secret: cGVyc2VzLW9hdXRoMjAxNg==
+  cookie-secret: cGVyc2VzLW9hdXRoMjAxNg== # not secret
 
 ---
 # Perses v0.53.0 upstream config schema.
