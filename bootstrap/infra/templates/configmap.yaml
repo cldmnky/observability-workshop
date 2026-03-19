@@ -6,6 +6,7 @@ metadata:
   name: {{ .Values.userInfo.name }}
   namespace: {{ .Values.userInfo.namespace }}
   labels:
+    demo.redhat.com/application: {{ .Values.applicationSet.labels.rhdpApplication | quote }}
     demo.redhat.com/userinfo: ""
 data:
   demo_title: {{ .Values.userInfo.title | quote }}
