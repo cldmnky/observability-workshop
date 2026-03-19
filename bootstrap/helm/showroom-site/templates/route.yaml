@@ -13,6 +13,8 @@ metadata:
 spec:
   {{- if .Values.route.host }}
   host: {{ .Values.route.host }}
+  {{- else if .Values.deployer.domain }}
+  host: {{ printf "%s.%s" .Values.route.hostPrefix .Values.deployer.domain }}
   {{- end }}
   {{- if .Values.route.path }}
   path: {{ .Values.route.path }}

@@ -95,14 +95,15 @@ service:
 # Route Configuration
 route:
   name: showroom-site
+  # Custom hostname (optional, leave empty to derive from deployer.domain)
+  host: ""
+  # Prefix used when host is derived from deployer.domain (e.g. workshop.<deployer.domain>)
+  hostPrefix: workshop
   # TLS configuration
   tls:
     enabled: true
     termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect
-  # OAuth annotations (when multiUser.oauthProxy.enabled)
-  # Custom hostname (optional, leave empty for auto-generated)
-  host: ""
   # Path (optional)
   path: "/"
 
