@@ -127,7 +127,7 @@ userInfo:
   namespace: showroom-workshop
   title: "OpenShift Observability Workshop"
   accessInstructions: "Open the Showroom URL to access the workshop instructions."
-  showroomRoutePrefix: showroom
+  showroomRoutePrefix: workshop
   # Additional key/value pairs to include in the ConfigMap data
   extraData: {}
   #  grafana_url: "https://grafana.apps.example.com"

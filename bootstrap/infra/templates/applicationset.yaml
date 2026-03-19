@@ -38,6 +38,8 @@ spec:
             deployer:
               domain: {{ .Values.deployer.domain | quote }}
               apiUrl: {{ .Values.deployer.apiUrl | quote }}
+            route:
+              hostPrefix: {{ .Values.userInfo.showroomRoutePrefix | quote }}
       destination:
         server: {{ .Values.applicationSet.destination.server }}
         namespace: '{{ "{{namespace}}" }}'
