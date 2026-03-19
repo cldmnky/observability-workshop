@@ -1,0 +1,6 @@
+apiVersion: v2
+name: perses
+description: Perses standalone deployment with OpenShift OAuth proxy
+type: application
+version: 0.1.0
+appVersion: "v0.53.0"

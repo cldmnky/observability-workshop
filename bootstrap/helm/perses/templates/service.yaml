@@ -1,0 +1,21 @@
+---
+# serving-cert annotation causes OCP to inject a service-serving TLS cert
+# into Secret "perses-tls" — consumed by the oauth-proxy sidecar.
+apiVersion: v1
+kind: Service
+metadata:
+  name: perses-dev
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    service.beta.openshift.io/serving-cert-secret-name: perses-tls
+spec:
+  selector:
+    app.kubernetes.io/name: perses-dev
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: oauth-proxy
+      port: 8443
+      targetPort: 8443

@@ -109,6 +109,16 @@ applications:
     repoURL: https://github.com/cldmnky/observability-workshop.git
     targetRevision: main
     path: bootstrap/helm/showroom-site
+    routeHostPrefix: workshop
+
+  # Perses standalone dashboard (Module 1 / 2 / 3)
+  - name: perses
+    enabled: true
+    namespace: perses-dev
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/perses
+    routeHostPrefix: perses
 
 
 # ============================================================

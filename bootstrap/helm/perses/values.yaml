@@ -1,0 +1,52 @@
+namespace: perses-dev
+
+image:
+  perses: docker.io/persesdev/perses:v0.53.0
+  oauthProxy: quay.io/openshift/origin-oauth-proxy:4.16
+
+storage:
+  size: 1Gi
+
+resources:
+  perses:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  oauthProxy:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Route configuration
+route:
+  # Explicit hostname; leave empty to derive from deployer.domain
+  host: ""
+  # Prefix used when building host from deployer.domain
+  hostPrefix: perses
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+
+# Datasource endpoints
+datasources:
+  prometheus:
+    url: http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090
+  tempo:
+    url: https://tempo-tempo-query-frontend.openshift-tempo-operator.svc.cluster.local:3200
+  loki:
+    url: https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application
+
+# OAuth proxy cookie secret (base64 of exactly 16/24/32 bytes)
+# Default: base64("perses-oauth2016") — CHANGE IN PRODUCTION
+oauthCookieSecret: cGVyc2VzLW9hdXRoMjAxNg==
+
+# Injected by field content workload / infra chart — do not modify
+deployer:
+  domain: ""
+  apiUrl: ""

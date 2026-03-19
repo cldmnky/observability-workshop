@@ -1,0 +1,143 @@
+---
+# OCP injects the cluster service-CA bundle here.
+# Used by the datasource proxy to verify TLS on ThanosQuerier, Tempo, and Loki.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perses-service-ca
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    service.beta.openshift.io/inject-cabundle: "true"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perses-config
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+data:
+  config.yaml: |
+    database:
+      file:
+        folder: /perses
+        extension: yaml
+
+    provisioning:
+      folders:
+        - /etc/perses/provisioning
+
+    security:
+      enable_auth: false
+
+---
+# Provisioning ConfigMap — Perses loads these at startup into its file database.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perses-provisioning
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+data:
+  # GlobalSecret — SA bearer token + service-CA TLS used by all datasource proxies.
+  # credentialsFile is read live at each request; OCP rotates projected SA tokens automatically.
+  00-secret.yaml: |
+    kind: GlobalSecret
+    metadata:
+      name: ocp-sa-bearer
+    spec:
+      authorization:
+        type: Bearer
+        credentialsFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        caFile: /etc/perses/service-ca/service-ca.crt
+
+  01-datasource-prometheus.yaml: |
+    kind: GlobalDatasource
+    metadata:
+      name: coo-prometheus
+    spec:
+      default: true
+      display:
+        name: "COO Prometheus"
+        description: "COO MonitoringStack Prometheus"
+      plugin:
+        kind: PrometheusDatasource
+        spec:
+          proxy:
+            kind: HTTPProxy
+            spec:
+              url: {{ .Values.datasources.prometheus.url }}
+
+  02-datasource-tempo.yaml: |
+    kind: GlobalDatasource
+    metadata:
+      name: tempo
+    spec:
+      default: true
+      display:
+        name: "Tempo"
+        description: "TempoStack distributed tracing backend"
+      plugin:
+        kind: TempoDatasource
+        spec:
+          proxy:
+            kind: HTTPProxy
+            spec:
+              url: {{ .Values.datasources.tempo.url }}
+              secret: ocp-sa-bearer
+              allowedEndpoints:
+                - endpointPattern: /api/echo
+                  method: GET
+                - endpointPattern: /api/search
+                  method: GET
+                - endpointPattern: /api/search/tags
+                  method: GET
+                - endpointPattern: /api/search/tag/.+/values
+                  method: GET
+                - endpointPattern: /api/traces/.+
+                  method: GET
+                - endpointPattern: /api/v2/search/tags
+                  method: GET
+                - endpointPattern: /api/v2/search/tag/.+/values
+                  method: GET
+
+  03-datasource-loki.yaml: |
+    kind: GlobalDatasource
+    metadata:
+      name: loki
+    spec:
+      default: true
+      display:
+        name: "Loki"
+        description: "LokiStack application logs (openshift-logging)"
+      plugin:
+        kind: LokiDatasource
+        spec:
+          proxy:
+            kind: HTTPProxy
+            spec:
+              url: {{ .Values.datasources.loki.url }}
+              secret: ocp-sa-bearer
+              allowedEndpoints:
+                - endpointPattern: /loki/api/v1/query
+                  method: POST
+                - endpointPattern: /loki/api/v1/query
+                  method: GET
+                - endpointPattern: /loki/api/v1/query_range
+                  method: POST
+                - endpointPattern: /loki/api/v1/query_range
+                  method: GET
+                - endpointPattern: /loki/api/v1/labels
+                  method: GET
+                - endpointPattern: /loki/api/v1/label/([a-zA-Z0-9_-]+)/values
+                  method: GET
+                - endpointPattern: /loki/api/v1/series
+                  method: POST
+                - endpointPattern: /loki/api/v1/series
+                  method: GET
+                - endpointPattern: /loki/api/v1/tail
+                  method: GET

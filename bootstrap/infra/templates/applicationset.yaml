@@ -15,6 +15,7 @@ spec:
         repoURL: {{ .repoURL }}
         targetRevision: {{ .targetRevision }}
         path: {{ .path }}
+        routeHostPrefix: {{ default "" .routeHostPrefix }}
       {{- end }}
       {{- end }}
   template:
@@ -39,7 +40,7 @@ spec:
               domain: {{ .Values.deployer.domain | quote }}
               apiUrl: {{ .Values.deployer.apiUrl | quote }}
             route:
-              hostPrefix: {{ .Values.userInfo.showroomRoutePrefix | quote }}
+              hostPrefix: '{{ "{{routeHostPrefix}}" }}'
       destination:
         server: {{ .Values.applicationSet.destination.server }}
         namespace: '{{ "{{namespace}}" }}'
