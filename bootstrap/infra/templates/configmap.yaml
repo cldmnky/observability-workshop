@@ -1,0 +1,19 @@
+{{- if .Values.userInfo.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.userInfo.name }}
+  namespace: {{ .Values.userInfo.namespace }}
+  labels:
+    demo.redhat.com/userinfo: ""
+data:
+  demo_title: {{ .Values.userInfo.title | quote }}
+  access_instructions: {{ .Values.userInfo.accessInstructions | quote }}
+  showroom_url: {{ printf "https://%s.%s" .Values.userInfo.showroomRoutePrefix .Values.deployer.domain | quote }}
+  console_url: {{ printf "https://console-openshift-console.%s" .Values.deployer.domain | quote }}
+  api_url: {{ .Values.deployer.apiUrl | quote }}
+  {{- range $key, $value := .Values.userInfo.extraData }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,134 @@
+applicationSet:
+  name: observability-stack-bootstrap
+  namespace: openshift-gitops
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+  labels:
+    partOf: observability-stack
+    rhdpApplication: observability-workshop
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: tempo.grafana.com
+      kind: TempoStack
+      jsonPointers:
+        - /spec/hashRing
+        - /spec/images
+        - /spec/managementState
+        - /spec/observability
+        - /spec/search
+        - /spec/serviceAccount
+        - /spec/template
+        - /spec/timeout
+
+applications:
+  # === PRODUCTION CHARTS ===
+
+  # Cluster Observability Operator with MonitoringStack (Module 1)
+  - name: coo-monitoring-stack
+    enabled: true
+    namespace: observability-demo
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/coo-monitoring-stack
+
+  # Tempo Operator with TempoStack (Module 3)
+  - name: tempo-stack
+    enabled: true
+    namespace: openshift-tempo-operator
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/tempo-stack
+
+  # OpenTelemetry Operator with auto-instrumentation and collectors (Module 4)
+  - name: opentelemetry-stack
+    enabled: true
+    namespace: observability-demo
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/opentelemetry-stack
+
+  # ServiceMonitors for demo applications
+  - name: observability-servicemonitors
+    enabled: true
+    namespace: observability-demo
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/observability-servicemonitors
+
+  # === WORKSHOP CHARTS ===
+
+  # User Workload Monitoring (Module 1 - Alternative to COO)
+  - name: user-workload-monitoring
+    enabled: true
+    namespace: openshift-monitoring
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/user-workload-monitoring
+
+  # Logging Operator with LokiStack (Module 2)
+  - name: logging-operator
+    enabled: true
+    namespace: openshift-logging
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/logging-operator
+
+  # Network Observability Operator with FlowCollector (Module 5)
+  - name: network-observability-stack
+    enabled: true
+    namespace: openshift-netobserv-operator
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/network-observability-stack
+
+  # Builds for Red Hat OpenShift (Module 6)
+  - name: builds-operator
+    enabled: false
+    namespace: openshift-builds
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/builds-operator
+
+  # Showroom Workshop Site
+  - name: showroom-site
+    enabled: true
+    namespace: showroom-workshop
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/showroom-site
+
+
+# ============================================================
+# Values injected by field content workload (do not modify)
+# ============================================================
+deployer:
+  domain: ""
+  apiUrl: ""
+
+fieldContent:
+  deploymentType: "helm"
+
+userInfo:
+  enabled: true
+  name: observability-workshop-info
+  namespace: showroom-workshop
+  title: "OpenShift Observability Workshop"
+  accessInstructions: "Open the Showroom URL to access the workshop instructions."
+  showroomRoutePrefix: showroom
+  # Additional key/value pairs to include in the ConfigMap data
+  extraData: {}
+  #  grafana_url: "https://grafana.apps.example.com"
+  #  custom_note: "Follow the workshop guide for step-by-step instructions."

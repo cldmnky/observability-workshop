@@ -1,0 +1,66 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ .Values.applicationSet.name }}
+  namespace: {{ .Values.applicationSet.namespace }}
+spec:
+  generators:
+  - list:
+      elements:
+      {{- range .Values.applications }}
+      {{- if .enabled }}
+      - name: {{ .name }}
+        namespace: {{ .namespace }}
+        repoURL: {{ .repoURL }}
+        targetRevision: {{ .targetRevision }}
+        path: {{ .path }}
+      {{- end }}
+      {{- end }}
+  template:
+    metadata:
+      name: '{{ "{{name}}" }}'
+      namespace: {{ .Values.applicationSet.namespace }}
+      labels:
+        app.kubernetes.io/name: '{{ "{{name}}" }}'
+        app.kubernetes.io/part-of: {{ .Values.applicationSet.labels.partOf }}
+        demo.redhat.com/application: {{ .Values.applicationSet.labels.rhdpApplication | quote }}
+    spec:
+      project: {{ .Values.applicationSet.project }}
+      source:
+        repoURL: '{{ "{{repoURL}}" }}'
+        targetRevision: '{{ "{{targetRevision}}" }}'
+        path: '{{ "{{path}}" }}'
+        helm:
+          valueFiles:
+          - values.yaml
+          values: |
+            deployer:
+              domain: {{ .Values.deployer.domain | quote }}
+              apiUrl: {{ .Values.deployer.apiUrl | quote }}
+      destination:
+        server: {{ .Values.applicationSet.destination.server }}
+        namespace: '{{ "{{namespace}}" }}'
+      ignoreDifferences:
+      {{- range .Values.applicationSet.ignoreDifferences }}
+      - group: {{ .group }}
+        kind: {{ .kind }}
+        jsonPointers:
+        {{- range .jsonPointers }}
+        - {{ . }}
+        {{- end }}
+      {{- end }}
+      syncPolicy:
+        automated:
+          prune: {{ .Values.applicationSet.syncPolicy.automated.prune }}
+          selfHeal: {{ .Values.applicationSet.syncPolicy.automated.selfHeal }}
+        syncOptions:
+        {{- range .Values.applicationSet.syncPolicy.syncOptions }}
+        - {{ . }}
+        {{- end }}
+        retry:
+          limit: {{ .Values.applicationSet.syncPolicy.retry.limit }}
+          backoff:
+            duration: {{ .Values.applicationSet.syncPolicy.retry.backoff.duration }}
+            factor: {{ .Values.applicationSet.syncPolicy.retry.backoff.factor }}
+            maxDuration: {{ .Values.applicationSet.syncPolicy.retry.backoff.maxDuration }}
