@@ -559,7 +559,7 @@ If you see your application and namespace, the COO Prometheus has successfully d
 +
 [source,bash]
 ----
-oc get servicemonitor sample-app-coo -n {user}-observability-demo --show-labels
+oc get servicemonitor.monitoring.rhobs sample-app-coo -n {user}-observability-demo --show-labels
 ----
 +
 You should see `monitoring.rhobs/stack=observability-stack` in the labels.
@@ -639,7 +639,7 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
-                  query: sum(rate(http_requests_total{namespace="user4-observability-demo"}[5m]))
+                  query: sum(rate(http_requests_total{namespace="{user}-observability-demo"}[5m]))
                     by (pod)
     httpErrorRate:
       kind: Panel
@@ -663,7 +663,7 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
-                  query: sum(rate(http_requests_total{namespace="user4-observability-demo",
+                  query: sum(rate(http_requests_total{namespace="{user}-observability-demo",
                     code=~"[45].."}[5m])) by (pod)
     httpDuration:
       kind: Panel
@@ -690,9 +690,9 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
-                  query: sum(rate(http_request_duration_seconds_sum{namespace="user4-observability-demo"}[5m]))
+                  query: sum(rate(http_request_duration_seconds_sum{namespace="{user}-observability-demo"}[5m]))
                     by (pod) /
-                    sum(rate(http_request_duration_seconds_count{namespace="user4-observability-demo"}[5m]))
+                    sum(rate(http_request_duration_seconds_count{namespace="{user}-observability-demo"}[5m]))
                     by (pod)
                   seriesNameFormat: Avg Latenct
           - kind: TimeSeriesQuery
@@ -704,7 +704,7 @@ spec:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
                   query: histogram_quantile(0.95,
-                    sum(rate(http_request_duration_seconds_bucket{namespace="user4-observability-demo"}[5m]))
+                    sum(rate(http_request_duration_seconds_bucket{namespace="{user}-observability-demo"}[5m]))
                     by (pod, le))
                   seriesNameFormat: P95 Latency
           - kind: TimeSeriesQuery
@@ -716,7 +716,7 @@ spec:
                     kind: PrometheusDatasource
                     name: {user}-prometheus
                   query: histogram_quantile(0.99,
-                    sum(rate(http_request_duration_seconds_bucket{namespace="user4-observability-demo"}[5m]))
+                    sum(rate(http_request_duration_seconds_bucket{namespace="{user}-observability-demo"}[5m]))
                     by (pod, le))
                   seriesNameFormat: P99 Latency
   layouts:
@@ -858,7 +858,7 @@ cat <<EOF | oc apply -f -
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: sample-app-alerts
+  name: sample-app-alerts-{user}
   namespace: {user}-observability-demo
   labels:
     app: sample-app

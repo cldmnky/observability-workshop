@@ -181,8 +181,7 @@ Each service writes structured request logs to stdout, which Loki collects.
 +
 [source,bash]
 ----
-oc api-resources | grep -E 'builds.shipwright.io|buildruns.shipwright.io'
-oc get clusterbuildstrategy buildah
+oc api-resources | grep 'shipwright.io'
 ----
 +
 If either command fails, stop here and ask your workshop administrator to enable the OpenShift Builds (Shipwright) operator.
