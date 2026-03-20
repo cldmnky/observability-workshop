@@ -88,7 +88,7 @@ applications:
 
   # Network Observability Operator with FlowCollector (Module 5)
   - name: network-observability-stack
-    enabled: true
+    enabled: false
     namespace: openshift-netobserv-operator
     repoURL: https://github.com/cldmnky/observability-workshop.git
     targetRevision: main
@@ -134,7 +134,7 @@ fieldContent:
 userInfo:
   enabled: true
   name: observability-workshop-info
-  namespace: showroom-workshop
+  namespace: default
   title: "OpenShift Observability Workshop"
   accessInstructions: "Open the Showroom URL to access the workshop instructions."
   showroomRoutePrefix: workshop

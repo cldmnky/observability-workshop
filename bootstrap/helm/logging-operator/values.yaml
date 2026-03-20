@@ -33,7 +33,7 @@ lokiStack:
   # Namespace (same as operator)
   namespace: openshift-logging
   # Size (1x.extra-small, 1x.small, 1x.medium)
-  size: 1x.extra-small
+  size: 1x.small
   # Storage class for Loki components (only for PVC-based storage)
   storageClassName: ocs-external-storagecluster-ceph-rbd
   # Storage sizes
