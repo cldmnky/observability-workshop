@@ -11,7 +11,6 @@ group:
 # e.g. user1-observability-demo, user1-tracing-demo, user2-observability-demo …
 exerciseNamespaceSuffixes:
   - observability-demo
-  - tracing-demo
 
 # Operator namespaces where the workshop-users group gets view access.
 # RoleBindings are skipped on dry-run if the namespace doesn't exist yet
@@ -22,7 +21,6 @@ operatorViewNamespaces:
   - openshift-operators
   - openshift-monitoring
   - openshift-user-workload-monitoring
-  - openshift-netobserv-operator
 
 # Namespaces where the group gets monitoring API read access
 # (allows querying Prometheus/Alertmanager APIs).
