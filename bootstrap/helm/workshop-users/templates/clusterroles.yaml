@@ -40,3 +40,16 @@ rules:
 - apiGroups: ["monitoring.rhobs"]
   resources: ["monitoringstacks", "thanosrulers", "alertmanagers"]
   verbs: ["get", "list", "watch"]
+---
+# Read-only access to cluster-scoped Perses resources (GlobalDatasource).
+# PersesGlobalDatasource is cluster-scoped so a ClusterRole is required.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.clusterRoles.persesViewer.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups: ["perses.dev"]
+  resources: ["persesglobaldatasources"]
+  verbs: ["get", "list", "watch"]

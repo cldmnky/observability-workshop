@@ -44,6 +44,8 @@ clusterRoles:
     name: workshop-monitoring-api
   cooViewer:
     name: workshop-coo-viewer
+  persesViewer:
+    name: workshop-perses-viewer
   applicationLogs:
     name: cluster-logging-application-view
   lokiRules:
