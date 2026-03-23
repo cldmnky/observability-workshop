@@ -32,7 +32,6 @@ showroom:
 oauthProxy:
   enabled: true
   image: "quay.io/openshift/origin-oauth-proxy:4.15"
-  cookieSecret: "SECRET"
   resources:
     limits:
       cpu: "100m"
