@@ -17,4 +17,4 @@ tabs:
 
   # Web Terminal - access via the ">_" terminal icon in the OCP Console
   - name: Web Terminal
-    url: 'https://console-openshift-console.${DOMAIN}'
+    url: 'https://console-openshift-console.${DOMAIN}/terminal'
