@@ -88,6 +88,11 @@ metadata:
 data:
   user_data.yml: |
     cluster_domain: {{ .Values.deployer.domain }}
+    openshift_cluster_ingress_domain: {{ .Values.deployer.domain }}
+    {{- if .Values.deployer.domain }}
+    openshift_cluster_console_url: https://console-openshift-console.{{ .Values.deployer.domain }}
+    {{- end }}
+    guid: {{ .Values.showroom.namespace }}
     demo_namespace: {{ .Values.demo.namespace }}
     demo_app: {{ .Values.demo.appName }}
 ---
@@ -278,6 +283,9 @@ metadata:
     haproxy.router.openshift.io/timeout: 1h
     haproxy.router.openshift.io/timeout-tunnel: 1h
 spec:
+  {{- if and .Values.route.hostPrefix .Values.deployer.domain }}
+  host: {{ .Values.route.hostPrefix }}.{{ .Values.deployer.domain }}
+  {{- end }}
   to:
     kind: Service
     name: {{ .Values.showroom.name }}

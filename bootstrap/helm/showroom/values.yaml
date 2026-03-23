@@ -1,14 +1,14 @@
 # Showroom Lab Guide Configuration
 showroom:
   enabled: true
-  namespace: showroom
+  namespace: showroom-workshop
   name: showroom
 
   # Lab guide Git repository
   content:
-    repoUrl: "https://github.com/rhpds/showroom_template_nookbag.git"
+    repoUrl: "https://github.com/cldmnky/observability-workshop.git"
     repoRef: "main"
-    antoraPlaybook: "site.yml"
+    antoraPlaybook: "showroom/site.yml"
     image: "quay.io/rhpds/showroom-content:v1.3.1"
 
   # Nookbag bundle (enables LlamaStack, multiple terminals, Zero Trust UI)
@@ -31,6 +31,11 @@ showroom:
 # Injected by parent chart
 deployer:
   domain: ""
+  apiUrl: ""
+
+# Injected by applicationset (routeHostPrefix)
+route:
+  hostPrefix: ""
 
 # Used by userdata ConfigMap
 demo:
