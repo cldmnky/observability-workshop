@@ -1,8 +1,0 @@
-name: observability
-title: Observability Workshop
-version: master
-nav:
-  - modules/ROOT/nav.adoc
-asciidoc:
-  attributes:
-    page-pagination: true
