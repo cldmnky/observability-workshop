@@ -6,17 +6,5 @@ default_width: 30
 # Persist the URL state so browser refresh doesn't reset the UI
 persist_url_state: true
 
-view_switcher:
-  enabled: true
-  default_mode: split
-
-tabs:
-  # OCP Console - opens in new browser window (X-Frame-Options blocks iframe embedding)
-  - name: OCP Console
-    url: 'https://console-openshift-console.${DOMAIN}'
-    external: true
-
-  # Web Terminal - opens in new browser window, launch via ">_" icon in OCP Console
-  - name: Web Terminal
-    url: 'https://console-openshift-console.${DOMAIN}/terminal'
-    external: true
+# OCP Console and Web Terminal cannot be embedded in an iframe (X-Frame-Options: DENY).
+# Users open the console via links in the workshop content or a separate browser window.
