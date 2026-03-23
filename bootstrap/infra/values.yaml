@@ -103,12 +103,12 @@ applications:
     path: bootstrap/helm/builds-operator
 
   # Showroom Workshop Site
-  - name: showroom-site
+  - name: showroom
     enabled: true
     namespace: showroom-workshop
     repoURL: https://github.com/cldmnky/observability-workshop.git
     targetRevision: main
-    path: bootstrap/helm/showroom-site
+    path: bootstrap/helm/showroom
     routeHostPrefix: workshop
 
   # Perses standalone dashboard (Module 1 / 2 / 3)
