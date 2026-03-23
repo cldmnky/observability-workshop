@@ -283,8 +283,8 @@ spec:
         - --tls-cert=/etc/tls/private/tls.crt
         - --tls-key=/etc/tls/private/tls.key
         - --cookie-secret={{ .Values.oauthProxy.cookieSecret }}
-        - --pass-access-token=false
-        - --pass-user-bearer-token=false
+        - --pass-access-token=true
+        - --pass-user-bearer-token=true
         - --pass-basic-auth=false
         - --pass-user-headers=true
         volumeMounts:
