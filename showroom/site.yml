@@ -6,8 +6,8 @@ site:
 
 content:
   sources:
-    - url: .
-      start_path: content
+    - url: ..
+      start_path: showroom/content
 
 ui:
   bundle:
