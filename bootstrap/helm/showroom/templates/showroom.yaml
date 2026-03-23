@@ -103,6 +103,7 @@ data:
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header Host $http_host;
           proxy_set_header X-NginX-Proxy true;
+          proxy_set_header X-Forwarded-Access-Token $http_x_forwarded_access_token;
         }
         {{- end }}
       }
@@ -326,6 +327,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if .Values.deployer.apiUrl }}
+        - name: OCP_API_URL
+          value: {{ .Values.deployer.apiUrl | quote }}
+        {{- end }}
         volumeMounts:
         - name: terminal-lab-user-home
           mountPath: /home/lab-user
