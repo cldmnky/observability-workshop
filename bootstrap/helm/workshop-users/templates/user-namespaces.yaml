@@ -1,0 +1,83 @@
+# Wave 2 — Namespaces, Wave 3 — per-namespace RoleBindings
+# One Namespace + four RoleBindings per (user, exerciseNamespaceSuffix) pair.
+{{- range $v := until (int .Values.users.count) }}
+{{- $user := printf "%s%d" $.Values.users.prefix (add $v 1) }}
+{{- range $.Values.exerciseNamespaceSuffixes }}
+{{- $ns := printf "%s-%s" $user . }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    openshift.io/loki-rules: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: admin
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ $user }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Values.clusterRoles.monitoring.name }}
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $.Values.clusterRoles.monitoring.name }}
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ $user }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: view-application-logs
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $.Values.clusterRoles.applicationLogs.name }}
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ $user }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: loki-alertingrules-admin
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $.Values.clusterRoles.lokiRules.name }}
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ $user }}
+{{- end }}
+{{- end }}

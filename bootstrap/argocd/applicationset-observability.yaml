@@ -73,6 +73,13 @@ spec:
         targetRevision: main
         path: bootstrap/helm/web-terminal
 
+      # Workshop Users — per-user namespaces and RBAC (users user1..userN)
+      - name: workshop-users
+        namespace: workshop-users
+        repoURL: https://github.com/cldmnky/observability-workshop.git
+        targetRevision: main
+        path: bootstrap/helm/workshop-users
+
       # Showroom Workshop Site (Built with Builds for OpenShift)
       - name: showroom-site
         namespace: showroom-workshop

@@ -1,0 +1,11 @@
+# Wave 1 — OpenShift Group containing all workshop users
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: {{ .Values.group.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+users:
+{{- range $v := until (int .Values.users.count) }}
+- {{ printf "%s%d" $.Values.users.prefix (add $v 1) }}
+{{- end }}

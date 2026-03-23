@@ -1,0 +1,22 @@
+# Wave 4 — view RoleBinding in each operator namespace for the workshop-users group.
+# These namespaces are created by operator charts; SkipDryRunOnMissingResource
+# prevents sync failures if an operator hasn't been installed yet.
+{{- range $.Values.operatorViewNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Values.group.name }}-view
+  namespace: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ $.Values.group.name }}
+{{- end }}

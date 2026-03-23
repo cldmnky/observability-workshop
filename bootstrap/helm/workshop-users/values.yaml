@@ -1,0 +1,46 @@
+# Number of workshop users. Users are named user1, user2, ..., userN.
+users:
+  count: 10
+  prefix: user
+
+# OpenShift group that all workshop users belong to
+group:
+  name: workshop-users
+
+# Per-user namespace suffixes. A namespace is created for each user × suffix.
+# e.g. user1-observability-demo, user1-tracing-demo, user2-observability-demo …
+exerciseNamespaceSuffixes:
+  - observability-demo
+  - tracing-demo
+
+# Operator namespaces where the workshop-users group gets view access.
+# RoleBindings are skipped on dry-run if the namespace doesn't exist yet
+# (operators create these namespaces during their own sync).
+operatorViewNamespaces:
+  - openshift-logging
+  - openshift-tempo-operator
+  - openshift-operators
+  - openshift-monitoring
+  - openshift-user-workload-monitoring
+  - openshift-netobserv-operator
+
+# Namespaces where the group gets monitoring API read access
+# (allows querying Prometheus/Alertmanager APIs).
+monitoringApiNamespaces:
+  - openshift-monitoring
+  - openshift-user-workload-monitoring
+  - observability-demo
+
+# ClusterRole names used throughout the chart.
+# applicationLogs and lokiRules are created by the logging operator — referenced only.
+clusterRoles:
+  monitoring:
+    name: workshop-user-monitoring
+  monitoringApi:
+    name: workshop-monitoring-api
+  applicationLogs:
+    name: cluster-logging-application-view
+  lokiRules:
+    name: alertingrules.loki.grafana.com-v1-admin
+  otelCollector:
+    name: otel-collector

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: workshop-users
+description: Per-user namespaces and RBAC for the OpenShift Observability Workshop
+type: application
+version: 0.1.0
+appVersion: "4.21"
+keywords:
+  - workshop
+  - rbac
+  - namespaces
+  - observability
+maintainers:
+  - name: Red Hat
+sources:
+  - https://docs.openshift.com/container-platform/latest/authentication/using-rbac.html

@@ -1,0 +1,28 @@
+# Wave 1 — ClusterRoles created by this chart
+# applicationLogs and lokiRules are provided by the logging operator; they are
+# only referenced (not created) in the RoleBinding templates below.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.clusterRoles.monitoring.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["servicemonitors", "prometheusrules", "podmonitors"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.clusterRoles.monitoringApi.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["prometheuses", "alertmanagers"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["prometheuses/api", "alertmanagers/api"]
+  verbs: ["get"]

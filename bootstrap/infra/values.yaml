@@ -110,6 +110,14 @@ applications:
     targetRevision: main
     path: bootstrap/helm/web-terminal
 
+  # Workshop Users — per-user namespaces and RBAC (users user1..userN)
+  - name: workshop-users
+    enabled: true
+    namespace: workshop-users
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/workshop-users
+
   # Showroom Workshop Site
   - name: showroom
     enabled: true
