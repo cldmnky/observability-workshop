@@ -102,6 +102,14 @@ applications:
     targetRevision: main
     path: bootstrap/helm/builds-operator
 
+  # Web Terminal Operator (enables OCP built-in web terminal via ">_" icon)
+  - name: web-terminal
+    enabled: true
+    namespace: openshift-operators
+    repoURL: https://github.com/cldmnky/observability-workshop.git
+    targetRevision: main
+    path: bootstrap/helm/web-terminal
+
   # Showroom Workshop Site
   - name: showroom
     enabled: true
