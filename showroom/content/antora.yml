@@ -15,5 +15,9 @@ asciidoc:
     openshift_cluster_ingress_domain: "%openshift_cluster_ingress_domain%"
     perses_url: "%perses_url%"
     page-links:
+    - url: "%openshift_cluster_console_url%"
+      text: OCP Console
+    - url: "%openshift_cluster_console_url%/terminal"
+      text: Web Terminal
     - url: https://redhat.com
       text: Red Hat
