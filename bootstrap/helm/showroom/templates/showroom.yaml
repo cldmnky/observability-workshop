@@ -15,6 +15,18 @@ metadata:
   name: {{ .Values.showroom.name }}
   namespace: {{ .Values.showroom.namespace }}
 ---
+{{- if .Values.oauthProxy.enabled }}
+# Showroom OAuth Proxy ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.showroom.name }}-oauth
+  namespace: {{ .Values.showroom.namespace }}
+  annotations:
+    serviceaccounts.openshift.io/oauth-redirectreference.showroom: >-
+      {"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"{{ .Values.showroom.name }}"}}
+{{- end }}
+---
 # Showroom RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -115,12 +127,23 @@ kind: Service
 metadata:
   name: {{ .Values.showroom.name }}
   namespace: {{ .Values.showroom.namespace }}
+  {{- if .Values.oauthProxy.enabled }}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: {{ .Values.showroom.name }}-tls
+  {{- end }}
 spec:
   type: ClusterIP
   ports:
+  {{- if .Values.oauthProxy.enabled }}
+  - name: oauth-proxy
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  {{- else }}
   - port: 8080
     protocol: TCP
     targetPort: 8080
+  {{- end }}
   selector:
     app.kubernetes.io/name: {{ .Values.showroom.name }}
 ---
@@ -144,7 +167,7 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Values.showroom.name }}
     spec:
-      serviceAccountName: {{ .Values.showroom.name }}
+      serviceAccountName: {{ if .Values.oauthProxy.enabled }}{{ .Values.showroom.name }}-oauth{{ else }}{{ .Values.showroom.name }}{{ end }}
       initContainers:
       - name: git-cloner
         image: "quay.io/rhpds/git-cloner:v1.1.2"
@@ -245,6 +268,36 @@ spec:
           httpGet:
             path: /
             port: 8000
+      {{- if .Values.oauthProxy.enabled }}
+      - name: oauth-proxy
+        image: {{ .Values.oauthProxy.image | quote }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: oauth-proxy
+          containerPort: 8443
+        args:
+        - --https-address=:8443
+        - --provider=openshift
+        - --openshift-service-account={{ .Values.showroom.name }}-oauth
+        - --upstream=http://localhost:8080
+        - --tls-cert=/etc/tls/private/tls.crt
+        - --tls-key=/etc/tls/private/tls.key
+        - --cookie-secret={{ .Values.oauthProxy.cookieSecret }}
+        - --pass-access-token=false
+        - --pass-user-bearer-token=false
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        volumeMounts:
+        - mountPath: /etc/tls/private
+          name: oauth-tls
+        resources:
+          limits:
+            cpu: {{ .Values.oauthProxy.resources.limits.cpu }}
+            memory: {{ .Values.oauthProxy.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.oauthProxy.resources.requests.cpu }}
+            memory: {{ .Values.oauthProxy.resources.requests.memory }}
+      {{- end }}
       {{- if .Values.showroom.terminal.enabled }}
       - name: terminal
         image: {{ .Values.showroom.terminal.image | quote }}
@@ -285,6 +338,11 @@ spec:
       - name: terminal-lab-user-home
         persistentVolumeClaim:
           claimName: {{ .Values.showroom.name }}-terminal-lab-user-home
+      {{- if .Values.oauthProxy.enabled }}
+      - name: oauth-tls
+        secret:
+          secretName: {{ .Values.showroom.name }}-tls
+      {{- end }}
 ---
 # Showroom Route
 apiVersion: route.openshift.io/v1
@@ -303,9 +361,16 @@ spec:
     kind: Service
     name: {{ .Values.showroom.name }}
   port:
+  {{- if .Values.oauthProxy.enabled }}
+    targetPort: oauth-proxy
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  {{- else }}
     targetPort: 8080
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
+  {{- end }}
   wildcardPolicy: None
 {{- end }}

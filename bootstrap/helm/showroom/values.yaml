@@ -28,6 +28,19 @@ showroom:
         cpu: "500m"
         memory: "1Gi"
 
+# OAuth proxy
+oauthProxy:
+  enabled: true
+  image: "quay.io/openshift/origin-oauth-proxy:4.15"
+  cookieSecret: "SECRET"
+  resources:
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+
 # Injected by parent chart
 deployer:
   domain: ""
