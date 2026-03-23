@@ -38,6 +38,16 @@ You will have access to:
 
 TIP: To login from the command line, use: `oc login --username=SHOWROOM_USERNAME --server={openshift_api_url}`
 
+[NOTE]
+====
+Use the quick-access links at the top of this page to open the *OCP Console* and *Web Terminal* in a new browser tab.
+They cannot be embedded directly in this workshop window.
+
+* link:{openshift_cluster_console_url}[OpenShift Console^] — Cluster web UI for managing your resources
+* link:{openshift_cluster_console_url}/terminal[Web Terminal^] — In-browser CLI with `oc`, `kubectl`, and other tools pre-installed.
+  Use this for all command-line exercises unless you are using a local `oc` client.
+====
+
 NOTE: All environment details and credentials are specific to your user session. The observability stack (Prometheus, Loki, Tempo, OpenTelemetry Operator) is already configured and ready for you to use.
 
 == Estimated time

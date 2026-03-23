@@ -38,6 +38,15 @@ module.exports.register = function () {
         if (!attrs['perses_url'] || attrs['perses_url'].includes('%')) {
           version.asciidoc.attributes['perses_url'] = `https://perses-dev-perses-dev.${appsDomain}`
         }
+
+        // Rebuild page-links with the real console URL so the %placeholder% in
+        // antora.yml (which showroom-deployer does not expand inside YAML lists)
+        // is replaced with the actual URL.
+        version.asciidoc.attributes['page-links'] = [
+          { url: consoleUrl, text: 'OCP Console' },
+          { url: `${consoleUrl}/terminal`, text: 'Web Terminal' },
+          { url: 'https://redhat.com', text: 'Red Hat' },
+        ]
       })
     })
   })
