@@ -11,10 +11,12 @@ view_switcher:
   default_mode: split
 
 tabs:
-  # OCP Console
+  # OCP Console - opens in new browser window (X-Frame-Options blocks iframe embedding)
   - name: OCP Console
     url: 'https://console-openshift-console.${DOMAIN}'
+    external: true
 
-  # Web Terminal - access via the ">_" terminal icon in the OCP Console
+  # Web Terminal - opens in new browser window, launch via ">_" icon in OCP Console
   - name: Web Terminal
     url: 'https://console-openshift-console.${DOMAIN}/terminal'
+    external: true
