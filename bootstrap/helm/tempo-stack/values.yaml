@@ -84,7 +84,7 @@ tempoStack:
     total:
       limits:
         cpu: 2
-        memory: 2Gi
+        memory: 4Gi
   
   # Ingestion limits
   limits:
