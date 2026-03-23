@@ -226,9 +226,6 @@ deploy: ## Bootstrap ArgoCD apps and external users data from .config/users.yaml
 		done; \
 	done
 	@printf '%b\n' "$(GREEN)Applying ApplicationSet...$(NC)"
-	@oc apply -f $(APPSET_FILE)
-	@printf '%b\n' "$(YELLOW)ArgoCD will sync applications automatically (including showroom-site).$(NC)"
-	@printf '%s\n' "Run 'make deploy-status' to verify showroom-site resources once synced."
 	@printf '%b\n' "$(BLUE)Note: User namespaces are pre-created with monitoring permissions. Users can verify access with 'oc project <namespace>'.$(NC)"
 
 verify-rbac: ## Verify workshop group, operator view bindings, and user namespace monitoring permissions
