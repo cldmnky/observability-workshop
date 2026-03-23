@@ -159,6 +159,19 @@ spec:
         - mountPath: /showroom/repo
           name: showroom-files
           subPath: repo
+      - name: link-content
+        image: "registry.access.redhat.com/ubi9/ubi-minimal:latest"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            ln -sf /showroom/repo/showroom/content /showroom/repo/content
+            ln -sf /showroom/repo/showroom/site.yml /showroom/repo/site.yml
+            ln -sf /showroom/repo/showroom/ui-config.yml /showroom/repo/ui-config.yml
+            echo "Symlinks created"
+        volumeMounts:
+        - mountPath: /showroom/repo
+          name: showroom-files
+          subPath: repo
       - name: antora-builder
         image: "quay.io/rhpds/antora:v1.0.1"
         env:
