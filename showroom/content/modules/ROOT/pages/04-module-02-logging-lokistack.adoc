@@ -177,15 +177,6 @@ Each service writes structured request logs to stdout, which Loki collects.
 
 === Steps
 
-. Verify Shipwright build APIs are available:
-+
-[source,bash]
-----
-oc api-resources | grep 'shipwright.io'
-----
-+
-If either command fails, stop here and ask your workshop administrator to enable the OpenShift Builds (Shipwright) operator.
-
 . Deploy the logging demo application manifest from GitHub:
 +
 [source,bash]
@@ -196,18 +187,18 @@ curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/s
   | oc apply -f -
 ----
 
-. Wait for image builds to complete:
+. Wait for the deployments to roll out:
 +
 [source,bash]
 ----
-oc wait --for=condition=Succeeded -n SHOWROOM_USERNAME-observability-demo buildrun/frontend-buildrun --timeout=20m
-oc wait --for=condition=Succeeded -n SHOWROOM_USERNAME-observability-demo buildrun/backend-buildrun --timeout=20m
-oc wait --for=condition=Succeeded -n SHOWROOM_USERNAME-observability-demo buildrun/database-buildrun --timeout=20m
+oc rollout status deployment/frontend -n SHOWROOM_USERNAME-observability-demo
+oc rollout status deployment/backend -n SHOWROOM_USERNAME-observability-demo
+oc rollout status statefulset/database -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 [NOTE]
 ====
-This will build container images for the frontend, backend, and database services using Shipwright. It may take several minutes to complete. If the deployment fails with an image pull error, try a `oc rollout restart` on the affected deployment after the build completes.
+The application images are pre-built and hosted on `quay.io/cldmnky/observability/`. Pods should start within a minute or two.
 ====
 +
 

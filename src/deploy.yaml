@@ -1,127 +1,3 @@
-apiVersion: shipwright.io/v1beta1
-kind: Build
-metadata:
-  name: frontend-build
-  namespace: __NAMESPACE__
-spec:
-  source:
-    type: Git
-    git:
-      url: https://github.com/cldmnky/observability-workshop.git
-      revision: main
-    contextDir: src
-  strategy:
-    kind: ClusterBuildStrategy
-    name: buildah
-  paramValues:
-    - name: dockerfile
-      value: frontend/Containerfile
-  output:
-    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/frontend:latest
-  serviceAccount: builder
----
-apiVersion: shipwright.io/v1beta1
-kind: Build
-metadata:
-  name: backend-build
-  namespace: __NAMESPACE__
-spec:
-  source:
-    type: Git
-    git:
-      url: https://github.com/cldmnky/observability-workshop.git
-      revision: main
-    contextDir: src
-  strategy:
-    kind: ClusterBuildStrategy
-    name: buildah
-  paramValues:
-    - name: dockerfile
-      value: backend/Containerfile
-  output:
-    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/backend:latest
-  serviceAccount: builder
----
-apiVersion: shipwright.io/v1beta1
-kind: Build
-metadata:
-  name: database-build
-  namespace: __NAMESPACE__
-spec:
-  source:
-    type: Git
-    git:
-      url: https://github.com/cldmnky/observability-workshop.git
-      revision: main
-    contextDir: src
-  strategy:
-    kind: ClusterBuildStrategy
-    name: buildah
-  paramValues:
-    - name: dockerfile
-      value: database/Containerfile
-  output:
-    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/database:latest
-  serviceAccount: builder
----
-apiVersion: shipwright.io/v1beta1
-kind: Build
-metadata:
-  name: notifier-build
-  namespace: __NAMESPACE__
-spec:
-  source:
-    type: Git
-    git:
-      url: https://github.com/cldmnky/observability-workshop.git
-      revision: main
-    contextDir: src/notifier
-  strategy:
-    kind: ClusterBuildStrategy
-    name: buildah
-  paramValues:
-    - name: dockerfile
-      value: Containerfile
-  output:
-    image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/notifier:latest
-  serviceAccount: builder
----
-apiVersion: shipwright.io/v1beta1
-kind: BuildRun
-metadata:
-  name: frontend-buildrun
-  namespace: __NAMESPACE__
-spec:
-  build:
-    name: frontend-build
----
-apiVersion: shipwright.io/v1beta1
-kind: BuildRun
-metadata:
-  name: backend-buildrun
-  namespace: __NAMESPACE__
-spec:
-  build:
-    name: backend-build
----
-apiVersion: shipwright.io/v1beta1
-kind: BuildRun
-metadata:
-  name: database-buildrun
-  namespace: __NAMESPACE__
-spec:
-  build:
-    name: database-build
----
-apiVersion: shipwright.io/v1beta1
-kind: BuildRun
-metadata:
-  name: notifier-buildrun
-  namespace: __NAMESPACE__
-spec:
-  build:
-    name: notifier-build
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -141,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/frontend:latest
+          image: quay.io/cldmnky/observability/frontend:latest
           imagePullPolicy: Always
           env:
             - name: FRONTEND_ADDR
@@ -192,7 +68,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/backend:latest
+          image: quay.io/cldmnky/observability/backend:latest
           imagePullPolicy: Always
           env:
             - name: BACKEND_ADDR
@@ -246,7 +122,7 @@ spec:
     spec:
       containers:
         - name: database
-          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/database:latest
+          image: quay.io/cldmnky/observability/database:latest
           imagePullPolicy: Always
           env:
             - name: DATABASE_ADDR
@@ -375,7 +251,7 @@ spec:
     spec:
       containers:
         - name: notifier
-          image: image-registry.openshift-image-registry.svc:5000/__NAMESPACE__/notifier:latest
+          image: quay.io/cldmnky/observability/notifier:latest
           imagePullPolicy: Always
           env:
             - name: DATABASE_API_URL
