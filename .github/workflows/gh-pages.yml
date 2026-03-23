@@ -39,7 +39,7 @@ jobs:
       - name: upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: www
+          path: showroom/www
   deploy:
     needs: build
     environment:
