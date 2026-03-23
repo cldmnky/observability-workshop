@@ -35,7 +35,6 @@ You will have access to:
 
 * OpenShift Console: {openshift_console_url}[OpenShift Console^]
 * Your Username: {user}
-* Your Password: {password}
 
 TIP: To login from the command line, use: `{login_command}`
 

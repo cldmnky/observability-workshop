@@ -12,8 +12,6 @@ asciidoc:
     guid: "%guid%"
     openshift_cluster_console_url: "%openshift_cluster_console_url%"
     openshift_console_url: "%openshift_cluster_console_url%"
-    openshift_cluster_admin_username: "%openshift_cluster_admin_username%"
-    openshift_cluster_admin_password: "%openshift_cluster_admin_password%"
     openshift_cluster_ingress_domain: "%openshift_cluster_ingress_domain%"
     perses_url: "%perses_url%"
     page-links:

@@ -10,7 +10,6 @@
     '{openshift_console_url}': 'console_url',
     '{openshift_cluster_console_url}': 'console_url',
     '%openshift_cluster_console_url%': 'console_url',
-    '{password}': 'password',
     '{login_command}': 'login_command',
     '{openshift_cluster_ingress_domain}': 'openshift_cluster_ingress_domain',
     '{openshift_api_url}': 'api_url',

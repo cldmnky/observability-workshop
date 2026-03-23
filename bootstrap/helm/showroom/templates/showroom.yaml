@@ -107,7 +107,7 @@ data:
         {{- end }}
         location = /api/user-info {
           default_type application/json;
-          return 200 '{"user":"$http_x_auth_request_user","console_url":"https://console-openshift-console.{{ .Values.deployer.domain }}","api_url":"{{ .Values.deployer.apiUrl }}","login_command":"oc login --server={{ .Values.deployer.apiUrl }}","openshift_cluster_ingress_domain":"{{ .Values.deployer.domain }}","perses_url":"https://perses.{{ .Values.deployer.domain }}"}';
+          return 200 '{"user":"$http_x_forwarded_user","console_url":"https://console-openshift-console.{{ .Values.deployer.domain }}","api_url":"{{ .Values.deployer.apiUrl }}","login_command":"oc login --server={{ .Values.deployer.apiUrl }}","openshift_cluster_ingress_domain":"{{ .Values.deployer.domain }}","perses_url":"https://perses.{{ .Values.deployer.domain }}"}';
         }
       }
     }
@@ -124,6 +124,7 @@ data:
     openshift_cluster_ingress_domain: {{ .Values.deployer.domain }}
     {{- if .Values.deployer.domain }}
     openshift_cluster_console_url: https://console-openshift-console.{{ .Values.deployer.domain }}
+    openshift_console_url: https://console-openshift-console.{{ .Values.deployer.domain }}
     {{- end }}
     guid: {{ .Values.showroom.namespace }}
     {{- if .Values.deployer.apiUrl }}

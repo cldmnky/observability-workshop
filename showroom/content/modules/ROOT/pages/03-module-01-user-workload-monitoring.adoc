@@ -89,7 +89,6 @@ The observability stack was pre-configured via GitOps, so Prometheus and Alertma
 Use the credentials provided in your lab interface:
 +
 * Username: {user}
-* Password: {password}
 
 . Verify user workload monitoring pods are running:
 +
