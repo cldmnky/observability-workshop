@@ -195,51 +195,6 @@ spec:
         app.kubernetes.io/name: {{ .Values.showroom.name }}
     spec:
       serviceAccountName: {{ if .Values.oauthProxy.enabled }}{{ .Values.showroom.name }}-oauth{{ else }}{{ .Values.showroom.name }}{{ end }}
-      initContainers:
-      - name: git-cloner
-        image: "quay.io/rhpds/git-cloner:v1.1.2"
-        env:
-        - name: GIT_REPO_URL
-          value: {{ .Values.showroom.content.repoUrl | quote }}
-        - name: GIT_REPO_REF
-          value: {{ .Values.showroom.content.repoRef | quote }}
-        - name: CLONE_DIR
-          value: "/showroom/repo"
-        volumeMounts:
-        - mountPath: /showroom/repo
-          name: showroom-files
-          subPath: repo
-      - name: link-content
-        image: "registry.access.redhat.com/ubi9/ubi-minimal:latest"
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            ln -sf /showroom/repo/showroom/content /showroom/repo/content
-            ln -sf /showroom/repo/showroom/site.yml /showroom/repo/site.yml
-            ln -sf /showroom/repo/showroom/ui-config.yml /showroom/repo/ui-config.yml
-            echo "Symlinks created"
-        volumeMounts:
-        - mountPath: /showroom/repo
-          name: showroom-files
-          subPath: repo
-      - name: antora-builder
-        image: "quay.io/rhpds/antora:v1.0.1"
-        env:
-        - name: FILES_DIR
-          value: "/showroom/repo"
-        - name: OUTPUT_DIR
-          value: "/showroom/www"
-        - name: ANTORA_SITE_FILE
-          value: {{ .Values.showroom.content.antoraPlaybook | quote }}
-        volumeMounts:
-        - mountPath: /showroom/repo
-          name: showroom-files
-          subPath: repo
-        - name: user-data
-          mountPath: /user_data/
-        - mountPath: /showroom/www
-          name: showroom-files
-          subPath: www
       containers:
       - name: nginx
         image: "quay.io/rhpds/nginx:1.25"
@@ -264,7 +219,7 @@ spec:
         - name: GIT_REPO_REF
           value: {{ .Values.showroom.content.repoRef | quote }}
         - name: ANTORA_PLAYBOOK
-          value: {{ .Values.showroom.content.antoraPlaybook | quote }}
+          value: "showroom/site.yml"
         - name: DOMAIN
           value: {{ .Values.deployer.domain | quote }}
         {{- if .Values.showroom.nookbag.enabled }}
