@@ -1,0 +1,21 @@
+# Wave 4 — RoleBindings granting COO (monitoring.rhobs) read access to the
+# workshop-users group in shared namespaces (e.g. observability-demo).
+{{- range $.Values.cooViewerNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Values.clusterRoles.cooViewer.name }}
+  namespace: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $.Values.clusterRoles.cooViewer.name }}
+subjects:
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: {{ $.Values.group.name }}
+{{- end }}

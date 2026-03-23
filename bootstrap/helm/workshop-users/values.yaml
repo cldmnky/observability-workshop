@@ -29,6 +29,11 @@ monitoringApiNamespaces:
   - openshift-user-workload-monitoring
   - observability-demo
 
+# Shared operator namespaces where the group gets COO (monitoring.rhobs) read access.
+# This allows users to inspect MonitoringStack, ThanosRuler, etc.
+cooViewerNamespaces:
+  - observability-demo
+
 # ClusterRole names used throughout the chart.
 # applicationLogs and lokiRules are created by the logging operator — referenced only.
 clusterRoles:
@@ -36,6 +41,8 @@ clusterRoles:
     name: workshop-user-monitoring
   monitoringApi:
     name: workshop-monitoring-api
+  cooViewer:
+    name: workshop-coo-viewer
   applicationLogs:
     name: cluster-logging-application-view
   lokiRules:
