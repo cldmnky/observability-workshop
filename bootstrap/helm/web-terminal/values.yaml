@@ -1,0 +1,15 @@
+# Web Terminal Operator Configuration
+
+operator:
+  # Channel for the web-terminal subscription
+  # Options: fast
+  channel: fast
+  # Install plan approval
+  installPlanApproval: Automatic
+
+# Custom web-terminal tooling image
+# Override to use a custom image with additional tools
+image: quay.io/redhat-ai-services/web-terminal:latest
+
+# DevWorkspace idle timeout
+idleTimeout: 8h

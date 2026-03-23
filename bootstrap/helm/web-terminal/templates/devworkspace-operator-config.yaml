@@ -1,0 +1,15 @@
+---
+# DevWorkspace Operator global configuration
+# Sets idle timeout and image pull policy for all DevWorkspaces
+apiVersion: controller.devfile.io/v1alpha1
+kind: DevWorkspaceOperatorConfig
+metadata:
+  name: devworkspace-operator-config
+  namespace: openshift-operators
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+config:
+  workspace:
+    idleTimeout: {{ .Values.idleTimeout }}
+    imagePullPolicy: Always

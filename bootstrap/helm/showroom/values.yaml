@@ -18,7 +18,7 @@ showroom:
 
   # Terminal configuration
   terminal:
-    enabled: true
+    enabled: false
     image: "quay.io/rhpds/openshift-showroom-terminal-ocp:latest"
     resources:
       requests:

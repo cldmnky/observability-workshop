@@ -1,0 +1,8 @@
+---
+# Namespace for web terminal DevWorkspaces
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-terminal
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

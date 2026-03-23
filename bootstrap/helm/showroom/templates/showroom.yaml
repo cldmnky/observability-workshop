@@ -137,6 +137,7 @@ data:
     {{- end }}
     demo_namespace: {{ .Values.demo.namespace }}
     demo_app: {{ .Values.demo.appName }}
+{{- if .Values.showroom.terminal.enabled }}
 ---
 # Showroom PVC
 apiVersion: v1
@@ -150,6 +151,7 @@ spec:
   resources:
     requests:
       storage: "5Gi"
+{{- end }}
 ---
 # Showroom Service
 apiVersion: v1
@@ -325,9 +327,11 @@ spec:
         emptyDir: {}
       - name: nginx-cache
         emptyDir: {}
+      {{- if .Values.showroom.terminal.enabled }}
       - name: terminal-lab-user-home
         persistentVolumeClaim:
           claimName: {{ .Values.showroom.name }}-terminal-lab-user-home
+      {{- end }}
       {{- if .Values.oauthProxy.enabled }}
       - name: oauth-tls
         secret:
