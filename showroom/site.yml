@@ -1,7 +1,7 @@
 ---
 site:
   title: OpenShift Observability Workshop
-  url: https://github.com/rhpds/showroom_template_nookbag
+  url: https://cldmnky.github.io/observability-workshop/modules/index.html
   start_page: modules::index.adoc
 
 content:
