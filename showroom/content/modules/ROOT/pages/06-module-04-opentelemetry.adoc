@@ -32,7 +32,7 @@ This workshop uses a two-tier OpenTelemetry Collector topology. Every signal—t
 
 [source,text]
 ----
-Application pods ({user}-observability-demo)
+Application pods (SHOWROOM_USERNAME-observability-demo)
   +--------------------------------------------------------+
   |  frontend / backend / database / notifier              |
   |  +----------+  OTLP HTTP (localhost:4318)              |
@@ -199,7 +199,7 @@ central-collector-collector    ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
 
 == Exercise 2: Create the sidecar collector in your namespace
 
-You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `{user}-observability-demo` namespace. When this CR exists, the OpenTelemetry Operator automatically injects a sidecar container into any pod in the namespace that carries the annotation `sidecar.opentelemetry.io/inject: "sidecar"`.
+You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `SHOWROOM_USERNAME-observability-demo` namespace. When this CR exists, the OpenTelemetry Operator automatically injects a sidecar container into any pod in the namespace that carries the annotation `sidecar.opentelemetry.io/inject: "sidecar"`.
 
 === Steps
 
@@ -208,7 +208,7 @@ You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `{user}-obser
 [source,bash]
 ----
 oc get serviceaccount otel-collector-sidecar \
-  -n {user}-observability-demo
+  -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 This ServiceAccount was pre-created for your namespace with the RBAC permissions needed by the `k8sattributes` and `resourcedetection` processors (read access to pods, namespaces, and nodes).
@@ -229,7 +229,7 @@ apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: sidecar
-  namespace: {user}-observability-demo
+  namespace: SHOWROOM_USERNAME-observability-demo
 spec:
   mode: sidecar
   serviceAccount: otel-collector-sidecar
@@ -296,7 +296,7 @@ EOF
 +
 [source,bash]
 ----
-oc get opentelemetrycollector sidecar -n {user}-observability-demo
+oc get opentelemetrycollector sidecar -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 .Expected output
@@ -333,7 +333,7 @@ The sidecar does **not** route signals to different destinations—that responsi
 
 === Verify
 
-* ✓ `otel-collector-sidecar` ServiceAccount exists in `{user}-observability-demo`
+* ✓ `otel-collector-sidecar` ServiceAccount exists in `SHOWROOM_USERNAME-observability-demo`
 * ✓ `sidecar` OpenTelemetryCollector CR exists in `sidecar` mode
 * ✓ CR configuration includes all three pipelines (traces, metrics, logs)
 * ✓ Exporter is `otlp_grpc` with queue/retry enabled and endpoint `central-collector-collector.observability-demo.svc:4317`
@@ -345,17 +345,17 @@ The sidecar does **not** route signals to different destinations—that responsi
 **Solution**:
 . Confirm you are logged in as the correct user: `oc whoami`
 . Confirm your project is set: `oc project`
-. Verify you have create access: `oc auth can-i create opentelemetrycollectors -n {user}-observability-demo`
+. Verify you have create access: `oc auth can-i create opentelemetrycollectors -n SHOWROOM_USERNAME-observability-demo`
 
 **Issue**: ServiceAccount `otel-collector-sidecar` not found
 
 **Solution**:
-. Check available service accounts: `oc get sa -n {user}-observability-demo`
+. Check available service accounts: `oc get sa -n SHOWROOM_USERNAME-observability-demo`
 . Contact the workshop facilitator—the ServiceAccount should be pre-provisioned as part of the workshop setup
 
 == Exercise 3: Create the Instrumentation CR in your namespace
 
-The `Instrumentation` CR is a template that tells the OpenTelemetry Operator how to configure the auto-instrumentation agent init-container when injecting into pods. You need one per namespace. In this exercise you create it for `{user}-observability-demo` — it will be used in Exercise 7 when you enable Python auto-instrumentation on the **notifier** service.
+The `Instrumentation` CR is a template that tells the OpenTelemetry Operator how to configure the auto-instrumentation agent init-container when injecting into pods. You need one per namespace. In this exercise you create it for `SHOWROOM_USERNAME-observability-demo` — it will be used in Exercise 7 when you enable Python auto-instrumentation on the **notifier** service.
 
 === Steps
 
@@ -368,7 +368,7 @@ apiVersion: opentelemetry.io/v1alpha1
 kind: Instrumentation
 metadata:
   name: my-instrumentation
-  namespace: {user}-observability-demo
+  namespace: SHOWROOM_USERNAME-observability-demo
 spec:
   exporter:
     endpoint: http://localhost:4318
@@ -396,7 +396,7 @@ Key fields explained:
 +
 [source,bash]
 ----
-oc get instrumentation my-instrumentation -n {user}-observability-demo
+oc get instrumentation my-instrumentation -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 .Expected output
@@ -408,7 +408,7 @@ my-instrumentation   10s
 
 === Verify
 
-* ✓ `my-instrumentation` Instrumentation CR exists in `{user}-observability-demo`
+* ✓ `my-instrumentation` Instrumentation CR exists in `SHOWROOM_USERNAME-observability-demo`
 * ✓ `spec.exporter.endpoint` is `http://localhost:4318`
 
 **What you learned**: The `Instrumentation` CR is a per-namespace configuration template. Unlike the sidecar CR (which provides a container spec merged into application pods), the Instrumentation CR is referenced by pods via the `instrumentation.opentelemetry.io/inject-<language>` annotation — the Operator reads it and injects a language-specific agent init-container plus the necessary environment variables with no application changes required.
@@ -430,7 +430,7 @@ Now you'll activate the OpenTelemetry SDK in all three services. This adds the s
 +
 [source,bash]
 ----
-NAMESPACE="{user}-observability-demo"
+NAMESPACE="SHOWROOM_USERNAME-observability-demo"
 ----
 
 . Add the OTEL environment variables to all three services:
@@ -622,7 +622,7 @@ With traffic flowing and telemetry active, you can now view real traces from you
 
 . Set the search parameters:
 +
-* **Namespace**: `{user}-observability-demo`
+* **Namespace**: `SHOWROOM_USERNAME-observability-demo`
 * **Time range**: Last 5 minutes
 +
 Click **Search** or the refresh icon.
@@ -686,14 +686,14 @@ Query for log lines containing that trace ID:
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo"} |= "<your-trace-id>"
+{kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "<your-trace-id>"
 ----
 +
 Because the application uses `otelslog.NewHandler()`, every structured log line emitted during a traced request carries the active trace ID as a log field. This lets you move directly from a slow span to the exact log lines emitted during that span.
 
 === Verify
 
-* ✓ Traces appear in **Observe → Traces** for namespace `{user}-observability-demo`
+* ✓ Traces appear in **Observe → Traces** for namespace `SHOWROOM_USERNAME-observability-demo`
 * ✓ Trace waterfall shows spans from all three services (frontend, backend, database)
 * ✓ Span attributes include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
 * ✓ TraceQL query `{ resource.service.name = "database" }` returns results
@@ -706,8 +706,8 @@ Because the application uses `otelslog.NewHandler()`, every structured log line 
 **Issue**: No traces appear after generating traffic
 
 **Solution**:
-. Verify traffic reached the app: `oc logs -n {user}-observability-demo deployment/frontend -c frontend | tail -10`
-. Check sidecar export errors: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container | grep -i "error\|export"`
+. Verify traffic reached the app: `oc logs -n SHOWROOM_USERNAME-observability-demo deployment/frontend -c frontend | tail -10`
+. Check sidecar export errors: `oc logs -n SHOWROOM_USERNAME-observability-demo deployment/frontend -c otc-container | grep -i "error\|export"`
 . Verify central collector received spans: `oc logs -n observability-demo -l app.kubernetes.io/name=central-collector-collector | grep -i "error\|span"`
 . Confirm Tempo is healthy: `oc get tempostack -n openshift-tempo-operator`
 . Expand the trace search time range to the last 15 minutes
@@ -715,14 +715,14 @@ Because the application uses `otelslog.NewHandler()`, every structured log line 
 **Issue**: Traces appear but show spans from only one service
 
 **Solution**:
-. Verify all three deployments have sidecars: `oc get pods -n {user}-observability-demo -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'`
-. Confirm `OTEL_ENABLED` is set on all deployments: `oc set env deployment/backend -n {user}-observability-demo --list | grep OTEL`
+. Verify all three deployments have sidecars: `oc get pods -n SHOWROOM_USERNAME-observability-demo -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'`
+. Confirm `OTEL_ENABLED` is set on all deployments: `oc set env deployment/backend -n SHOWROOM_USERNAME-observability-demo --list | grep OTEL`
 
 **Issue**: Spans show no Kubernetes metadata attributes
 
 **Solution**:
-. Check ServiceAccount permissions: `oc auth can-i get pods --as=system:serviceaccount:{user}-observability-demo:otel-collector-sidecar`
-. Check `k8sattributes` errors in sidecar logs: `oc logs -n {user}-observability-demo deployment/frontend -c otc-container | grep -i k8s`
+. Check ServiceAccount permissions: `oc auth can-i get pods --as=system:serviceaccount:SHOWROOM_USERNAME-observability-demo:otel-collector-sidecar`
+. Check `k8sattributes` errors in sidecar logs: `oc logs -n SHOWROOM_USERNAME-observability-demo deployment/frontend -c otc-container | grep -i k8s`
 
 == Exercise 6: Explore the central collector pipeline
 
@@ -829,7 +829,7 @@ Verify a log record arrived in Loki by navigating to **Observe** → **Logs** in
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="{user}-observability-demo"} | json
+{kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} | json
 ----
 +
 You should see structured log records from `frontend`, `backend`, and `database`, each containing `traceID` and `spanID` fields that link them to the traces you viewed in Exercise 5.
@@ -841,7 +841,7 @@ You should see structured log records from `frontend`, `backend`, and `database`
 * ✓ `traces_spanmetrics_calls_total` metric exists in Prometheus for your services
 * ✓ `traces_spanmetrics_latency_bucket` histogram is queryable for p95 latency
 * ✓ Central collector health endpoint returns `Server available`
-* ✓ **Observe → Logs** shows structured log records from `{user}-observability-demo` with `traceID` fields
+* ✓ **Observe → Logs** shows structured log records from `SHOWROOM_USERNAME-observability-demo` with `traceID` fields
 
 **What you learned**: The central collector is a fanout hub — one OTLP receiver, four exporters. Each signal type is independently processed and routed: traces go to Tempo (with TLS and multi-tenancy headers), metrics are remote-written to COO Prometheus (which must have `enableRemoteWriteReceiver: true`), span-derived RED metrics follow the same path via the `spanmetrics` connector, and logs are attribute-remapped and forwarded to the LokiStack application tenant using service-account bearer auth.
 
@@ -873,7 +873,7 @@ Before enabling auto-instrumentation, generate traffic and look at a trace water
 [source,bash]
 ----
 FRONTEND_URL=$(oc get route frontend \
-  -n {user}-observability-demo \
+  -n SHOWROOM_USERNAME-observability-demo \
   -o jsonpath='{.spec.host}')
 
 for i in $(seq 1 10); do
@@ -884,7 +884,7 @@ for i in $(seq 1 10); do
 done
 ----
 
-. Open **Observe** → **Traces** in the OpenShift console, set namespace to `{user}-observability-demo`, and click a recent trace.
+. Open **Observe** → **Traces** in the OpenShift console, set namespace to `SHOWROOM_USERNAME-observability-demo`, and click a recent trace.
 +
 The waterfall will show three hops: `frontend → backend → database`. The backend called notifier, but no notifier span appears because the Python process emits no telemetry without an agent.
 
@@ -897,7 +897,7 @@ The OpenTelemetry Operator reads the `Instrumentation` CR you created in Exercis
 [source,bash]
 ----
 oc get instrumentation my-instrumentation \
-  -n {user}-observability-demo -o yaml
+  -n SHOWROOM_USERNAME-observability-demo -o yaml
 ----
 +
 Key fields:
@@ -934,7 +934,7 @@ A single `oc patch` command adds the two annotations that trigger both sidecar i
 [source,bash]
 ----
 oc patch deployment notifier \
-  -n {user}-observability-demo \
+  -n SHOWROOM_USERNAME-observability-demo \
   --type=json \
   -p='[
     {
@@ -961,14 +961,14 @@ When this annotated pod is scheduled, the OpenTelemetry Operator's mutating admi
 +
 [source,bash]
 ----
-oc rollout status deployment/notifier -n {user}-observability-demo
+oc rollout status deployment/notifier -n SHOWROOM_USERNAME-observability-demo
 ----
 
 . Confirm the pod now has two containers (application + sidecar):
 +
 [source,bash]
 ----
-oc get pods -n {user}-observability-demo \
+oc get pods -n SHOWROOM_USERNAME-observability-demo \
   -l app=notifier \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
 ----
@@ -984,7 +984,7 @@ notifier-xxxxx              notifier, otc-container
 +
 [source,bash]
 ----
-oc logs -n {user}-observability-demo \
+oc logs -n SHOWROOM_USERNAME-observability-demo \
   -l app=notifier -c notifier | head -20
 ----
 +
@@ -997,7 +997,7 @@ Look for OpenTelemetry bootstrap messages such as `Instrumenting FastAPI` or `Op
 [source,bash]
 ----
 FRONTEND_URL=$(oc get route frontend \
-  -n {user}-observability-demo \
+  -n SHOWROOM_USERNAME-observability-demo \
   -o jsonpath='{.spec.host}')
 
 for i in $(seq 1 15); do
@@ -1065,22 +1065,22 @@ Browse the two approaches side-by-side using the *Source Code* tab in the worksh
 **Issue**: Notifier pod shows only one container after rollout
 
 **Solution**:
-. Verify the annotation is set: `oc get deployment notifier -n {user}-observability-demo -o jsonpath='{.spec.template.metadata.annotations}'`
-. Confirm the sidecar CR exists: `oc get opentelemetrycollector sidecar -n {user}-observability-demo`
+. Verify the annotation is set: `oc get deployment notifier -n SHOWROOM_USERNAME-observability-demo -o jsonpath='{.spec.template.metadata.annotations}'`
+. Confirm the sidecar CR exists: `oc get opentelemetrycollector sidecar -n SHOWROOM_USERNAME-observability-demo`
 . Check operator logs: `oc logs -n openshift-operators -l app.kubernetes.io/name=opentelemetry-operator | grep -i "notifier\|inject\|python"`
 
 **Issue**: Notifier spans appear but are disconnected from the main trace
 
 **Solution**:
-. Verify `propagators` includes `tracecontext`: `oc get instrumentation my-instrumentation -n {user}-observability-demo -o jsonpath='{.spec.propagators}'`
-. Confirm `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` is injected: `oc exec -n {user}-observability-demo deployment/notifier -- env | grep OTEL`
+. Verify `propagators` includes `tracecontext`: `oc get instrumentation my-instrumentation -n SHOWROOM_USERNAME-observability-demo -o jsonpath='{.spec.propagators}'`
+. Confirm `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` is injected: `oc exec -n SHOWROOM_USERNAME-observability-demo deployment/notifier -- env | grep OTEL`
 
 **Issue**: No traces appear for the notifier after annotation
 
 **Solution**:
-. Check if the Python bootstrap ran: `oc logs -n {user}-observability-demo deployment/notifier -c notifier | grep -i opentelemetry`
-. Verify the sidecar received data: `oc logs -n {user}-observability-demo deployment/notifier -c otc-container | grep -i "span\|error"`
-. Ensure the Instrumentation CR exists in your namespace: `oc get instrumentation my-instrumentation -n {user}-observability-demo`
+. Check if the Python bootstrap ran: `oc logs -n SHOWROOM_USERNAME-observability-demo deployment/notifier -c notifier | grep -i opentelemetry`
+. Verify the sidecar received data: `oc logs -n SHOWROOM_USERNAME-observability-demo deployment/notifier -c otc-container | grep -i "span\|error"`
+. Ensure the Instrumentation CR exists in your namespace: `oc get instrumentation my-instrumentation -n SHOWROOM_USERNAME-observability-demo`
 
 == Learning outcomes
 

@@ -308,7 +308,7 @@ Before traces flow, familiarize yourself with the trace search UI so you know ex
 
 . Set the namespace filter:
 +
-In the **Namespace** dropdown, select `{user}-observability-demo`.
+In the **Namespace** dropdown, select `SHOWROOM_USERNAME-observability-demo`.
 +
 This scopes the search to the namespace where your application runs.
 
@@ -366,7 +366,7 @@ Find all errored traces:
 
 === Verify
 
-* ✓ **Observe → Traces** page loads cleanly for namespace `{user}-observability-demo`
+* ✓ **Observe → Traces** page loads cleanly for namespace `SHOWROOM_USERNAME-observability-demo`
 * ✓ Time range selector is functional
 * ✓ Scatter plot and trace list areas are present (empty is expected at this stage)
 * ✓ **Show query** toggle reveals the TraceQL editor
@@ -448,10 +448,10 @@ This file contains three `Deployment` patches—one per service. When applied, e
 [source,bash]
 ----
 oc get deployment frontend backend \
-  -n {user}-observability-demo \
+  -n SHOWROOM_USERNAME-observability-demo \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
 oc get statefulset database \
-  -n {user}-observability-demo \
+  -n SHOWROOM_USERNAME-observability-demo \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
 ----
 +
