@@ -233,9 +233,6 @@ spec:
         volumeMounts:
         - name: user-data
           mountPath: /user_data/
-        - mountPath: /showroom/repo
-          name: showroom-files
-          subPath: repo
         - mountPath: /showroom/www
           name: showroom-files
           subPath: www
