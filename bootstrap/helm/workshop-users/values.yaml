@@ -21,6 +21,7 @@ operatorViewNamespaces:
   - openshift-operators
   - openshift-monitoring
   - openshift-user-workload-monitoring
+  - observability-demo
 
 # Namespaces where the group gets monitoring API read access
 # (allows querying Prometheus/Alertmanager APIs).
