@@ -1,7 +1,7 @@
 ---
 site:
   title: OpenShift Observability Workshop
-  url: https://github.com/rhpds/showroom_template_nookbag
+  url: https://github.com/cldmnky/observability-workshop
   start_page: modules::index.adoc
 
 content:
@@ -14,8 +14,8 @@ ui:
     url: https://github.com/rhpds/rhdp_showroom_theme/releases/download/v0.0.1/ui-bundle.zip
     snapshot: true
   supplemental_files:
-    - path: ./content/supplemental-ui
-    - path: ./content/lib
+    - path: ./showroom/content/supplemental-ui
+    - path: ./showroom/content/lib
     - path: .nojekyll
     - path: ui.yml
       contents: "static_files: [ .nojekyll ]"
@@ -25,8 +25,8 @@ runtime:
 
 antora:
   extensions:
-    - require: ./content/lib/compute-attributes.js
-    - require: ./content/lib/dev-mode.js
+    - require: ./showroom/content/lib/compute-attributes.js
+    - require: ./showroom/content/lib/dev-mode.js
       enabled: false
 
 output:
