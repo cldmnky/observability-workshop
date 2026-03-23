@@ -31,6 +31,8 @@ jobs:
           node-version: 20.13.1
       - name: install antora
         run: npm install --global @antora/cli@3.1 @antora/site-generator@3.1
+      - name: prepare content source
+        run: mkdir -p /showroom && ln -s "$GITHUB_WORKSPACE" /showroom/repo
       - name: antora generate
         run: antora generate showroom/site.yml --stacktrace
       - name: upload pages artifact
