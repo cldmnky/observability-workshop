@@ -450,7 +450,7 @@ Query:
 +
 [source,promql]
 ----
-sum(rate(container_network_receive_bytes_total{namespace="SHOWROOM_USERNAME-observability-demo",pod=~"frontend-.*"}[5m]))
+sum by (service) (rate(http_requests_total{code="404", namespace="SHOWROOM_USERNAME-observability-demo}[5m]))
 ----
 +
 You should see a traffic spike while the error generator is running.
@@ -459,7 +459,7 @@ You should see a traffic spike while the error generator is running.
 +
 [source,logql]
 ----
-{kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "404" |= "error"
+{kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "404" |= "error" | json
 ----
 +
 This shows the actual error log messages during the spike.
@@ -476,7 +476,7 @@ Compare the timestamp of log entries with the metric spike time.
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} 
   |= "404" 
-  | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*(?P<method>\w+).*(?P<status>\d{3})`
+  | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*method=(?P<method>\w+).*status=(?P<status>\d{3})`
   | line_format "{{.timestamp}} - {{.method}} {{.status}}"
 ----
 +
@@ -520,23 +520,20 @@ Check that you can correlate metrics and logs:
 . Test regex pattern against actual log samples
 . Use simpler filters first, then add complexity
 
-== Exercise 5: Create log-based alerts
+== Exercise 5: Log-based alerting
 
-Just as you created metric-based alerts in Module 1, you can create alerts based on log patterns. You'll configure an alert that fires when error rates exceed thresholds.
+Just as Prometheus evaluates PromQL expressions to generate metric-based alerts, LokiStack includes a built-in **ruler** component that evaluates LogQL expressions on a schedule and fires alerts when thresholds are exceeded. Those alerts are then forwarded to Alertmanager, which handles routing, grouping, silencing, and notification — exactly the same pipeline used by metric alerts.
 
-=== Steps
+=== How it works
 
-. Create an AlertingRule that triggers on high error log rates:
-+
-[NOTE]
-====
-For the `application` tenant, AlertingRules must be created *in your application namespace*, not in `openshift-logging`.
-The namespace must carry the label `openshift.io/loki-rules: "true"`, which the workshop pre-provisions.
-====
-+
-[source,bash]
+The Loki ruler evaluates `AlertingRule` resources (a CRD provided by the Loki Operator). When an expression matches, the ruler sends the alert to Alertmanager, which routes it according to its normal configuration (email, PagerDuty, Slack receivers, etc.).
+
+For the `application` tenant, `AlertingRule` resources must be created in the application namespace and that namespace must carry the label `openshift.io/loki-rules: "true"`. The workshop pre-provisions this label on your demo namespace.
+
+A complete `AlertingRule` that fires when the 404 error rate exceeds 0.5 per second for 2 minutes looks like this:
+
+[source,yaml]
 ----
-cat <<EOF | oc apply -f -
 apiVersion: loki.grafana.com/v1
 kind: AlertingRule
 metadata:
@@ -558,79 +555,40 @@ spec:
         severity: warning
         team: platform
       annotations:
-        summary: "High error rate in SHOWROOM_USERNAME-observability-demo namespace"
-        description: "Application in SHOWROOM_USERNAME-observability-demo is producing more than 0.5 errors/second for 2 minutes."
-EOF
-----
-+
-This alert fires if error logs exceed 0.5 entries per second for 2 minutes.
-
-. Verify the AlertingRule was created:
-+
-[source,bash]
-----
-oc get alertingrule -n SHOWROOM_USERNAME-observability-demo
+        summary: "High error rate in SHOWROOM_USERNAME-observability-demo"
+        description: "More than 0.5 errors/second for 2 minutes in namespace SHOWROOM_USERNAME-observability-demo."
 ----
 
-. Trigger the alert by generating sustained errors:
-+
-[source,bash]
-----
-oc run -n SHOWROOM_USERNAME-observability-demo alert-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
-  sh -c 'for i in $(seq 1 200); do curl -s -o /dev/null http://frontend:8080/error; sleep 0.5; done'
-----
-+
-This generates errors for about 100 seconds, which should trigger the alert after 2 minutes.
+The key fields map directly to Prometheus alerting semantics:
 
-. Check alert status in the console:
-+
-Navigate to **Observe** → **Alerting** → **Alerting rules**
-+
-Search for "HighApplicationErrorRate"
-+
-The alert should transition: **Inactive** → **Pending** (after 2 min) → **Firing** (if errors continue)
+[cols="1,3"]
+|===
+|Field |Meaning
 
-. Stop generating errors and watch the alert resolve:
-+
-After stopping the error generation, wait 2-3 minutes and the alert should return to **Inactive**.
+|`expr`
+|LogQL expression evaluated by the Loki ruler. A non-zero result means the alert is active.
 
-=== Verify
+|`for`
+|The expression must stay true for this duration before the alert transitions from *Pending* to *Firing*.
 
-Check that log-based alerting works:
+|`labels`
+|Key/value pairs attached to the alert — used by Alertmanager for routing and silencing.
 
-* ✓ AlertingRule resource created successfully
-* ✓ Alert visible in OpenShift console alerting interface
-* ✓ Alert transitions to Pending when errors increase
-* ✓ Alert fires when error rate exceeds threshold for duration
-* ✓ Alert resolves when error rate drops below threshold
+|`annotations`
+|Human-readable `summary` and `description` shown in the console and notifications.
+|===
 
-**What you learned**: Loki supports alerting based on log patterns and rates. This allows you to proactively detect issues based on log content, not just metrics.
+=== Alert lifecycle
 
-=== Troubleshooting
+Once created, the alert follows the same lifecycle as any Prometheus alert:
 
-**Issue**: AlertingRule not found or not created
+. **Inactive** — LogQL expression evaluates to zero (no 404s above threshold)
+. **Pending** — Expression is true but `for` duration has not elapsed yet
+. **Firing** — Expression has been true for longer than `for`; Alertmanager receives the alert and routes it
 
-**Solution**:
-. Check API availability: `oc api-resources | grep alertingrule`
-. If API not available, check Loki Operator version
-. Verify namespace: for `application` tenant, AlertingRules must be in your application namespace (e.g. `SHOWROOM_USERNAME-observability-demo`), not `openshift-logging`
-. Verify the namespace has the `openshift.io/loki-rules=true` label: `oc get namespace SHOWROOM_USERNAME-observability-demo --show-labels`
-. Check for syntax errors: `oc describe alertingrule high-error-rate -n SHOWROOM_USERNAME-observability-demo`
+Navigate to **Observe** → **Alerting** → **Alerting rules** in the OpenShift console to see log-based alerts alongside metric-based ones.
 
-**Issue**: Alert never fires
-
-**Solution**:
-. Verify LogQL expression matches actual logs: Test in **Observe** → **Logs** first
-. Ensure error rate actually exceeds threshold (0.5/sec)
-. Check `for` duration: Must exceed threshold for full 2 minutes
-. View Loki ruler logs: `oc logs -n openshift-logging -l app.kubernetes.io/component=ruler`
-
-**Issue**: Alert shows in Loki but not in OpenShift Alerting UI
-
-**Solution**:
-. Log-based alerts may only appear in Loki-specific interfaces
-. Check Loki rules: `oc get alertingrule -n SHOWROOM_USERNAME-observability-demo`
-. For integration with Alertmanager, additional configuration may be needed
+**What you learned**: LokiStack's ruler component evaluates LogQL expressions and fires alerts through the same Alertmanager pipeline used by Prometheus. This means log patterns — error bursts, missing heartbeats, security events — can trigger the same notifications and on-call workflows as metric alerts, with no additional tooling required.
 
 == Learning outcomes
 
@@ -640,7 +598,7 @@ By completing this module, you should now understand:
 * ✓ ClusterLogForwarder routes application logs from pods to Loki for centralized storage
 * ✓ LogQL queries use labels to select streams and filters to search log content
 * ✓ Correlating logs with metrics reduces troubleshooting time through unified analysis
-* ✓ Log-based alerts can detect issues based on patterns in log messages
+* ✓ LokiStack's ruler evaluates LogQL expressions and forwards alerts to Alertmanager, using the same routing and notification pipeline as metric-based alerts
 
 **Business impact**:
 
@@ -665,7 +623,7 @@ You successfully implemented centralized logging with LokiStack.
 * Generated diverse application logs across multiple services
 * Wrote LogQL queries to filter and search logs across distributed applications
 * Correlated metric spikes with detailed log messages for faster root cause analysis
-* Created log-based alerts to proactively detect error patterns
+* Learned how LokiStack's ruler and Alertmanager work together for log-based alerting
 
 **Key concepts mastered**:
 
@@ -673,7 +631,7 @@ You successfully implemented centralized logging with LokiStack.
 * **ClusterLogForwarder**: Routes logs from pods to configured outputs (Loki)
 * **LogQL**: Query language for searching and filtering log streams
 * **Log correlation**: Combining logs with metrics for comprehensive troubleshooting
-* **Log-based alerting**: Detecting issues based on log content patterns
+* **Log-based alerting**: `AlertingRule` CRs evaluated by the Loki ruler feed alerts into Alertmanager for routing, silencing, and notification
 
 **LogQL operators learned**:
 

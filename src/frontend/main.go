@@ -18,6 +18,7 @@ import (
 
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/baggage"
 
 	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
@@ -94,6 +95,10 @@ func main() {
 	// the active span – enabling trace_id / span_id in every log record.
 	var handler http.Handler = loggingMiddleware(serviceName, mux)
 	if telemetry.Enabled() {
+		// baggageMiddleware runs inside otelhttp so it enriches the already-extracted
+		// context; the W3C baggage header is then injected into all outgoing requests
+		// by otelhttp.NewTransport.
+		handler = baggageMiddleware(handler)
 		handler = otelhttp.NewHandler(handler, serviceName,
 			// Name spans "METHOD /path" so they are readable in Tempo.
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
@@ -353,6 +358,19 @@ func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
 			"duration_ms", duration.Milliseconds(),
 			"remote_addr", request.RemoteAddr,
 		)
+	})
+}
+
+// baggageMiddleware injects standard request metadata as W3C baggage so that
+// all downstream services (backend, database) can expose it as span attributes
+// without any application-level plumbing.
+func baggageMiddleware(next http.Handler) http.Handler {
+	clientPlatform, _ := baggage.NewMember("client.platform", "web")
+	requestSource, _ := baggage.NewMember("request.source", "workshop-demo")
+	bg, _ := baggage.New(clientPlatform, requestSource)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := baggage.ContextWithBaggage(r.Context(), bg)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

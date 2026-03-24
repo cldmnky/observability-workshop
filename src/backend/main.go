@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +17,9 @@ import (
 
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
@@ -254,6 +258,27 @@ func (application *backendApp) handleNotesExport(response http.ResponseWriter, r
 }
 
 func (application *backendApp) proxyDatabase(response http.ResponseWriter, request *http.Request, path string) {
+	// Simulate variable backend processing time (0–60 ms).
+	time.Sleep(time.Duration(rand.Intn(61)) * time.Millisecond)
+
+	// Set production-grade span attributes: DB semantic conventions + baggage forwarding.
+	if telemetry.Enabled() {
+		span := trace.SpanFromContext(request.Context())
+		// W3C baggage members forwarded as span attrs so they surface in Tempo.
+		bg := baggage.FromContext(request.Context())
+		for _, m := range bg.Members() {
+			span.SetAttributes(attribute.String("baggage."+m.Key(), m.Value()))
+		}
+		// OpenTelemetry Semantic Conventions for database client spans.
+		span.SetAttributes(
+			attribute.String("db.system", "chainsql"),
+			attribute.String("db.operation", dbOperationFromHTTPMethod(request.Method)),
+			attribute.String("db.sql.table", dbTableFromPath(path)),
+			attribute.String("peer.service", "database"),
+			attribute.String("net.peer.name", "database"),
+		)
+	}
+
 	targetURL := application.databaseURL + path
 	var bodyBuffer []byte
 
@@ -297,8 +322,42 @@ func (application *backendApp) proxyDatabase(response http.ResponseWriter, reque
 		response.Header().Set("Content-Disposition", disposition)
 	}
 
+	// Record the downstream status code on the span so slow/error proxied
+	// responses are visible without expanding the full attribute list.
+	if telemetry.Enabled() {
+		trace.SpanFromContext(request.Context()).SetAttributes(
+			attribute.Int("db.response.status_code", databaseResponse.StatusCode),
+		)
+	}
 	response.WriteHeader(databaseResponse.StatusCode)
 	_, _ = response.Write(responseBody)
+}
+
+// dbOperationFromHTTPMethod translates an HTTP verb to a SQL operation name
+// following OTel DB semantic conventions.
+func dbOperationFromHTTPMethod(method string) string {
+	switch method {
+	case http.MethodGet:
+		return "SELECT"
+	case http.MethodPost:
+		return "INSERT"
+	case http.MethodPut:
+		return "UPDATE"
+	case http.MethodDelete:
+		return "DELETE"
+	default:
+		return method
+	}
+}
+
+// dbTableFromPath extracts the table name from a database proxy path such as
+// "/notes", "/notes/42", or "/events".
+func dbTableFromPath(path string) string {
+	parts := strings.SplitN(strings.Trim(path, "/"), "/", 2)
+	if len(parts) > 0 && parts[0] != "" {
+		return parts[0]
+	}
+	return "unknown"
 }
 
 // callNotifier sends a note lifecycle event to the notifier service.

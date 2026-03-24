@@ -149,21 +149,6 @@ tempo-tempo-distributor   ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
 +
 Port **4317** is OTLP gRPC and port **4318** is OTLP HTTP. The central OpenTelemetry Collector forwards traces to this endpoint.
 
-. Query the Tempo status API to confirm readiness:
-+
-[source,bash]
-----
-oc exec -n openshift-tempo-operator \
-  deployment/tempo-tempo-query-frontend -- \
-  wget -qO- http://localhost:3200/ready
-----
-+
-.Expected output
-[source,text]
-----
-ready
-----
-
 === Verify
 
 Check that your tracing infrastructure is operational:
@@ -192,75 +177,10 @@ Check that your tracing infrastructure is operational:
 . View distributor logs: `oc logs -n openshift-tempo-operator -l app.kubernetes.io/component=distributor`
 . Verify the object storage secret exists: `oc get secret -n openshift-tempo-operator | grep tempo`
 
-== Exercise 2: Enable the Distributed Tracing UI plugin
+== Exercise 2: The Cluster Observability Operator UIPlugin
 
 The Cluster Observability Operator ships a Distributed Tracing UI plugin that adds an **Observe → Traces** page to the OpenShift console. You register it by creating a `UIPlugin` custom resource.
-
 === Steps
-
-. Verify the Cluster Observability Operator is running:
-+
-[source,bash]
-----
-oc get pods -n openshift-cluster-observability-operator
-----
-+
-.Expected output
-[source,text]
-----
-NAME                                                          READY   STATUS    RESTARTS   AGE
-cluster-observability-operator-controller-manager-xxxxx       2/2     Running   0          1h
-----
-
-. Check whether the Distributed Tracing UIPlugin already exists:
-+
-[source,bash]
-----
-oc get uiplugin distributed-tracing 2>/dev/null && echo "exists" || echo "not found"
-----
-+
-If the output is `exists`, skip to step 4.
-+
-If the output is `not found`, create it in the next step.
-
-. Create the Distributed Tracing UIPlugin:
-+
-[source,bash]
-----
-cat <<EOF | oc apply -f -
-apiVersion: observability.openshift.io/v1alpha1
-kind: UIPlugin
-metadata:
-  name: distributed-tracing
-spec:
-  type: DistributedTracing
-EOF
-----
-+
-The Cluster Observability Operator detects this CR and configures the OpenShift console to load the distributed tracing frontend plugin, connecting it automatically to the TempoStack instance in the cluster.
-+
-[NOTE]
-====
-The `UIPlugin` CR links the console plugin to the TempoStack query-frontend based on available `TempoStack` resources in the cluster. No manual URL configuration is required.
-====
-
-. Wait for the plugin to become available:
-+
-[source,bash]
-----
-oc get uiplugin distributed-tracing -w
-----
-+
-.Expected output
-[source,text]
-----
-NAME                  TYPE                AGE   AVAILABLE
-distributed-tracing   DistributedTracing  30s   true
-----
-+
-Press Ctrl+C when `AVAILABLE` shows `true`.
-
-. Reload the OpenShift console in your browser.
 +
 Navigate to **Observe** → **Traces** in the left-hand navigation.
 +
@@ -282,21 +202,6 @@ Check that the UI plugin is operational:
 
 **What you learned**: The Distributed Tracing UI plugin is registered as a `UIPlugin` CR managed by the Cluster Observability Operator. The plugin connects to the TempoStack query-frontend and renders the trace search UI directly in the OpenShift console—no separate Jaeger deployment is required. For more information see the link:https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator/1-latest/html/ui_plugins_for_red_hat_openshift_cluster_observability_operator/distributed-tracing-ui-plugin[Distributed Tracing UI plugin documentation^].
 
-=== Troubleshooting
-
-**Issue**: UIPlugin stays at `AVAILABLE: false`
-
-**Solution**:
-. Describe the UIPlugin: `oc describe uiplugin distributed-tracing`
-. Check COO controller logs: `oc logs -n openshift-cluster-observability-operator -l control-plane=controller-manager`
-. Verify the TempoStack is in Ready state (the plugin requires a Ready TempoStack to configure its backend URL)
-
-**Issue**: **Observe → Traces** does not appear after browser reload
-
-**Solution**:
-. Hard-refresh the browser (Ctrl+Shift+R or Cmd+Shift+R)
-. Confirm `oc get uiplugin distributed-tracing` shows `AVAILABLE: true`
-. Verify you have console access with the appropriate role
 
 == Exercise 3: Explore the Observe → Traces interface
 

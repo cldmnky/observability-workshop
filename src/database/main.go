@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,7 +20,10 @@ import (
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
@@ -291,6 +295,23 @@ func (application *app) getEvent(response http.ResponseWriter, id int) {
 }
 
 func (application *app) createEvent(response http.ResponseWriter, request *http.Request) {
+	// Simulate variable database write latency (0–60 ms).
+	time.Sleep(time.Duration(rand.Intn(61)) * time.Millisecond)
+
+	// Set production-grade span attributes.
+	if telemetry.Enabled() {
+		span := trace.SpanFromContext(request.Context())
+		bg := baggage.FromContext(request.Context())
+		for _, m := range bg.Members() {
+			span.SetAttributes(attribute.String("baggage."+m.Key(), m.Value()))
+		}
+		span.SetAttributes(
+			attribute.String("db.system", "chainsql"),
+			attribute.String("db.operation", "INSERT"),
+			attribute.String("db.sql.table", "events"),
+		)
+	}
+
 	var input createEventRequest
 	err := json.NewDecoder(request.Body).Decode(&input)
 	if err != nil {
@@ -338,6 +359,16 @@ func (application *app) createEvent(response http.ResponseWriter, request *http.
 
 	// Increment the OTEL counter (no-op when telemetry is disabled).
 	application.eventsCreated.Add(request.Context(), 1)
+
+	// Business-level attributes: event origin and HTTP status stored.
+	if telemetry.Enabled() {
+		trace.SpanFromContext(request.Context()).SetAttributes(
+			attribute.String("event.source", input.Source),
+			attribute.String("event.route", input.Route),
+			attribute.Int("event.http_status", input.Status),
+			attribute.Int("event.id", nextID),
+		)
+	}
 
 	writeJSON(response, http.StatusCreated, event{
 		ID:        nextID,
@@ -448,6 +479,23 @@ func (application *app) getNote(response http.ResponseWriter, id int) {
 }
 
 func (application *app) createNote(response http.ResponseWriter, request *http.Request) {
+	// Simulate variable database write latency (0–60 ms).
+	time.Sleep(time.Duration(rand.Intn(61)) * time.Millisecond)
+
+	// Set production-grade span attributes.
+	if telemetry.Enabled() {
+		span := trace.SpanFromContext(request.Context())
+		bg := baggage.FromContext(request.Context())
+		for _, m := range bg.Members() {
+			span.SetAttributes(attribute.String("baggage."+m.Key(), m.Value()))
+		}
+		span.SetAttributes(
+			attribute.String("db.system", "chainsql"),
+			attribute.String("db.operation", "INSERT"),
+			attribute.String("db.sql.table", "notes"),
+		)
+	}
+
 	var input createNoteRequest
 	err := json.NewDecoder(request.Body).Decode(&input)
 	if err != nil {
@@ -482,6 +530,15 @@ func (application *app) createNote(response http.ResponseWriter, request *http.R
 
 	// Increment the OTEL counter (no-op when telemetry is disabled).
 	application.notesCreated.Add(request.Context(), 1)
+
+	// Business-level attributes: note identity recorded on the span.
+	if telemetry.Enabled() {
+		trace.SpanFromContext(request.Context()).SetAttributes(
+			attribute.Int("note.id", nextID),
+			attribute.String("note.title", title),
+			attribute.Int("note.content.length", len(input.Content)),
+		)
+	}
 
 	writeJSON(response, http.StatusCreated, note{
 		ID:        nextID,

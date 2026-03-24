@@ -94,7 +94,7 @@ clusterLogging:
   # Enable ClusterLogForwarder instance
   enabled: true
   # Name of the ClusterLogForwarder instance
-  name: instance
+  name: logging-collector
   # Namespace
   namespace: openshift-logging
   # ServiceAccount used by the collector

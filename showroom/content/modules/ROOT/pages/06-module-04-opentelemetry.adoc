@@ -576,8 +576,9 @@ FRONTEND_URL=$(oc get route frontend \
 
 for i in $(seq 1 30); do
   curl -sk -o /dev/null "https://$FRONTEND_URL/"
-  curl -sk -o /dev/null -X POST "https://$FRONTEND_URL/new-note" \
-    -d "title=Test+$i&content=OTel+test"
+  curl -sk -o /dev/null -X POST "https://$FRONTEND_URL/api/notes" \
+    -H "Content-Type: application/json" \
+    -d "{\"title\":\"Test $i\",\"content\":\"OTel test\"}"
   sleep 1
 done
 echo "Traffic generation complete"
