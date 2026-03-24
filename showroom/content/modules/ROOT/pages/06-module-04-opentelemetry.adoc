@@ -638,24 +638,96 @@ Click one of the higher points to open the trace detail view.
 
 . Explore the trace waterfall:
 +
-The waterfall shows a horizontal bar for each span, indented to reflect parent-child relationships:
+The waterfall shows a horizontal bar for each span, indented to reflect parent-child relationships. The `otelhttp` library creates two spans per service boundary: a *server* span named after the matched route (`POST /api/notes`) and a *client* span named after the HTTP method (`HTTP POST`) for each outbound call:
 +
 [source,text]
 ----
-frontend: GET /new-note                  [==============================] 95ms
-  backend: POST /api/notes               [========================] 80ms
-    database: POST /api/events           [==================] 60ms
+frontend: POST /api/notes            [=====================================] 134ms
+  frontend: HTTP POST                [===================================] 130ms
+    backend: POST /api/notes         [========================] 100ms
+      backend: HTTP POST             [================] 56ms
+        database: POST /notes        [===============] 55ms
+      backend: HTTP POST             [========] 25ms
 ----
 +
-Each bar length represents duration. The widest bar is the slowest operation in the request chain.
+The two `backend: HTTP POST` client spans show parallel downstream calls — one to the database service and one to the notifier service. Bar length represents duration. The server span for each service is the parent of that service's outgoing client spans.
 
 . Click a span to expand its attributes:
 +
-Select the `database` span. You will see attributes populated by both the application and the sidecar processors:
+The attributes on any span come from three distinct layers — the application itself, the Go OTel SDK semantic conventions, and the sidecar collector processors. Click spans from each service to compare.
 +
-* **Application attributes**: `http.method`, `http.status_code`, `http.route`
-* **Kubernetes attributes** (added by sidecar `k8sattributes`): `k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`
-* **Resource attributes** (added by `resourcedetection`): `cloud.platform`, `k8s.cluster.name`
+**Frontend span** (`frontend: POST /api/notes`)
++
+[options="header",cols="45,55"]
+|===
+|Attribute |Value / description
+|`http.method` |`GET`
+|`http.status_code` |`200`
+|`http.route` |Matched route pattern (for example, `/`)
+|`baggage.client.platform` |`web` — set by the frontend baggage middleware and propagated to every downstream span via the W3C `baggage` header
+|`baggage.request.source` |`workshop-demo` — identifies the request origin; visible on all three service spans in this trace
+|===
++
+**Backend span** (`backend: POST /api/notes`)
++
+[options="header",cols="45,55"]
+|===
+|Attribute |Value / description
+|`http.method` |`POST`
+|`http.status_code` |`200`
+|`db.system` |`chainsql` — identifies the downstream data store
+|`db.operation` |`INSERT` — derived from the HTTP method (`POST → INSERT`, `GET → SELECT`)
+|`db.sql.table` |`notes` — extracted from the request path
+|`peer.service` |`database` — the logical name of the service called
+|`net.peer.name` |`database` — DNS hostname of the database service
+|`db.response.status_code` |HTTP status returned by the database service
+|`baggage.client.platform` |`web` — forwarded from the W3C `baggage` HTTP header
+|`baggage.request.source` |`workshop-demo` — forwarded from the W3C `baggage` HTTP header
+|===
++
+**Database span** (`database: POST /notes`)
++
+[options="header",cols="45,55"]
+|===
+|Attribute |Value / description
+|`db.system` |`chainsql`
+|`db.operation` |`INSERT`
+|`db.sql.table` |`notes`
+|`note.id` |Unique ID assigned to the created note record
+|`note.title` |Title string from the request body
+|`note.content.length` |Character length of the note content
+|`event.id` |ID of the audit event recorded alongside the note
+|`event.source` |Service name that triggered the event
+|`event.http_status` |HTTP status of the original request that created the event
+|===
++
+**Sidecar-added attributes** (present on every span regardless of service):
++
+* **Kubernetes attributes** (`k8sattributes` processor): `k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`
+* **Resource attributes** (`resourcedetection` processor): `cloud.platform`, `k8s.cluster.name`
+
+. Observe W3C Baggage propagation:
++
+Baggage is a key-value store carried inside the `baggage` HTTP header alongside `traceparent`. The frontend sets two members before every outbound request:
++
+[source,text]
+----
+baggage: client.platform=web,request.source=workshop-demo
+----
++
+Each downstream service reads this header and records every baggage member as a span attribute prefixed with `baggage.`. This means the same logical context — where the request came from — is searchable as a span attribute on every service in the chain. Filter all traces that originated from the web frontend:
++
+[source,text]
+----
+{ span["baggage.client.platform"] = "web" }
+----
++
+Or find every span produced by the workshop demo requests, regardless of service:
++
+[source,text]
+----
+{ span["baggage.request.source"] = "workshop-demo" }
+----
 
 . Use TraceQL to find slow database spans:
 +
@@ -666,7 +738,37 @@ Click **Show query** and enter:
 { resource.service.name = "database" && duration > 50ms }
 ----
 +
-This filters to only traces where the database service had at least one span exceeding 50ms.
+This filters to only traces where the database service had at least one span exceeding 50ms. Because random delays of up to 60ms are injected in the backend and database services, you should see several results.
++
+Query by the specific table the slow operation touched:
++
+[source,text]
+----
+{ span["db.sql.table"] = "notes" && duration > 30ms }
+----
++
+Or filter by database operation type:
++
+[source,text]
+----
+{ span["db.operation"] = "INSERT" && resource.service.name = "database" }
+----
+
+. Use TraceQL to surface business-level data:
++
+The custom `note.*` and `event.*` attributes open the trace store as a queryable record of application events. Find all traces that created a note longer than a given threshold by selecting spans with a content length attribute:
++
+[source,text]
+----
+{ span["note.id"] != "" }
+----
++
+Or find traces by peer service to understand the backend-to-database communication pattern:
++
+[source,text]
+----
+{ span["peer.service"] = "database" && span["db.sql.table"] = "notes" }
+----
 
 . Find error traces:
 +
@@ -696,11 +798,15 @@ Because the application uses `otelslog.NewHandler()`, every structured log line 
 
 * ✓ Traces appear in **Observe → Traces** for namespace `SHOWROOM_USERNAME-observability-demo`
 * ✓ Trace waterfall shows spans from all three services (frontend, backend, database)
-* ✓ Span attributes include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
-* ✓ TraceQL query `{ resource.service.name = "database" }` returns results
+* ✓ Frontend spans carry `baggage.client.platform=web` and `baggage.request.source=workshop-demo`
+* ✓ Backend spans carry `db.system`, `db.operation`, `db.sql.table`, `peer.service`, `db.response.status_code`
+* ✓ Database spans carry `note.id`, `note.title`, `note.content.length` on note-creation requests
+* ✓ All spans include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
+* ✓ TraceQL query `{ span["baggage.request.source"] = "workshop-demo" }` returns results
+* ✓ TraceQL query `{ span["db.sql.table"] = "notes" }` returns backend and database spans
 * ✓ A trace ID from the trace view can be found in **Observe → Logs**
 
-**What you learned**: The two-tier collector architecture enriches telemetry with Kubernetes context at the sidecar level before forwarding to the central collector. Every trace, metric, and log automatically carries pod, deployment, and cluster metadata—no manual attribute configuration in application code required.
+**What you learned**: The workshop application uses two complementary instrumentation strategies. The sidecar collector processors automatically enrich spans with Kubernetes metadata — no application code required. The Go OTel SDK adds semantic-convention attributes (`db.*`, `peer.*`, `net.*`) for production-grade observability, business-level attributes (`note.*`, `event.*`) for application-specific queries, and W3C Baggage to propagate contextual metadata across all service boundaries. This combination lets you answer both infrastructure questions ("which pod processed this request?") and application questions ("which note was created and how long was its content?") from a single span.
 
 === Troubleshooting
 
@@ -1010,15 +1116,18 @@ done
 echo "Done"
 ----
 
-. Return to **Observe** → **Traces** in the console. A note-creation trace will now show a fourth hop:
+. Return to **Observe** → **Traces** in the console. A note-creation trace will now show a fourth hop. The `backend: HTTP POST` client span that previously had no child now has a notifier server span beneath it:
 +
 [source,text]
 ----
-frontend: POST /api/notes                     [=====================================] 130ms
-  backend: POST /api/notes                    [==============================] 105ms
-    database: POST /notes                     [================] 50ms
-    notifier: POST /notify                    [==========] 30ms
-      notifier: POST /notify → database       [======] 18ms
+frontend: POST /api/notes              [=====================================] 134ms
+  frontend: HTTP POST                  [===================================] 130ms
+    backend: POST /api/notes           [========================] 100ms
+      backend: HTTP POST               [================] 56ms
+        database: POST /notes          [===============] 55ms
+      backend: HTTP POST               [========] 25ms
+        notifier: POST /notify         [======] 20ms
+          notifier: HTTP POST          [===] 10ms
 ----
 +
 The `notifier` spans are produced entirely by `opentelemetry-instrumentation-fastapi` and `opentelemetry-instrumentation-httpx`—**no code was changed in `app.py`**.
@@ -1040,7 +1149,8 @@ The `notifier` spans are produced entirely by `opentelemetry-instrumentation-fas
 |Image rebuild required |Yes |**No**
 |Activation mechanism |`OTEL_ENABLED=true` env var |Pod annotation
 |Span granularity |Full control (custom spans) |Framework-level (HTTP in/out)
-|Custom attributes |Easy (manual API calls) |Limited without code changes
+|Custom attributes |Full control — `db.*`, `note.*`, `event.*`, baggage |Limited without code changes
+|W3C Baggage |Yes — frontend injects, all services propagate |Yes — read from `traceparent`/`baggage` header automatically
 |Best for |Apps with source access |Apps without source access or rapid onboarding
 |===
 
