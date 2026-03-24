@@ -501,7 +501,7 @@ image::observability-stack.png[Monitoring topology showing COO stack in observab
 ----
 cat <<EOF | oc apply -f -
 apiVersion: monitoring.rhobs/v1
-kind: ServiceMonitor
+kind: ServiceMonitor.monitoring.rhobs
 metadata:
   name: sample-app-coo
   namespace: SHOWROOM_USERNAME-observability-demo
@@ -519,7 +519,7 @@ spec:
 EOF
 ----
 +
-Note the `monitoring.rhobs/stack: observability-stack` label - this tells COO to scrape this service.
+Note the `monitoring.rhobs/stack: observability-stack` label - this tells COO to scrape this service. We keep the original ServiceMonitor from Exercise 3 to show how CMO and COO can run independently with different discovery methods (label-based for COO vs namespace-based for CMO).
 
 . Verify the COO Prometheus stack has picked up your ServiceMonitor:
 +
