@@ -1,70 +1,105 @@
 // User Context Injection for Multi-User Workshops
-// Fetches user-specific data and replaces placeholders in the page
+// Substitutes %TOKEN% and {placeholder} patterns using URL params.
+//
+// On GH Pages: content is served directly, URL params are on window.location.
+// On cluster (nookbag): content is in an iframe; URL params are on the parent
+// window. Both parent and iframe are same-origin so window.parent.location is
+// accessible.
 
 (function() {
   'use strict';
 
-  // Placeholders to replace (following Antora/showroom convention)
-  const PLACEHOLDERS = {
+  // Maps %TOKEN% placeholder → URL param name (case-sensitive key match)
+  const URL_PARAM_PLACEHOLDERS = {
+    '%OPENSHIFT_USERNAME%': 'OPENSHIFT_USERNAME',
+    '%OPENSHIFT_PASSWORD%': 'OPENSHIFT_PASSWORD',
+    '%openshift_cluster_ingress_domain%': 'openshift_cluster_ingress_domain',
+    '%openshift_cluster_console_url%': 'openshift_cluster_console_url',
+    '%openshift_api_url%': 'openshift_api_url',
+    '%perses_url%': 'perses_url',
+    '%guid%': 'guid',
+  };
+
+  // Maps {placeholder} → API response key (used when /api/user-info is available)
+  const API_PLACEHOLDERS = {
     '{user}': 'user',
     '{openshift_console_url}': 'console_url',
     '{openshift_cluster_console_url}': 'console_url',
-    '%openshift_cluster_console_url%': 'console_url',
     '{login_command}': 'login_command',
     '{openshift_cluster_ingress_domain}': 'openshift_cluster_ingress_domain',
     '{openshift_api_url}': 'api_url',
-    '%perses_url%': 'perses_url',
-    '{perses_url}': 'perses_url'
+    '{perses_url}': 'perses_url',
   };
 
   // Namespace literals used in workshop exercises that must be user-specific
-  // Note: 'observability-demo' is NOT included because it's a shared COO namespace
   const EXERCISE_NAMESPACE_LITERALS = {
-    'tracing-demo': (user) => `${user}-tracing-demo`
+    'tracing-demo': (user) => `${user}-tracing-demo`,
   };
+
+  // Read URL params from the parent window (nookbag iframe) or current window (GH Pages / direct).
+  function getUrlParams() {
+    let search = window.location.search;
+    if (!search && window.parent !== window) {
+      try {
+        search = window.parent.location.search;
+      } catch (e) { /* cross-origin – ignore */ }
+    }
+    // Also try parent when we ARE in an iframe regardless, in case the page
+    // was navigated to without params on the iframe URL itself.
+    if (window.parent !== window) {
+      try {
+        const parentSearch = window.parent.location.search;
+        if (parentSearch) search = parentSearch;
+      } catch (e) { /* cross-origin */ }
+    }
+    return new URLSearchParams(search);
+  }
 
   function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  function buildReplacementPairs(userData) {
+  function buildReplacementPairs(urlParams, apiData) {
     const pairs = [];
 
-    // Placeholder replacements (marked with false for isLiteral)
-    for (const [placeholder, key] of Object.entries(PLACEHOLDERS)) {
-      if (userData[key]) {
-        pairs.push([placeholder, userData[key], false]);
+    // 1. URL-param-based %TOKEN% substitutions (highest priority)
+    for (const [placeholder, paramName] of Object.entries(URL_PARAM_PLACEHOLDERS)) {
+      const value = urlParams.get(paramName);
+      if (value) {
+        pairs.push([placeholder, value, false]);
       }
     }
 
-    // Namespace literal replacements (marked with true for isLiteral)
-    if (userData.user) {
+    // 2. API-based {placeholder} substitutions (fallback / supplemental)
+    if (apiData) {
+      for (const [placeholder, key] of Object.entries(API_PLACEHOLDERS)) {
+        if (apiData[key]) {
+          pairs.push([placeholder, apiData[key], false]);
+        }
+      }
+    }
+
+    // 3. Namespace literal replacements
+    const username = urlParams.get('OPENSHIFT_USERNAME') || (apiData && apiData.user);
+    if (username) {
       for (const [literal, mapper] of Object.entries(EXERCISE_NAMESPACE_LITERALS)) {
-        pairs.push([literal, mapper(userData.user), true]);
+        pairs.push([literal, mapper(username), true]);
       }
     }
 
     return pairs;
   }
 
-  // Fetch user info from the API endpoint
+  // Fetch user info from the API endpoint (optional, cluster-only)
   async function fetchUserInfo() {
     try {
       const response = await fetch('/api/user-info', {
-        credentials: 'include', // Include OAuth cookies
-        headers: {
-          'Accept': 'application/json'
-        }
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
       });
-
-      if (!response.ok) {
-        console.warn('Failed to fetch user info:', response.status);
-        return null;
-      }
-
+      if (!response.ok) return null;
       return await response.json();
-    } catch (error) {
-      console.error('Error fetching user info:', error);
+    } catch (e) {
       return null;
     }
   }
@@ -118,8 +153,8 @@
   }
 
   // Walk the DOM tree and replace placeholders
-  function replacePlaceholders(userData) {
-    const replacementPairs = buildReplacementPairs(userData);
+  function replacePlaceholders(urlParams, apiData) {
+    const replacementPairs = buildReplacementPairs(urlParams, apiData);
 
     const walker = document.createTreeWalker(
       document.body,
@@ -147,54 +182,22 @@
     elementsToProcess.forEach(element => replaceInAttributes(element, replacementPairs));
   }
 
-  // Show user info indicator in header
-  function showUserIndicator(userData) {
-    const navbar = document.querySelector('.navbar');
-    if (!navbar) return;
-
-    const userBadge = document.createElement('div');
-    userBadge.className = 'user-badge';
-    userBadge.style.cssText = `
-      position: absolute;
-      top: 10px;
-      right: 20px;
-      background: #0066cc;
-      color: white;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      z-index: 1000;
-    `;
-    userBadge.innerHTML = `
-      <span style="opacity: 0.8;">Logged in as:</span>
-      <span style="margin-left: 8px;">${userData.user}</span>
-    `;
-
-    navbar.appendChild(userBadge);
-  }
-
   // Initialize user context injection
   async function init() {
-    console.log('[User Context] Initializing...');
-    
-    const userData = await fetchUserInfo();
-    
-    if (!userData) {
-      console.warn('[User Context] No user data available - using placeholder values');
+    const urlParams = getUrlParams();
+    const username = urlParams.get('OPENSHIFT_USERNAME');
+
+    // Fetch API data as supplemental fallback (may fail silently in GH Pages / nookbag)
+    const apiData = await fetchUserInfo();
+
+    const hasUrlParams = username || urlParams.get('openshift_cluster_ingress_domain');
+    if (!hasUrlParams && !apiData) {
+      console.warn('[User Context] No substitution data available');
       return;
     }
 
-    console.log('[User Context] User data loaded for:', userData.user);
-    
-    // Replace placeholders in the DOM
-    replacePlaceholders(userData);
-    
-    // Show user indicator
-    showUserIndicator(userData);
-    
-    console.log('[User Context] Placeholders replaced successfully');
+    console.log('[User Context] Substituting for:', username || (apiData && apiData.user) || '(unknown)');
+    replacePlaceholders(urlParams, apiData);
   }
 
   // Run when DOM is ready

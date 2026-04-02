@@ -14,7 +14,7 @@ showroom:
   # Nookbag bundle (enables LlamaStack, multiple terminals, Zero Trust UI)
   nookbag:
     enabled: true
-    bundleUrl: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.2.1/nookbag-v0.2.1.zip"
+    bundleUrl: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.2/nookbag-v0.3.2.zip"
 
   # Terminal configuration
   terminal:
