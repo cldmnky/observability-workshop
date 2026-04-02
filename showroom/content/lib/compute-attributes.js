@@ -1,16 +1,14 @@
 'use strict'
 
 /**
- * Antora extension that derives computed attributes from known base attributes.
+ * Antora extension that derives computed attributes from the ingress domain.
  *
- * Derived attributes:
- *   openshift_cluster_ingress_domain  — extracted from openshift_cluster_console_url
- *                                       e.g. "apps.cluster.example.com"
- *   perses_url                        — Perses UI route built from the ingress domain
+ * When showroom-deployer substitutes %openshift_cluster_ingress_domain% before
+ * the Antora build, this extension reconstructs all URL attributes and page-links
+ * from the resolved domain so they are correct in the generated HTML.
  *
- * These are only set when the source attribute is a real URL (not an unreplaced
- * %placeholder% token), so local dev builds that stub attributes are unaffected.
- * If the deployer has already resolved the attribute the computed value is skipped.
+ * For GitHub Pages builds (where attributes still contain %placeholders%), the
+ * guard condition prevents any execution — nookbag handles substitution client-side.
  */
 module.exports.register = function () {
   this.once('contentClassified', ({ contentCatalog }) => {
@@ -18,30 +16,20 @@ module.exports.register = function () {
       component.versions.forEach((version) => {
         const attrs = (version.asciidoc && version.asciidoc.attributes) || {}
 
-        const consoleUrl = attrs['openshift_cluster_console_url']
-        // Only proceed when we have a real URL, not an unresolved %placeholder%
-        if (!consoleUrl || consoleUrl.includes('%')) return
+        const domain = attrs['openshift_cluster_ingress_domain']
+        // Only proceed when we have a real domain, not an unresolved %placeholder%
+        if (!domain || domain.includes('%')) return
 
-        // Derive the apps domain from the console URL.
-        // Console URL format: https://console-openshift-console.apps.<cluster>.<base-domain>
-        //                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        const match = consoleUrl.match(/https?:\/\/[^.]+\.(.+)$/)
-        if (!match) return
-        const appsDomain = match[1] // e.g. "apps.cluster-xyz.example.com"
+        const consoleUrl = `https://console-openshift-console.${domain}`
+        const persesUrl = `https://perses.${domain}`
+        const apiUrl = `https://api.${domain}:6443`
 
-        // Set openshift_cluster_ingress_domain unless already resolved
-        if (!attrs['openshift_cluster_ingress_domain'] || attrs['openshift_cluster_ingress_domain'].includes('%')) {
-          version.asciidoc.attributes['openshift_cluster_ingress_domain'] = appsDomain
-        }
+        version.asciidoc.attributes['openshift_cluster_console_url'] = consoleUrl
+        version.asciidoc.attributes['openshift_console_url'] = consoleUrl
+        version.asciidoc.attributes['perses_url'] = persesUrl
+        version.asciidoc.attributes['openshift_api_url'] = apiUrl
 
-        // Set perses_url unless already resolved
-        if (!attrs['perses_url'] || attrs['perses_url'].includes('%')) {
-          version.asciidoc.attributes['perses_url'] = `https://perses-dev-perses-dev.${appsDomain}`
-        }
-
-        // Rebuild page-links with the real console URL so the %placeholder% in
-        // antora.yml (which showroom-deployer does not expand inside YAML lists)
-        // is replaced with the actual URL.
+        // Rebuild page-links with resolved URLs
         version.asciidoc.attributes['page-links'] = [
           { url: consoleUrl, text: 'OCP Console' },
           { url: `${consoleUrl}/terminal`, text: 'Web Terminal' },

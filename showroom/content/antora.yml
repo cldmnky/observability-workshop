@@ -14,15 +14,15 @@ asciidoc:
     # OpenShift Cluster Access
     OPENSHIFT_USERNAME: "%OPENSHIFT_USERNAME%"
     OPENSHIFT_PASSWORD: "%OPENSHIFT_PASSWORD%"
-    openshift_api_url: "%openshift_api_url%"
-    openshift_cluster_console_url: "%openshift_cluster_console_url%"
-    openshift_console_url: "%openshift_cluster_console_url%"
     openshift_cluster_ingress_domain: "%openshift_cluster_ingress_domain%"
-    perses_url: "%perses_url%"
+    openshift_api_url: "https://api.%openshift_cluster_ingress_domain%:6443"
+    openshift_cluster_console_url: "https://console-openshift-console.%openshift_cluster_ingress_domain%"
+    openshift_console_url: "https://console-openshift-console.%openshift_cluster_ingress_domain%"
+    perses_url: "https://perses.%openshift_cluster_ingress_domain%"
     page-links:
-    - url: "%openshift_cluster_console_url%"
+    - url: "https://console-openshift-console.%openshift_cluster_ingress_domain%"
       text: OCP Console
-    - url: "%openshift_cluster_console_url%/terminal"
+    - url: "https://console-openshift-console.%openshift_cluster_ingress_domain%/terminal"
       text: Web Terminal
     - url: https://redhat.com
       text: Red Hat
