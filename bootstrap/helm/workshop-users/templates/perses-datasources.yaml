@@ -1,0 +1,36 @@
+# Wave 4 — Pre-create a PersesDatasource in each user namespace pointing at the
+# shared COO MonitoringStack Prometheus.  Marking it default=true means Perses
+# dashboards in the same namespace pick it up without an explicit datasource ref.
+#
+# SkipDryRunOnMissingResource is required because the perses.dev CRDs are
+# installed by the COO operator; they may not yet exist on the first ArgoCD sync.
+{{- range $v := until (int .Values.users.count) }}
+{{- $user := printf "%s%d" $.Values.users.prefix (add $v 1) }}
+{{- range $.Values.exerciseNamespaceSuffixes }}
+{{- $ns := printf "%s-%s" $user . }}
+---
+apiVersion: perses.dev/v1alpha1
+kind: PersesDatasource
+metadata:
+  name: prometheus
+  namespace: {{ $ns }}
+  labels:
+    monitoring.rhobs/stack: observability-stack
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  config:
+    default: true
+    display:
+      name: "COO Prometheus"
+      description: "COO MonitoringStack Prometheus in observability-demo"
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
+{{- end }}
+{{- end }}
