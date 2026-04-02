@@ -175,6 +175,8 @@ To practice querying logs, you need an application that generates diverse log en
 
 Each service writes structured request logs to stdout, which Loki collects.
 
+The manifest also deploys a **k6 load generator** that starts automatically once the frontend is healthy. It runs continuously in the background, sending ~10–60 req/s of realistic traffic (pings, note reads/writes, and intentional 404 errors) so your dashboards and queries always have data to work with — no manual traffic generation required.
+
 === Steps
 
 . Deploy the logging demo application manifest from GitHub:
@@ -194,21 +196,24 @@ curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/s
 oc rollout status deployment/frontend -n %OPENSHIFT_USERNAME%-observability-demo
 oc rollout status deployment/backend -n %OPENSHIFT_USERNAME%-observability-demo
 oc rollout status statefulset/database -n %OPENSHIFT_USERNAME%-observability-demo
+oc rollout status deployment/loadgenerator -n %OPENSHIFT_USERNAME%-observability-demo
 ----
 +
 [NOTE]
 ====
 The application images are pre-built and hosted on `quay.io/cldmnky/observability/`. Pods should start within a minute or two.
+The load generator uses an init container to wait for the frontend to be healthy before it starts sending traffic.
 ====
 +
 
-. Verify the three deployments are running:
+. Verify all deployments are running, including the load generator:
 +
 [source,bash,role="copypaste"]
 ----
 oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=frontend
 oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=backend
 oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=database
+oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=loadgenerator
 ----
 
 . Verify the frontend Route and open the UI:
@@ -226,15 +231,14 @@ image::demo-app.png[Demo application UI]
 +
 The exported file (`workshop-notes.md`) confirms notes are persisted and downloadable from the frontend.
 +
-. Generate traffic with mixed success and failure responses:
+. Confirm the load generator is producing traffic by checking its logs:
 +
 [source,bash,role="copypaste"]
 ----
-oc run -n %OPENSHIFT_USERNAME%-observability-demo traffic-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
-  sh -c 'for i in $(seq 1 50); do curl -s http://frontend:8080/ping >/dev/null; curl -s -o /dev/null http://frontend:8080/error; echo "Completed request pair $i"; sleep 0.5; done'
+oc logs -n %OPENSHIFT_USERNAME%-observability-demo deployment/loadgenerator --tail=20
 ----
 +
-This generates a mix of 200 (success) and 404 (error) responses, creating varied log entries.
+You should see k6 output showing iteration counts and request results. The load generator runs ~10–60 req/s continuously, mixing successful requests with intentional 404 errors — so logs, metrics, and traces are populated immediately.
 
 . View logs from each tier to see request traces:
 +
@@ -265,13 +269,14 @@ image::aggregated-logs-pod.png[Aggregated logs view in OpenShift Console]
 
 Check that logs are being generated:
 
-* ✓ `frontend` logs include `/ping` (200) and `/error` (404)
-* ✓ `backend` logs show forwarded `/api/ok` and `/api/error` requests
+* ✓ `frontend` logs include `/ping` (200) and `/not-found` (404) from the load generator
+* ✓ `backend` logs show forwarded note create and read requests
+* ✓ `database` logs show persisted `/events` API calls
+* ✓ `loadgenerator` pod is running and its logs show k6 iteration output
 * ✓ Frontend Route is reachable and serves the notes UI
 * ✓ Notes can be exported from the frontend as `workshop-notes.md`
-* ✓ `database` logs show persisted `/events` API calls
 * ✓ Logs visible via `oc logs` command
-* ✓ Multiple applications are running in the %OPENSHIFT_USERNAME%-observability-demo namespace
+* ✓ All five pods are running in the `%OPENSHIFT_USERNAME%-observability-demo` namespace
 
 **What you learned**: Applications write logs to stdout/stderr, which OpenShift captures and forwards to your logging backend. Multiple services can run in the same namespace.
 
