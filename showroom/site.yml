@@ -9,6 +9,15 @@ content:
     - url: /showroom/repo
       start_path: showroom/content
 
+asciidoc:
+  attributes:
+    experimental: true
+    page-pagination: true
+    release-version: master
+  extensions:
+    - ./content/lib/tab-block.js
+    - ./content/lib/remote-include-processor.js
+
 ui:
   bundle:
     url: https://github.com/rhpds/rhdp_showroom_theme/releases/download/showroom-template/ui-bundle.zip
@@ -16,6 +25,8 @@ ui:
   supplemental_files:
     - path: ./content/supplemental-ui
     - path: ./content/lib
+    - path: img/favicon.ico
+      src: ./content/supplemental-ui/img/favicon.ico
     - path: .nojekyll
     - path: ui.yml
       contents: "static_files: [ .nojekyll ]"
@@ -26,7 +37,7 @@ runtime:
 antora:
   extensions:
     - require: ./content/lib/compute-attributes.js
-    - require: ./content/lib/dev-mode.js
+    - require: ./content/lib/mermaid-block.js
       enabled: false
 
 output:

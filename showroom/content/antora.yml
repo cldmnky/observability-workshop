@@ -21,3 +21,9 @@ asciidoc:
       text: Web Terminal
     - url: https://redhat.com
       text: Red Hat
+
+antora:
+  extensions:
+    - require: ./lib/dev-mode.js
+      enabled: false
+    - require: ./lib/preserve-url-params-extension.js
