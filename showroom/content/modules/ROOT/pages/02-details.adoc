@@ -5,19 +5,17 @@
 
 == Timing and schedule
 
-=== Full workshop (4 hours)
+=== Full workshop (3 hours)
 
 * **Module 1**: User workload monitoring (60 minutes)
 * **Module 2**: Logging with LokiStack (60 minutes)
-* **Module 3**: Distributed tracing (60 minutes)
-* **Module 4**: OpenTelemetry integration (60 minutes)
+* **Module 3**: Distributed tracing and OpenTelemetry (75 minutes)
 
-=== Abbreviated workshop (2 hours)
+=== Abbreviated workshop (90 minutes)
 
 * **Module 1**: User workload monitoring (30 minutes)
 * **Module 2**: Logging basics (30 minutes)
-* **Module 3**: Distributed tracing overview (30 minutes)
-* **Module 4**: OpenTelemetry introduction (30 minutes)
+* **Module 3**: Distributed tracing and OpenTelemetry overview (30 minutes)
 
 == Technical requirements
 
@@ -158,41 +156,32 @@ oc get pods -n openshift-tempo-operator
 
 **Hands-on exercises**: 5
 
-=== Module 3: Distributed tracing
+=== Module 3: Distributed tracing and OpenTelemetry
 
-**Focus**: Visualize request flows across microservices
-
-**Topics**:
-
-* Distributed tracing concepts
-* Tempo deployment and configuration
-* Analyzing trace data
-* Identifying performance bottlenecks
-* Correlating traces with logs and metrics
-
-**Hands-on exercises**: 5
-
-=== Module 4: OpenTelemetry integration
-
-**Focus**: Unified observability with OpenTelemetry
+**Focus**: Visualize request flows across microservices and activate a full three-signal telemetry pipeline
 
 **Topics**:
 
-* OpenTelemetry architecture
-* Instrumenting applications
-* Collector configuration
-* Sending data to multiple backends
-* Production best practices
+* Distributed tracing concepts: traces, spans, context propagation
+* Tempo deployment and component architecture
+* Two-tier sidecar-to-central OpenTelemetry Collector topology
+* Application instrumentation with the OpenTelemetry Go SDK
+* Deploying a sidecar `OpenTelemetryCollector` and `Instrumentation` CR
+* Activating the telemetry pipeline without image rebuilds
+* Querying live traces with TraceQL in the OpenShift console
+* Span metrics connector generating RED metrics from traces
+* Zero-code Python auto-instrumentation via the Operator
+* Correlating traces, metrics, and logs across all four services
 
-**Hands-on exercises**: 5
+**Hands-on exercises**: 9
 
 == Authors and contributors
 
 **Primary Author**: Magnus Bengtsson <mbengtss@redhat.com>
 
-**Last Updated**: February 2026
+**Last Updated**: April 2026
 
-**Workshop Version**: 1.0
+**Workshop Version**: 1.1
 
 **Contact Information**:
 
