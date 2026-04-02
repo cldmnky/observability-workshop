@@ -27,6 +27,8 @@ ui:
     - path: ./content/lib
     - path: js/user-context.js
       src: ./content/supplemental-ui/js/user-context.js
+    - path: partials/footer-scripts.hbs
+      src: ./content/supplemental-ui/partials/footer-scripts.hbs
     - path: img/favicon.ico
       src: ./content/supplemental-ui/img/favicon.ico
     - path: .nojekyll

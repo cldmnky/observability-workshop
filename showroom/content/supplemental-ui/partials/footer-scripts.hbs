@@ -1,4 +1,10 @@
-<script src="{{uiRootPath}}/js/user-context.js"></script>
+<script defer src="{{uiRootPath}}/js/vendor/clipboard.js"></script>
+<script defer src="{{uiRootPath}}/js/site.js"></script>
+<script defer src="{{uiRootPath}}/js/vendor/highlight.js"></script>
+{{#if env.SITE_SEARCH_PROVIDER}}
+{{> search-scripts}}
+{{/if}}
+<script defer src="{{uiRootPath}}/js/user-context.js"></script>
 <script>
 (function () {
   'use strict';
