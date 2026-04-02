@@ -41,3 +41,6 @@ package-lock.json
 
 # Ignore yarn.lock for Yarn
 yarn.lock
+
+# Ignore Playwright test artifacts
+.playwright-mcp/
