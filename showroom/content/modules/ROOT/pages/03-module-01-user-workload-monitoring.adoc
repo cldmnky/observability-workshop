@@ -88,7 +88,7 @@ The observability stack was pre-configured via GitOps, so Prometheus and Alertma
 +
 Use the credentials provided in your lab interface:
 +
-* Username: {OPENSHIFT_USERNAME}
+* Username: %OPENSHIFT_USERNAME%
 
 . Verify user workload monitoring pods are running:
 +
@@ -161,10 +161,10 @@ NOTE: Your workshop namespace has been pre-created with special permissions to c
 +
 [source,bash,role="copypaste"]
 ----
-oc new-project {OPENSHIFT_USERNAME}-observability-demo
+oc new-project %OPENSHIFT_USERNAME%-observability-demo
 ----
 +
-NOTE: If the namespace already exists, you can switch to it with `oc project {OPENSHIFT_USERNAME}-observability-demo`. The namespace has been pre-configured with the necessary monitoring permissions.
+NOTE: If the namespace already exists, you can switch to it with `oc project %OPENSHIFT_USERNAME%-observability-demo`. The namespace has been pre-configured with the necessary monitoring permissions.
 
 . Deploy a sample application that exposes metrics:
 +
@@ -175,7 +175,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample-app
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     app: sample-app
 spec:
@@ -209,7 +209,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sample-app
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     app: sample-app
 spec:
@@ -230,7 +230,7 @@ NOTE: The deployment includes a debug sidecar container with UBI minimal. This s
 +
 [source,bash,role="copypaste"]
 ----
-oc get pods -n {OPENSHIFT_USERNAME}-observability-demo
+oc get pods -n %OPENSHIFT_USERNAME%-observability-demo
 ----
 +
 .Expected output
@@ -249,7 +249,7 @@ First, make a request to the application to initialize the metrics:
 +
 [source,bash,role="copypaste"]
 ----
-oc exec -n {OPENSHIFT_USERNAME}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080
+oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080
 ----
 +
 .Expected output
@@ -262,7 +262,7 @@ Now check the metrics endpoint:
 +
 [source,bash,role="copypaste"]
 ----
-oc exec -n {OPENSHIFT_USERNAME}-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080/metrics | head -20
+oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080/metrics | head -20
 ----
 +
 The `-c debug` flag specifies which container to exec into (the debug sidecar). Since containers in the same pod share the network namespace, the sidecar can access `localhost:8080`.
@@ -295,7 +295,7 @@ NOTE: Metrics are lazy-initialized and only appear after the first request. This
 
 Check that your sample application is ready for monitoring:
 
-* ✓ 2 pods running in {OPENSHIFT_USERNAME}-observability-demo namespace
+* ✓ 2 pods running in %OPENSHIFT_USERNAME%-observability-demo namespace
 * ✓ Service exposing port 8080
 * ✓ Metrics endpoint returns Prometheus-formatted data
 * ✓ Metrics include `http_requests_total` counter
@@ -317,7 +317,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: sample-app-monitor
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     app: sample-app
 spec:
@@ -342,7 +342,7 @@ This ServiceMonitor tells Prometheus to:
 +
 [source,bash,role="copypaste"]
 ----
-oc get servicemonitor -n {OPENSHIFT_USERNAME}-observability-demo
+oc get servicemonitor -n %OPENSHIFT_USERNAME%-observability-demo
 ----
 +
 .Expected output
@@ -356,7 +356,7 @@ sample-app-monitor   10s
 +
 [source,bash,role="copypaste"]
 ----
-oc exec -n {OPENSHIFT_USERNAME}-observability-demo deployment/sample-app -c debug -- sh -c \
+oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- sh -c \
   'for i in $(seq 1 60); do
      r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ");
      case $(( r % 10 )) in
@@ -401,7 +401,7 @@ image::user-workload-queries.png[PromQL queries for application metrics]
 
 Check that Prometheus is collecting your application metrics:
 
-* ✓ ServiceMonitor exists in {OPENSHIFT_USERNAME}-observability-demo namespace
+* ✓ ServiceMonitor exists in %OPENSHIFT_USERNAME%-observability-demo namespace
 * ✓ PromQL query `http_requests_total` returns data
 * ✓ Multiple time series (1 per pod) are visible
 * ✓ Rate query shows request rate calculation
@@ -414,9 +414,9 @@ Check that Prometheus is collecting your application metrics:
 
 **Solution**: 
 . Wait 1-2 minutes for Prometheus to scrape metrics
-. Verify ServiceMonitor exists: `oc get servicemonitor -n {OPENSHIFT_USERNAME}-observability-demo`
+. Verify ServiceMonitor exists: `oc get servicemonitor -n %OPENSHIFT_USERNAME%-observability-demo`
 . Check that service labels match ServiceMonitor selector
-. Verify pods are running and exposing metrics: `oc exec -n {OPENSHIFT_USERNAME}-observability-demo deployment/sample-app -c debug -- curl localhost:8080/metrics`
+. Verify pods are running and exposing metrics: `oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- curl localhost:8080/metrics`
 
 **Issue**: Metrics show 0 requests
 
@@ -504,7 +504,7 @@ apiVersion: monitoring.rhobs/v1
 kind: ServiceMonitor.monitoring.rhobs
 metadata:
   name: sample-app-coo
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     app: sample-app
     monitoring.rhobs/stack: observability-stack
@@ -545,20 +545,20 @@ Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify 
 ----
 oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- \
   curl -s http://localhost:9090/api/v1/targets | \
-  grep -E 'sample-app.*{OPENSHIFT_USERNAME}-observability-demo' | head -5
+  grep -E 'sample-app.*%OPENSHIFT_USERNAME%-observability-demo' | head -5
 ----
 +
 .Expected output (showing your application is being monitored)
 [source,text,role="copypaste"]
 ----
-..."job":"sample-app-coo/sample-app/0","namespace":"{OPENSHIFT_USERNAME}-observability-demo"...
+..."job":"sample-app-coo/sample-app/0","namespace":"%OPENSHIFT_USERNAME%-observability-demo"...
 ----
 +
 If you see your application and namespace, the COO Prometheus has successfully discovered and is scraping your ServiceMonitor. If not, verify the ServiceMonitor has the correct label:
 +
 [source,bash,role="copypaste"]
 ----
-oc get servicemonitor.monitoring.rhobs sample-app-coo -n {OPENSHIFT_USERNAME}-observability-demo --show-labels
+oc get servicemonitor.monitoring.rhobs sample-app-coo -n %OPENSHIFT_USERNAME%-observability-demo --show-labels
 ----
 +
 You should see `monitoring.rhobs/stack=observability-stack` in the labels.
@@ -570,7 +570,7 @@ A `PersesDatasource` named `prometheus` has been provisioned in your namespace a
 [source,bash,role="copypaste"]
 ----
 oc get persesdatasource prometheus \
-  -n {OPENSHIFT_USERNAME}-observability-demo -o yaml
+  -n %OPENSHIFT_USERNAME%-observability-demo -o yaml
 ----
 +
 .Expected output
@@ -580,7 +580,7 @@ apiVersion: perses.dev/v1alpha1
 kind: PersesDatasource
 metadata:
   name: prometheus
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
 spec:
   config:
     default: true
@@ -609,7 +609,7 @@ apiVersion: perses.dev/v1alpha1
 kind: PersesDashboard
 metadata:
   name: sample-app-dashboard
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     monitoring.rhobs/stack: observability-stack
 spec:
@@ -641,7 +641,7 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: prometheus
-                  query: sum(rate(http_requests_total{namespace="{OPENSHIFT_USERNAME}-observability-demo"}[5m]))
+                  query: sum(rate(http_requests_total{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
                     by (pod)
     httpErrorRate:
       kind: Panel
@@ -665,7 +665,7 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: prometheus
-                  query: sum(rate(http_requests_total{namespace="{OPENSHIFT_USERNAME}-observability-demo",
+                  query: sum(rate(http_requests_total{namespace="%OPENSHIFT_USERNAME%-observability-demo",
                     code=~"[45].."}[5m])) by (pod)
     httpDuration:
       kind: Panel
@@ -692,9 +692,9 @@ spec:
                   datasource:
                     kind: PrometheusDatasource
                     name: prometheus
-                  query: sum(rate(http_request_duration_seconds_sum{namespace="{OPENSHIFT_USERNAME}-observability-demo"}[5m]))
+                  query: sum(rate(http_request_duration_seconds_sum{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
                     by (pod) /
-                    sum(rate(http_request_duration_seconds_count{namespace="{OPENSHIFT_USERNAME}-observability-demo"}[5m]))
+                    sum(rate(http_request_duration_seconds_count{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
                     by (pod)
                   seriesNameFormat: Avg Latenct
           - kind: TimeSeriesQuery
@@ -706,7 +706,7 @@ spec:
                     kind: PrometheusDatasource
                     name: prometheus
                   query: histogram_quantile(0.95,
-                    sum(rate(http_request_duration_seconds_bucket{namespace="{OPENSHIFT_USERNAME}-observability-demo"}[5m]))
+                    sum(rate(http_request_duration_seconds_bucket{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
                     by (pod, le))
                   seriesNameFormat: P95 Latency
           - kind: TimeSeriesQuery
@@ -718,7 +718,7 @@ spec:
                     kind: PrometheusDatasource
                     name: prometheus
                   query: histogram_quantile(0.99,
-                    sum(rate(http_request_duration_seconds_bucket{namespace="{OPENSHIFT_USERNAME}-observability-demo"}[5m]))
+                    sum(rate(http_request_duration_seconds_bucket{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
                     by (pod, le))
                   seriesNameFormat: P99 Latency
   layouts:
@@ -757,7 +757,7 @@ This creates a Perses dashboard with 2 panels that reference the shared datasour
 +
 [source,bash,role="copypaste"]
 ----
-oc exec -n {OPENSHIFT_USERNAME}-observability-demo deployment/sample-app -c debug -- sh -c \
+oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- sh -c \
   'for i in $(seq 1 100); do
      r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ");
      case $(( r % 10 )) in
@@ -799,7 +799,7 @@ From the Perses UI you can:
 +
 The exported YAML can be applied directly with `oc apply -f`, just remember to add the `monitoring.rhobs/stack: observability-stack` label so COO picks it up.
 +
-NOTE: The Perses standalone UI is a shared environment — use your `{OPENSHIFT_USERNAME}` prefix when naming dashboards to avoid conflicts with other workshop users.
+NOTE: The Perses standalone UI is a shared environment — use your `%OPENSHIFT_USERNAME%` prefix when naming dashboards to avoid conflicts with other workshop users.
 
 === Verify
 
@@ -829,7 +829,7 @@ Check that your COO dashboard is working:
 **Issue**: ServiceMonitor not picked up by COO
 
 **Solution**:
-. Verify the label: `oc get servicemonitor sample-app-coo -n {OPENSHIFT_USERNAME}-observability-demo --show-labels`
+. Verify the label: `oc get servicemonitor sample-app-coo -n %OPENSHIFT_USERNAME%-observability-demo --show-labels`
 . Must have: `monitoring.rhobs/stack=observability-stack`
 . Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor after creation
 
@@ -837,13 +837,13 @@ Check that your COO dashboard is working:
 
 **Solution**:
 . The datasource is pre-provisioned by the workshop setup. If it is missing, contact the workshop facilitator.
-. To verify it exists: `oc get persesdatasource prometheus -n {OPENSHIFT_USERNAME}-observability-demo`
+. To verify it exists: `oc get persesdatasource prometheus -n %OPENSHIFT_USERNAME%-observability-demo`
 
 **Issue**: Dashboard not visible in console
 
 **Solution**:
-. Verify PersesDashboard exists: `oc get persesdashboard -n {OPENSHIFT_USERNAME}-observability-demo`
-. Check for errors: `oc describe persesdashboard sample-app-dashboard -n {OPENSHIFT_USERNAME}-observability-demo`
+. Verify PersesDashboard exists: `oc get persesdashboard -n %OPENSHIFT_USERNAME%-observability-demo`
+. Check for errors: `oc describe persesdashboard sample-app-dashboard -n %OPENSHIFT_USERNAME%-observability-demo`
 . Wait 1-2 minutes for the dashboard to appear in the console after creation
 
 **Issue**: Dashboard shows "No data"
@@ -868,8 +868,8 @@ cat <<EOF | oc apply -f -
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: sample-app-alerts-{OPENSHIFT_USERNAME}
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  name: sample-app-alerts-%OPENSHIFT_USERNAME%
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     app: sample-app
 spec:
@@ -878,7 +878,7 @@ spec:
     interval: 30s
     rules:
     - alert: LowRequestRate
-      expr: sum(rate(http_requests_total{namespace="{OPENSHIFT_USERNAME}-observability-demo"}[5m])) < 0.1
+      expr: sum(rate(http_requests_total{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m])) < 0.1
       for: 2m
       labels:
         severity: warning
@@ -894,7 +894,7 @@ This alert fires if request rate drops below 0.1 requests/second for more than 2
 +
 [source,bash,role="copypaste"]
 ----
-oc get prometheusrule -n {OPENSHIFT_USERNAME}-observability-demo
+oc get prometheusrule -n %OPENSHIFT_USERNAME%-observability-demo
 ----
 
 . Check alert status in the console:
@@ -913,7 +913,7 @@ Wait 2-3 minutes without generating any traffic. The alert should transition fro
 +
 [source,bash,role="copypaste"]
 ----
-oc exec -n {OPENSHIFT_USERNAME}-observability-demo deployment/sample-app -c debug -- sh -c \
+oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- sh -c \
   'for i in $(seq 1 200); do
      r=$(od -An -N1 -tu1 /dev/urandom | tr -d " ");
      case $(( r % 10 )) in
@@ -932,7 +932,7 @@ After a few minutes, the alert should transition back to **Inactive**.
 
 Check that your alerting rules are working:
 
-* ✓ PrometheusRule exists in {OPENSHIFT_USERNAME}-observability-demo namespace
+* ✓ PrometheusRule exists in %OPENSHIFT_USERNAME%-observability-demo namespace
 * ✓ Alert appears in **Observe** → **Alerting** → **Alerting rules**
 * ✓ Alert transitions through states: Inactive → Pending → Firing
 * ✓ Alert resolves when traffic increases
@@ -944,7 +944,7 @@ Check that your alerting rules are working:
 **Issue**: Alert not visible in console
 
 **Solution**:
-. Verify PrometheusRule exists: `oc get prometheusrule -n {OPENSHIFT_USERNAME}-observability-demo`
+. Verify PrometheusRule exists: `oc get prometheusrule -n %OPENSHIFT_USERNAME%-observability-demo`
 . Check syntax errors in PromQL expression
 . Wait 1-2 minutes for Prometheus to reload configuration
 

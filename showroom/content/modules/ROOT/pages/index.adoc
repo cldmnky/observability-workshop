@@ -34,9 +34,9 @@ This workshop provides a fully configured OpenShift 4.21 multi-node cluster with
 You will have access to:
 
 * OpenShift Console: {openshift_console_url}[OpenShift Console^]
-* Your Username: {OPENSHIFT_USERNAME}
+* Your Username: %OPENSHIFT_USERNAME%
 
-TIP: To login from the command line, use: `oc login --username={OPENSHIFT_USERNAME} --server={openshift_api_url}`
+TIP: To login from the command line, use: `oc login --username=%OPENSHIFT_USERNAME% --server={openshift_api_url}`
 
 [NOTE]
 ====

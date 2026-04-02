@@ -181,7 +181,7 @@ Each service writes structured request logs to stdout, which Loki collects.
 +
 [source,bash,role="copypaste"]
 ----
-NAMESPACE="{OPENSHIFT_USERNAME}-observability-demo"
+NAMESPACE="%OPENSHIFT_USERNAME%-observability-demo"
 curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/deploy.yaml \
   | sed "s/__NAMESPACE__/${NAMESPACE}/g" \
   | oc apply -f -
@@ -191,9 +191,9 @@ curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/s
 +
 [source,bash,role="copypaste"]
 ----
-oc rollout status deployment/frontend -n {OPENSHIFT_USERNAME}-observability-demo
-oc rollout status deployment/backend -n {OPENSHIFT_USERNAME}-observability-demo
-oc rollout status statefulset/database -n {OPENSHIFT_USERNAME}-observability-demo
+oc rollout status deployment/frontend -n %OPENSHIFT_USERNAME%-observability-demo
+oc rollout status deployment/backend -n %OPENSHIFT_USERNAME%-observability-demo
+oc rollout status statefulset/database -n %OPENSHIFT_USERNAME%-observability-demo
 ----
 +
 [NOTE]
@@ -206,17 +206,17 @@ The application images are pre-built and hosted on `quay.io/cldmnky/observabilit
 +
 [source,bash,role="copypaste"]
 ----
-oc get pods -n {OPENSHIFT_USERNAME}-observability-demo -l app=frontend
-oc get pods -n {OPENSHIFT_USERNAME}-observability-demo -l app=backend
-oc get pods -n {OPENSHIFT_USERNAME}-observability-demo -l app=database
+oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=frontend
+oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=backend
+oc get pods -n %OPENSHIFT_USERNAME%-observability-demo -l app=database
 ----
 
 . Verify the frontend Route and open the UI:
 +
 [source,bash,role="copypaste"]
 ----
-oc get route frontend -n {OPENSHIFT_USERNAME}-observability-demo
-FRONTEND_HOST=$(oc get route frontend -n {OPENSHIFT_USERNAME}-observability-demo -o jsonpath='{.spec.host}')
+oc get route frontend -n %OPENSHIFT_USERNAME%-observability-demo
+FRONTEND_HOST=$(oc get route frontend -n %OPENSHIFT_USERNAME%-observability-demo -o jsonpath='{.spec.host}')
 echo "https://${FRONTEND_HOST}"
 ----
 
@@ -230,7 +230,7 @@ The exported file (`workshop-notes.md`) confirms notes are persisted and downloa
 +
 [source,bash,role="copypaste"]
 ----
-oc run -n {OPENSHIFT_USERNAME}-observability-demo traffic-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
+oc run -n %OPENSHIFT_USERNAME%-observability-demo traffic-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
   sh -c 'for i in $(seq 1 50); do curl -s http://frontend:8080/ping >/dev/null; curl -s -o /dev/null http://frontend:8080/error; echo "Completed request pair $i"; sleep 0.5; done'
 ----
 +
@@ -240,9 +240,9 @@ This generates a mix of 200 (success) and 404 (error) responses, creating varied
 +
 [source,bash,role="copypaste"]
 ----
-oc logs -n {OPENSHIFT_USERNAME}-observability-demo deployment/frontend --tail=20
-oc logs -n {OPENSHIFT_USERNAME}-observability-demo deployment/backend --tail=20
-oc logs -n {OPENSHIFT_USERNAME}-observability-demo statefulset/database --tail=20
+oc logs -n %OPENSHIFT_USERNAME%-observability-demo deployment/frontend --tail=20
+oc logs -n %OPENSHIFT_USERNAME%-observability-demo deployment/backend --tail=20
+oc logs -n %OPENSHIFT_USERNAME%-observability-demo statefulset/database --tail=20
 ----
 +
 .Sample output
@@ -271,7 +271,7 @@ Check that logs are being generated:
 * ✓ Notes can be exported from the frontend as `workshop-notes.md`
 * ✓ `database` logs show persisted `/events` API calls
 * ✓ Logs visible via `oc logs` command
-* ✓ Multiple applications are running in the {OPENSHIFT_USERNAME}-observability-demo namespace
+* ✓ Multiple applications are running in the %OPENSHIFT_USERNAME%-observability-demo namespace
 
 **What you learned**: Applications write logs to stdout/stderr, which OpenShift captures and forwards to your logging backend. Multiple services can run in the same namespace.
 
@@ -300,12 +300,12 @@ image::observe-logs-query.png[LogQL query editor in OpenShift Console]
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json
 ----
 +
 Click **Run query**
 +
-You should see log entries from all pods in the {OPENSHIFT_USERNAME}-observability-demo namespace.
+You should see log entries from all pods in the %OPENSHIFT_USERNAME%-observability-demo namespace.
 +
 image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
 +
@@ -313,7 +313,7 @@ image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |= "404" |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" |json
 ----
 +
 The `|=` operator filters for log lines containing "404".
@@ -322,7 +322,7 @@ The `|=` operator filters for log lines containing "404".
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo", kubernetes_pod_name=~"frontend.*"} |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |json
 ----
 +
 The `=~` operator matches a regular expression.
@@ -331,7 +331,7 @@ The `=~` operator matches a regular expression.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes" |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes" |json
 ----
 
 This shows note creation and note update calls from the frontend route.
@@ -340,7 +340,7 @@ This shows note creation and note update calls from the frontend route.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200" |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200" |json
 ----
 +
 This shows successful `/ping` requests from the frontend pod.
@@ -349,7 +349,7 @@ This shows successful `/ping` requests from the frontend pod.
 +
 [source,logql,role="copypaste"]
 ----
-sum(rate({kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |= "404" [5m]))
+sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m]))
 ----
 +
 This calculates the rate of 404 errors per second over the last 5 minutes.
@@ -358,7 +358,7 @@ This calculates the rate of 404 errors per second over the last 5 minutes.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
 ----
 +
 The `|json` stage parses the collector's JSON envelope, extracting labeled fields such as `message`, `kubernetes_pod_name`, and `kubernetes_namespace_name`. `line_format` then templates a new display line from those fields.
@@ -380,7 +380,7 @@ This is valuable when a key signal (latency, error codes, payload size) lives on
 ----
 avg_over_time(
   {
-    kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo",
+    kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo",
     kubernetes_pod_name=~"frontend.*"
   }
   |json
@@ -395,7 +395,7 @@ avg_over_time(
 
 Check that you can query logs effectively:
 
-* ✓ Logs from {OPENSHIFT_USERNAME}-observability-demo namespace are visible
+* ✓ Logs from %OPENSHIFT_USERNAME%-observability-demo namespace are visible
 * ✓ Filter queries return only matching log lines
 * ✓ Pod-specific queries work with regex patterns
 * ✓ Rate calculations show error frequency
@@ -410,7 +410,7 @@ Check that you can query logs effectively:
 
 **Solution**:
 . Wait 1-2 minutes for logs to be ingested by Loki
-. Verify pods are running: `oc get pods -n {OPENSHIFT_USERNAME}-observability-demo`
+. Verify pods are running: `oc get pods -n %OPENSHIFT_USERNAME%-observability-demo`
 . Check collector is forwarding logs: `oc logs -n openshift-logging -l app.kubernetes.io/component=collector --tail=100`
 . Verify time range in query interface (expand to last 1 hour)
 
@@ -419,7 +419,7 @@ Check that you can query logs effectively:
 **Solution**:
 . Check LogQL syntax (labels in braces, filters with pipes)
 . Ensure label names are correct: `kubernetes_namespace_name` not `namespace`
-. Use quotes around label values: `{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"}`
+. Use quotes around label values: `{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}`
 
 **Issue**: Rate queries return no data
 
@@ -438,7 +438,7 @@ The real power of observability comes from correlating different signals. You'll
 +
 [source,bash,role="copypaste"]
 ----
-oc run -n {OPENSHIFT_USERNAME}-observability-demo error-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
+oc run -n %OPENSHIFT_USERNAME%-observability-demo error-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
   sh -c 'for i in $(seq 1 100); do curl -s -o /dev/null http://frontend:8080/error; sleep 0.1; done'
 ----
 
@@ -450,7 +450,7 @@ Query:
 +
 [source,promql,role="copypaste"]
 ----
-sum by (service) (rate(http_requests_total{code="404", namespace="{OPENSHIFT_USERNAME}-observability-demo}[5m]))
+sum by (service) (rate(http_requests_total{code="404", namespace="%OPENSHIFT_USERNAME%-observability-demo}[5m]))
 ----
 +
 You should see a traffic spike while the error generator is running.
@@ -459,7 +459,7 @@ You should see a traffic spike while the error generator is running.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |= "404" |= "error" | json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" |= "error" | json
 ----
 +
 This shows the actual error log messages during the spike.
@@ -474,7 +474,7 @@ Compare the timestamp of log entries with the metric spike time.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} 
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} 
   |= "404" 
   | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*method=(?P<method>\w+).*status=(?P<status>\d{3})`
   | line_format "{{.timestamp}} - {{.method}} {{.status}}"
@@ -516,7 +516,7 @@ Check that you can correlate metrics and logs:
 
 **Solution**:
 . Verify log format matches regex pattern
-. View raw logs first: `{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"}`
+. View raw logs first: `{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}`
 . Test regex pattern against actual log samples
 . Use simpler filters first, then add complexity
 
@@ -538,7 +538,7 @@ apiVersion: loki.grafana.com/v1
 kind: AlertingRule
 metadata:
   name: high-error-rate
-  namespace: {OPENSHIFT_USERNAME}-observability-demo
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
   labels:
     openshift.io/loki-rules: "true"
 spec:
@@ -549,14 +549,14 @@ spec:
     rules:
     - alert: HighApplicationErrorRate
       expr: |
-        sum(rate({kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |= "404" [5m])) > 0.5
+        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m])) > 0.5
       for: 2m
       labels:
         severity: warning
         team: platform
       annotations:
-        summary: "High error rate in {OPENSHIFT_USERNAME}-observability-demo"
-        description: "More than 0.5 errors/second for 2 minutes in namespace {OPENSHIFT_USERNAME}-observability-demo."
+        summary: "High error rate in %OPENSHIFT_USERNAME%-observability-demo"
+        description: "More than 0.5 errors/second for 2 minutes in namespace %OPENSHIFT_USERNAME%-observability-demo."
 ----
 
 The key fields map directly to Prometheus alerting semantics:
