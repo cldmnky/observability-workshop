@@ -9,7 +9,7 @@ showroom:
     repoUrl: "https://github.com/cldmnky/observability-workshop.git"
     repoRef: "main"
     antoraPlaybook: "site.yml"
-    image: "quay.io/rhpds/showroom-content:v1.3.1"
+    image: "ghcr.io/rhpds/showroom-content:latest"
 
   # Nookbag bundle (enables LlamaStack, multiple terminals, Zero Trust UI)
   nookbag:
