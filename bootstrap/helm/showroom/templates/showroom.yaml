@@ -241,6 +241,9 @@ spec:
         - mountPath: /showroom/www
           name: showroom-files
           subPath: www
+        - mountPath: /showroom/repo
+          name: showroom-files
+          subPath: repo
         ports:
         - containerPort: 8000
           protocol: TCP
