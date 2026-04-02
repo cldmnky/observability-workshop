@@ -31,6 +31,286 @@ ui:
         <script defer src="{{uiRootPath}}/js/site.js"></script>
         <script defer src="{{uiRootPath}}/js/vendor/highlight.js"></script>
         <script defer src="{{uiRootPath}}/js/user-context.js"></script>
+    - path: js/user-context.js
+      contents: |
+        // User Context Injection for Multi-User Workshops
+        // Substitutes %TOKEN% and {placeholder} patterns using URL params.
+        //
+        // On GH Pages: content is served directly, URL params are on window.location.
+        // On cluster (nookbag): content is in an iframe; URL params are on the parent
+        // window. Both parent and iframe are same-origin so window.parent.location is
+        // accessible.
+        
+        (function() {
+          'use strict';
+        
+          // Maps %TOKEN% placeholder → URL param name (case-sensitive key match)
+          const URL_PARAM_PLACEHOLDERS = {
+            '%OPENSHIFT_USERNAME%': 'OPENSHIFT_USERNAME',
+            '%OPENSHIFT_PASSWORD%': 'OPENSHIFT_PASSWORD',
+            '%openshift_cluster_ingress_domain%': 'openshift_cluster_ingress_domain',
+            '%openshift_cluster_console_url%': 'openshift_cluster_console_url',
+            '%openshift_api_url%': 'openshift_api_url',
+            '%perses_url%': 'perses_url',
+            '%guid%': 'guid',
+          };
+        
+          // Maps {placeholder} → API response key (used when /api/user-info is available)
+          const API_PLACEHOLDERS = {
+            '{user}': 'user',
+            '{openshift_console_url}': 'console_url',
+            '{openshift_cluster_console_url}': 'console_url',
+            '{login_command}': 'login_command',
+            '{openshift_cluster_ingress_domain}': 'openshift_cluster_ingress_domain',
+            '{openshift_api_url}': 'api_url',
+            '{perses_url}': 'perses_url',
+          };
+        
+          // Namespace literals used in workshop exercises that must be user-specific
+          const EXERCISE_NAMESPACE_LITERALS = {
+            'tracing-demo': (user) => `${user}-tracing-demo`,
+          };
+        
+          // Read URL params from the parent window (nookbag iframe) or current window (GH Pages / direct).
+          function getUrlParams() {
+            let search = window.location.search;
+            if (!search && window.parent !== window) {
+              try {
+                search = window.parent.location.search;
+              } catch (e) { /* cross-origin – ignore */ }
+            }
+            // Also try parent when we ARE in an iframe regardless, in case the page
+            // was navigated to without params on the iframe URL itself.
+            if (window.parent !== window) {
+              try {
+                const parentSearch = window.parent.location.search;
+                if (parentSearch) search = parentSearch;
+              } catch (e) { /* cross-origin */ }
+            }
+            return new URLSearchParams(search);
+          }
+        
+          function escapeRegExp(text) {
+            return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          }
+        
+          function buildReplacementPairs(urlParams, apiData) {
+            const pairs = [];
+        
+            // 1. URL-param-based %TOKEN% substitutions (highest priority)
+            for (const [placeholder, paramName] of Object.entries(URL_PARAM_PLACEHOLDERS)) {
+              const value = urlParams.get(paramName);
+              if (value) {
+                pairs.push([placeholder, value, false]);
+              }
+            }
+        
+            // 2. API-based {placeholder} substitutions (fallback / supplemental)
+            if (apiData) {
+              for (const [placeholder, key] of Object.entries(API_PLACEHOLDERS)) {
+                if (apiData[key]) {
+                  pairs.push([placeholder, apiData[key], false]);
+                }
+              }
+            }
+        
+            // 3. Namespace literal replacements
+            const username = urlParams.get('OPENSHIFT_USERNAME') || (apiData && apiData.user);
+            if (username) {
+              for (const [literal, mapper] of Object.entries(EXERCISE_NAMESPACE_LITERALS)) {
+                pairs.push([literal, mapper(username), true]);
+              }
+            }
+        
+            return pairs;
+          }
+        
+          // Fetch user info from the API endpoint (optional, cluster-only)
+          async function fetchUserInfo() {
+            try {
+              const response = await fetch('/api/user-info', {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' },
+              });
+              if (!response.ok) return null;
+              return await response.json();
+            } catch (e) {
+              return null;
+            }
+          }
+        
+          // Replace placeholders in text nodes
+          function replaceInTextNode(node, replacementPairs) {
+            let text = node.textContent;
+            let replaced = false;
+        
+            for (const [findText, replaceText, isLiteral] of replacementPairs) {
+              if (text.includes(findText)) {
+                // For namespace literals, use negative lookbehind to avoid double replacement
+                const pattern = isLiteral 
+                  ? new RegExp(`(?<!\\w-)${escapeRegExp(findText)}(?!-)`, 'g')
+                  : new RegExp(escapeRegExp(findText), 'g');
+                text = text.replace(pattern, replaceText);
+                replaced = true;
+              }
+            }
+        
+            if (replaced) {
+              node.textContent = text;
+            }
+          }
+        
+          // Replace placeholders in attribute values (href, value, etc.)
+          function replaceInAttributes(element, replacementPairs) {
+            const attributes = ['href', 'value', 'data-url', 'content'];
+            
+            attributes.forEach(attr => {
+              if (element.hasAttribute(attr)) {
+                let value = element.getAttribute(attr);
+                let replaced = false;
+        
+                for (const [findText, replaceText, isLiteral] of replacementPairs) {
+                  if (value.includes(findText)) {
+                    // For namespace literals, use negative lookbehind to avoid double replacement
+                    const pattern = isLiteral 
+                      ? new RegExp(`(?<!\\w-)${escapeRegExp(findText)}(?!-)`, 'g')
+                      : new RegExp(escapeRegExp(findText), 'g');
+                    value = value.replace(pattern, replaceText);
+                    replaced = true;
+                  }
+                }
+        
+                if (replaced) {
+                  element.setAttribute(attr, value);
+                }
+              }
+            });
+          }
+        
+          // Walk the DOM tree and replace placeholders
+          function replacePlaceholders(urlParams, apiData) {
+            const replacementPairs = buildReplacementPairs(urlParams, apiData);
+        
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+              null
+            );
+        
+            let node;
+            const elementsToProcess = [];
+        
+            while (node = walker.nextNode()) {
+              if (node.nodeType === Node.TEXT_NODE) {
+                // Process text nodes
+                const text = node.textContent;
+                if (text && replacementPairs.some(([findText]) => text.includes(findText))) {
+                  replaceInTextNode(node, replacementPairs);
+                }
+              } else if (node.nodeType === Node.ELEMENT_NODE) {
+                // Collect elements with attributes to process
+                elementsToProcess.push(node);
+              }
+            }
+        
+            // Process element attributes
+            elementsToProcess.forEach(element => replaceInAttributes(element, replacementPairs));
+          }
+        
+          // Initialize user context injection
+          async function init() {
+            const urlParams = getUrlParams();
+            const username = urlParams.get('OPENSHIFT_USERNAME');
+        
+            // Fetch API data as supplemental fallback (may fail silently in GH Pages / nookbag)
+            const apiData = await fetchUserInfo();
+        
+            const hasUrlParams = username || urlParams.get('openshift_cluster_ingress_domain');
+            if (!hasUrlParams && !apiData) {
+              console.warn('[User Context] No substitution data available');
+              return;
+            }
+        
+            console.log('[User Context] Substituting for:', username || (apiData && apiData.user) || '(unknown)');
+            replacePlaceholders(urlParams, apiData);
+          }
+        
+          // Run when DOM is ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+          } else {
+            init();
+          }
+        })();
+        
+        // Copy button functionality for code blocks
+        (function () {
+          'use strict';
+        
+          // Inject styles
+          var style = document.createElement('style');
+          style.textContent = [
+            '.listingblock .content { position: relative; }',
+            '.copy-btn {',
+            '  position: absolute; top: 8px; right: 8px;',
+            '  display: inline-flex; align-items: center;',
+            '  padding: 3px 10px; font-size: 11px; font-family: inherit; font-weight: 500;',
+            '  color: #444; background: #fff;',
+            '  border: 1px solid #bbb; border-radius: 6px;',
+            '  cursor: pointer; opacity: 0; line-height: 1.6; user-select: none;',
+            '  letter-spacing: 0.01em;',
+            '  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;',
+            '  z-index: 10;',
+            '}',
+            '.listingblock .content:hover .copy-btn { opacity: 1; }',
+            '.copy-btn:hover { background: #e8e8e8; border-color: #888; color: #111; }',
+            '.copy-btn:active { transform: scale(0.97); }',
+            '.copy-btn.copied { color: #16a34a; border-color: #86efac; background: #f0fdf4; opacity: 1; }'
+          ].join('\n');
+          document.head.appendChild(style);
+        
+          function addCopyButtons() {
+            document.querySelectorAll('.listingblock .content pre').forEach(function (pre) {
+              if (pre.parentNode.querySelector('.copy-btn')) return;
+              var btn = document.createElement('button');
+              btn.className = 'copy-btn';
+              btn.textContent = 'Copy';
+              btn.setAttribute('aria-label', 'Copy code to clipboard');
+              btn.addEventListener('click', function () {
+                var code = pre.querySelector('code') || pre;
+                var text = code.innerText || code.textContent;
+                navigator.clipboard.writeText(text).then(function () {
+                  btn.textContent = 'Copied!';
+                  btn.classList.add('copied');
+                  setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+                }).catch(function () {
+                  var ta = document.createElement('textarea');
+                  ta.value = text;
+                  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                  document.body.appendChild(ta);
+                  ta.select();
+                  try {
+                    document.execCommand('copy');
+                    btn.textContent = 'Copied!';
+                    btn.classList.add('copied');
+                    setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+                  } catch (e) { btn.textContent = 'Error'; }
+                  document.body.removeChild(ta);
+                });
+              });
+              pre.parentNode.style.position = 'relative';
+              pre.parentNode.appendChild(btn);
+            });
+          }
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', addCopyButtons);
+          } else {
+            addCopyButtons();
+          }
+          var observer = new MutationObserver(addCopyButtons);
+          observer.observe(document.body, { childList: true, subtree: true });
+        })();
+        
     - path: img/favicon.ico
       src: ./content/supplemental-ui/img/favicon.ico
     - path: .nojekyll
