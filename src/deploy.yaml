@@ -295,3 +295,136 @@ spec:
     - name: http
       port: 8083
       targetPort: http
+---
+# k6 load generator — generates constant realistic traffic against the frontend
+# so that metrics, logs, and traces are populated from the moment the app deploys.
+# Targets: GET /ping, GET /api/notes, POST /api/notes, GET /events,
+#          and occasional 404/500 errors to make the data interesting.
+# Throughput: ~10-60 req/s using 3 VUs with random sleep 50-300ms.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loadgenerator-script
+  namespace: __NAMESPACE__
+  labels:
+    app: loadgenerator
+data:
+  loadtest.js: |
+    import http from 'k6/http';
+    import { sleep, check } from 'k6';
+    import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+
+    export const options = {
+      vus: 3,
+      duration: '999999h', // run forever
+    };
+
+    const BASE_URL = 'http://frontend:8080';
+
+    const NOTE_TITLES = [
+      'Workshop note', 'Metrics observation', 'Log finding',
+      'Trace insight', 'Performance note', 'Anomaly detected',
+    ];
+    const NOTE_BODIES = [
+      'Noticed high latency on the database service.',
+      'Prometheus alerts firing on error rate.',
+      'LokiStack query returned interesting results.',
+      'Tempo trace shows slow span in backend.',
+      'OpenTelemetry collector is forwarding spans.',
+      'Auto-instrumentation working for notifier.',
+    ];
+
+    // Error paths — these will produce 404s in the logs
+    const ERROR_PATHS = ['/not-found', '/api/does-not-exist', '/broken'];
+
+    export default function () {
+      const roll = randomIntBetween(1, 100);
+
+      if (roll <= 30) {
+        // 30% — GET /ping
+        const res = http.get(`${BASE_URL}/ping`);
+        check(res, { 'ping 200': (r) => r.status === 200 });
+
+      } else if (roll <= 55) {
+        // 25% — GET /api/notes
+        const res = http.get(`${BASE_URL}/api/notes`);
+        check(res, { 'notes list 200': (r) => r.status === 200 });
+
+      } else if (roll <= 75) {
+        // 20% — POST /api/notes (create a note)
+        const title = NOTE_TITLES[randomIntBetween(0, NOTE_TITLES.length - 1)];
+        const body  = NOTE_BODIES[randomIntBetween(0, NOTE_BODIES.length - 1)];
+        const res = http.post(
+          `${BASE_URL}/api/notes`,
+          JSON.stringify({ title, body }),
+          { headers: { 'Content-Type': 'application/json' } },
+        );
+        check(res, { 'note created 2xx': (r) => r.status >= 200 && r.status < 300 });
+
+      } else if (roll <= 88) {
+        // 13% — GET /events (SSE endpoint, returns quickly)
+        http.get(`${BASE_URL}/events`);
+
+      } else if (roll <= 95) {
+        // 7% — intentional 404 to generate error logs & traces
+        const path = ERROR_PATHS[randomIntBetween(0, ERROR_PATHS.length - 1)];
+        http.get(`${BASE_URL}${path}`);
+
+      } else {
+        // 5% — GET / (home page)
+        const res = http.get(`${BASE_URL}/`);
+        check(res, { 'home 200': (r) => r.status === 200 });
+      }
+
+      // Random sleep 50–300 ms → with 3 VUs: ~10–60 req/s
+      sleep(randomIntBetween(50, 300) / 1000);
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgenerator
+  namespace: __NAMESPACE__
+  labels:
+    app: loadgenerator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgenerator
+  template:
+    metadata:
+      labels:
+        app: loadgenerator
+    spec:
+      # Wait for frontend to be ready before starting load
+      initContainers:
+        - name: wait-for-frontend
+          image: quay.io/curl/curl:8.11.1
+          command:
+            - sh
+            - -c
+            - |
+              until curl -sf http://frontend:8080/healthz; do
+                echo "waiting for frontend..."; sleep 5
+              done
+      containers:
+        - name: k6
+          image: grafana/k6:latest
+          args:
+            - run
+            - /scripts/loadtest.js
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: script
+          configMap:
+            name: loadgenerator-script

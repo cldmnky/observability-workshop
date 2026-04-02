@@ -50,6 +50,26 @@ They cannot be embedded directly in this workshop window.
 
 NOTE: All environment details and credentials are specific to your user session. The observability stack (Prometheus, Loki, Tempo, OpenTelemetry Operator) is already configured and ready for you to use.
 
+=== Load generator
+
+A **k6** load generator is automatically deployed alongside the demo application when you run the setup command in Module 2.
+It continuously generates realistic traffic against the frontend service so that metrics, logs, and traces are populated before you start exploring them.
+
+Traffic profile (3 virtual users, ~10–60 req/s):
+
+[cols="2,1,3",options="header"]
+|===
+| Request | Share | Purpose
+| `GET /ping` | 30 % | Heartbeat — steady request rate in metrics
+| `GET /api/notes` | 25 % | Read path — populates GET spans in Tempo
+| `POST /api/notes` | 20 % | Write path — creates notes, exercises the full trace chain (frontend → backend → database → notifier)
+| `GET /events` | 13 % | Server-sent events endpoint
+| `GET /not-found` etc. | 7 % | Intentional 404s — generates error logs and error traces for troubleshooting exercises
+| `GET /` | 5 % | Home page
+|===
+
+You do not need to start or stop the load generator — it runs automatically in the background.
+
 == Estimated time
 
 This workshop will take approximately **4 hours** to complete.
