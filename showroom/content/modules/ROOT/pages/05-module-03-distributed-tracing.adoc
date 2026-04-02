@@ -94,7 +94,7 @@ This workshop uses a two-tier OpenTelemetry Collector topology. Every signal—t
 
 [source,text,role="copypaste"]
 ----
-Application pods (SHOWROOM_USERNAME-observability-demo)
+Application pods ({OPENSHIFT_USERNAME}-observability-demo)
   +--------------------------------------------------------+
   |  frontend / backend / database / notifier              |
   |  +----------+  OTLP HTTP (localhost:4318)              |
@@ -304,10 +304,10 @@ This file contains three `Deployment` patches—one per service. When applied, e
 [source,bash,role="copypaste"]
 ----
 oc get deployment frontend backend \
-  -n SHOWROOM_USERNAME-observability-demo \
+  -n {OPENSHIFT_USERNAME}-observability-demo \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
 oc get statefulset database \
-  -n SHOWROOM_USERNAME-observability-demo \
+  -n {OPENSHIFT_USERNAME}-observability-demo \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.template.spec.containers[*].name'
 ----
 +
@@ -425,7 +425,7 @@ central-collector-collector    ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
 
 == Exercise 4: Create the sidecar collector in your namespace
 
-You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `SHOWROOM_USERNAME-observability-demo` namespace. When this CR exists, the OpenTelemetry Operator automatically injects a sidecar container into any pod in the namespace that carries the annotation `sidecar.opentelemetry.io/inject: "sidecar"`.
+You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `{OPENSHIFT_USERNAME}-observability-demo` namespace. When this CR exists, the OpenTelemetry Operator automatically injects a sidecar container into any pod in the namespace that carries the annotation `sidecar.opentelemetry.io/inject: "sidecar"`.
 
 === Steps
 
@@ -434,7 +434,7 @@ You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `SHOWROOM_USE
 [source,bash,role="copypaste"]
 ----
 oc get serviceaccount otel-collector-sidecar \
-  -n SHOWROOM_USERNAME-observability-demo
+  -n {OPENSHIFT_USERNAME}-observability-demo
 ----
 +
 This ServiceAccount was pre-created for your namespace with the RBAC permissions needed by the `k8sattributes` and `resourcedetection` processors (read access to pods, namespaces, and nodes).
@@ -455,7 +455,7 @@ apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: sidecar
-  namespace: SHOWROOM_USERNAME-observability-demo
+  namespace: {OPENSHIFT_USERNAME}-observability-demo
 spec:
   mode: sidecar
   serviceAccount: otel-collector-sidecar
@@ -522,7 +522,7 @@ EOF
 +
 [source,bash,role="copypaste"]
 ----
-oc get opentelemetrycollector sidecar -n SHOWROOM_USERNAME-observability-demo
+oc get opentelemetrycollector sidecar -n {OPENSHIFT_USERNAME}-observability-demo
 ----
 +
 .Expected output
@@ -559,14 +559,14 @@ The sidecar does **not** route signals to different destinations—that responsi
 
 === Verify
 
-* ✓ `otel-collector-sidecar` ServiceAccount exists in `SHOWROOM_USERNAME-observability-demo`
+* ✓ `otel-collector-sidecar` ServiceAccount exists in `{OPENSHIFT_USERNAME}-observability-demo`
 * ✓ `sidecar` OpenTelemetryCollector CR exists in `sidecar` mode
 * ✓ CR configuration includes all three pipelines (traces, metrics, logs)
 * ✓ Exporter is `otlp_grpc` with queue/retry enabled and endpoint `central-collector-collector.observability-demo.svc:4317`
 
 == Exercise 5: Create the Instrumentation CR in your namespace
 
-The `Instrumentation` CR is a template that tells the OpenTelemetry Operator how to configure the auto-instrumentation agent init-container when injecting into pods. You need one per namespace. In this exercise you create it for `SHOWROOM_USERNAME-observability-demo`—it will be used in Exercise 9 when you enable Python auto-instrumentation on the **notifier** service.
+The `Instrumentation` CR is a template that tells the OpenTelemetry Operator how to configure the auto-instrumentation agent init-container when injecting into pods. You need one per namespace. In this exercise you create it for `{OPENSHIFT_USERNAME}-observability-demo`—it will be used in Exercise 9 when you enable Python auto-instrumentation on the **notifier** service.
 
 === Steps
 
@@ -579,7 +579,7 @@ apiVersion: opentelemetry.io/v1alpha1
 kind: Instrumentation
 metadata:
   name: my-instrumentation
-  namespace: SHOWROOM_USERNAME-observability-demo
+  namespace: {OPENSHIFT_USERNAME}-observability-demo
 spec:
   exporter:
     endpoint: http://localhost:4318
@@ -607,7 +607,7 @@ Key fields explained:
 +
 [source,bash,role="copypaste"]
 ----
-oc get instrumentation my-instrumentation -n SHOWROOM_USERNAME-observability-demo
+oc get instrumentation my-instrumentation -n {OPENSHIFT_USERNAME}-observability-demo
 ----
 +
 .Expected output
@@ -619,7 +619,7 @@ my-instrumentation   10s
 
 === Verify
 
-* ✓ `my-instrumentation` Instrumentation CR exists in `SHOWROOM_USERNAME-observability-demo`
+* ✓ `my-instrumentation` Instrumentation CR exists in `{OPENSHIFT_USERNAME}-observability-demo`
 * ✓ `spec.exporter.endpoint` is `http://localhost:4318`
 
 **What you learned**: The `Instrumentation` CR is a per-namespace configuration template. Unlike the sidecar CR (which provides a container spec merged into application pods), the Instrumentation CR is referenced by pods via the `instrumentation.opentelemetry.io/inject-<language>` annotation — the Operator reads it and injects a language-specific agent init-container plus the necessary environment variables with no application changes required.
@@ -634,7 +634,7 @@ Now you'll activate the OpenTelemetry SDK in all three Go services. This adds th
 +
 [source,bash,role="copypaste"]
 ----
-NAMESPACE="SHOWROOM_USERNAME-observability-demo"
+NAMESPACE="{OPENSHIFT_USERNAME}-observability-demo"
 ----
 
 . Add the OTEL environment variables to all three services:
@@ -811,7 +811,7 @@ With traffic flowing and telemetry active, you can now view real traces from you
 
 . Set the search parameters:
 +
-* **Namespace**: `SHOWROOM_USERNAME-observability-demo`
+* **Namespace**: `{OPENSHIFT_USERNAME}-observability-demo`
 * **Time range**: Last 5 minutes
 +
 Click **Search** or the refresh icon.
@@ -918,21 +918,21 @@ Each downstream service reads this header and records every baggage member as a 
 +
 [NOTE]
 ====
-All TraceQL queries below include `{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" }` to scope results to your namespace. The Tempo backend is shared across all workshop users, so this filter is required to see only your traces.
+All TraceQL queries below include `{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" }` to scope results to your namespace. The Tempo backend is shared across all workshop users, so this filter is required to see only your traces.
 ====
 +
 Filter all traces that originated from the web frontend:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["baggage.client.platform"] = "web" }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["baggage.client.platform"] = "web" }
 ----
 +
 Or find every span produced by the workshop demo requests, regardless of service:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["baggage.request.source"] = "workshop-demo" }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["baggage.request.source"] = "workshop-demo" }
 ----
 
 . Use TraceQL to find slow database spans:
@@ -941,7 +941,7 @@ Click **Show query** beneath the filter bar to reveal the TraceQL editor. TraceQ
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && resource.service.name = "database" && duration > 50ms }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && resource.service.name = "database" && duration > 50ms }
 ----
 +
 This filters to only traces in your namespace where the database service had at least one span exceeding 50ms. Because random delays of up to 60ms are injected in the backend and database services, you should see several results.
@@ -950,14 +950,14 @@ Query by the specific table the slow operation touched:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["db.sql.table"] = "notes" && duration > 30ms }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["db.sql.table"] = "notes" && duration > 30ms }
 ----
 +
 Or filter by database operation type:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["db.operation"] = "INSERT" && resource.service.name = "database" }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["db.operation"] = "INSERT" && resource.service.name = "database" }
 ----
 
 . Use TraceQL to surface business-level data:
@@ -966,21 +966,21 @@ The custom `note.*` and `event.*` attributes open the trace store as a queryable
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["note.id"] != "" }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["note.id"] != "" }
 ----
 +
 Or find traces by peer service to understand the backend-to-database communication pattern:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["peer.service"] = "database" && span["db.sql.table"] = "notes" }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["peer.service"] = "database" && span["db.sql.table"] = "notes" }
 ----
 
 . Find error traces:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && status = error }
+{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && status = error }
 ----
 +
 If any requests returned HTTP errors, this will surface the traces where something went wrong, with all spans visible for root cause analysis.
@@ -995,20 +995,20 @@ Query for log lines containing that trace ID:
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "<your-trace-id>"
+{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} |= "<your-trace-id>"
 ----
 +
 Because the application uses `otelslog.NewHandler()`, every structured log line emitted during a traced request carries the active trace ID as a log field. This lets you move directly from a slow span to the exact log lines emitted during that span.
 
 === Verify
 
-* ✓ Traces appear in **Observe → Traces** for namespace `SHOWROOM_USERNAME-observability-demo`
+* ✓ Traces appear in **Observe → Traces** for namespace `{OPENSHIFT_USERNAME}-observability-demo`
 * ✓ Trace waterfall shows spans from all three services (frontend, backend, database)
 * ✓ Frontend spans carry `baggage.client.platform=web` and `baggage.request.source=workshop-demo`
 * ✓ Backend spans carry `db.system`, `db.operation`, `db.sql.table`, `peer.service`, `db.response.status_code`
 * ✓ Database spans carry `note.id`, `note.title`, `note.content.length` on note-creation requests
 * ✓ All spans include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
-* ✓ TraceQL query `{ .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["baggage.request.source"] = "workshop-demo" }` returns results
+* ✓ TraceQL query `{ .k8s.namespace.name = "{OPENSHIFT_USERNAME}-observability-demo" && span["baggage.request.source"] = "workshop-demo" }` returns results
 * ✓ A trace ID from the trace view can be found in **Observe → Logs**
 
 **What you learned**: The workshop application uses two complementary instrumentation strategies. The sidecar collector processors automatically enrich spans with Kubernetes metadata—no application code required. The Go OTel SDK adds semantic-convention attributes (`db.*`, `peer.*`, `net.*`) for production-grade observability, business-level attributes (`note.*`, `event.*`) for application-specific queries, and W3C Baggage to propagate contextual metadata across all service boundaries. TraceQL lets you query across infrastructure, application, and business dimensions using a single query language.
@@ -1062,7 +1062,7 @@ To see the p95 latency for backend operations:
 [source,promql,role="copypaste"]
 ----
 histogram_quantile(0.95,
-  sum(rate(traces_span_metrics_duration_milliseconds_bucket{k8s_namespace_name="SHOWROOM_USERNAME-observability-demo", k8s_deployment_name="backend"}[5m]))
+  sum(rate(traces_span_metrics_duration_milliseconds_bucket{k8s_namespace_name="{OPENSHIFT_USERNAME}-observability-demo", k8s_deployment_name="backend"}[5m]))
   by (span_name, le)
 )
 ----
@@ -1103,7 +1103,7 @@ Verify a log record arrived in Loki by navigating to **Observe** → **Logs** in
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} | json
+{kubernetes_namespace_name="{OPENSHIFT_USERNAME}-observability-demo"} | json
 ----
 +
 You should see structured log records from `frontend`, `backend`, and `database`, each containing `traceID` and `spanID` fields that link them to the traces you viewed in Exercise 7.
@@ -1114,7 +1114,7 @@ You should see structured log records from `frontend`, `backend`, and `database`
 * ✓ `spanmetrics` connector configuration is visible
 * ✓ `traces_spanmetrics_calls_total` metric exists in Prometheus for your services
 * ✓ `traces_spanmetrics_latency_bucket` histogram is queryable for p95 latency
-* ✓ **Observe → Logs** shows structured log records from `SHOWROOM_USERNAME-observability-demo` with `traceID` fields
+* ✓ **Observe → Logs** shows structured log records from `{OPENSHIFT_USERNAME}-observability-demo` with `traceID` fields
 
 **What you learned**: The central collector is a fanout hub—one OTLP receiver, four exporters. Each signal type is independently processed and routed: traces go to Tempo (with TLS and multi-tenancy headers), metrics are remote-written to COO Prometheus, span-derived RED metrics follow the same path via the `spanmetrics` connector, and logs are attribute-remapped and forwarded to the LokiStack application tenant using service-account bearer auth.
 
@@ -1146,7 +1146,7 @@ Before enabling auto-instrumentation, generate traffic and look at a trace water
 [source,bash,role="copypaste"]
 ----
 FRONTEND_URL=$(oc get route frontend \
-  -n SHOWROOM_USERNAME-observability-demo \
+  -n {OPENSHIFT_USERNAME}-observability-demo \
   -o jsonpath='{.spec.host}')
 
 for i in $(seq 1 10); do
@@ -1157,7 +1157,7 @@ for i in $(seq 1 10); do
 done
 ----
 
-. Open **Observe** → **Traces** in the OpenShift console, set namespace to `SHOWROOM_USERNAME-observability-demo`, and click a recent trace.
+. Open **Observe** → **Traces** in the OpenShift console, set namespace to `{OPENSHIFT_USERNAME}-observability-demo`, and click a recent trace.
 +
 The waterfall will show three hops: `frontend → backend → database`. The backend called notifier, but no notifier span appears because the Python process emits no telemetry without an agent.
 
@@ -1170,7 +1170,7 @@ A single `oc patch` command adds the two annotations that trigger both sidecar i
 [source,bash,role="copypaste"]
 ----
 oc patch deployment notifier \
-  -n SHOWROOM_USERNAME-observability-demo \
+  -n {OPENSHIFT_USERNAME}-observability-demo \
   --type=json \
   -p='[
     {
@@ -1197,14 +1197,14 @@ When this annotated pod is scheduled, the OpenTelemetry Operator's mutating admi
 +
 [source,bash,role="copypaste"]
 ----
-oc rollout status deployment/notifier -n SHOWROOM_USERNAME-observability-demo
+oc rollout status deployment/notifier -n {OPENSHIFT_USERNAME}-observability-demo
 ----
 
 . Confirm the pod now has two containers (application + sidecar):
 +
 [source,bash,role="copypaste"]
 ----
-oc get pods -n SHOWROOM_USERNAME-observability-demo \
+oc get pods -n {OPENSHIFT_USERNAME}-observability-demo \
   -l app=notifier \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
 ----
@@ -1220,7 +1220,7 @@ notifier-xxxxx              notifier, otc-container
 +
 [source,bash,role="copypaste"]
 ----
-oc logs -n SHOWROOM_USERNAME-observability-demo \
+oc logs -n {OPENSHIFT_USERNAME}-observability-demo \
   -l app=notifier -c notifier | head -20
 ----
 +
@@ -1233,7 +1233,7 @@ Look for OpenTelemetry bootstrap messages such as `Instrumenting FastAPI` or `Op
 [source,bash,role="copypaste"]
 ----
 FRONTEND_URL=$(oc get route frontend \
-  -n SHOWROOM_USERNAME-observability-demo \
+  -n {OPENSHIFT_USERNAME}-observability-demo \
   -o jsonpath='{.spec.host}')
 
 for i in $(seq 1 15); do

@@ -9,7 +9,12 @@ asciidoc:
     lab_name: "openshift-observability-workshop"
     release-version: master
     page-pagination: true
+    # Environment
     guid: "%guid%"
+    # OpenShift Cluster Access
+    OPENSHIFT_USERNAME: "%OPENSHIFT_USERNAME%"
+    OPENSHIFT_PASSWORD: "%OPENSHIFT_PASSWORD%"
+    openshift_api_url: "%openshift_api_url%"
     openshift_cluster_console_url: "%openshift_cluster_console_url%"
     openshift_console_url: "%openshift_cluster_console_url%"
     openshift_cluster_ingress_domain: "%openshift_cluster_ingress_domain%"
