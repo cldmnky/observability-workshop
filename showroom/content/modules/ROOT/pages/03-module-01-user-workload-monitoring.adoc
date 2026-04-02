@@ -92,13 +92,13 @@ Use the credentials provided in your lab interface:
 
 . Verify user workload monitoring pods are running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n openshift-user-workload-monitoring
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                   READY   STATUS    RESTARTS   AGE
 prometheus-operator-xxxxx              2/2     Running   0          1h
@@ -121,7 +121,7 @@ image::user-workload-monitoring-console.png[User workload monitoring in OpenShif
 +
 In the query box, enter:
 +
-[source,promql]
+[source,promql,role="copypaste"]
 ----
 up{namespace="openshift-user-workload-monitoring"}
 ----
@@ -159,7 +159,7 @@ NOTE: Your workshop namespace has been pre-created with special permissions to c
 
 . Create a new project for your sample application:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc new-project SHOWROOM_USERNAME-observability-demo
 ----
@@ -168,7 +168,7 @@ NOTE: If the namespace already exists, you can switch to it with `oc project SHO
 
 . Deploy a sample application that exposes metrics:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: apps/v1
@@ -228,13 +228,13 @@ NOTE: The deployment includes a debug sidecar container with UBI minimal. This s
 
 . Verify the pods are running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                          READY   STATUS    RESTARTS   AGE
 sample-app-xxxxx-xxxxx        2/2     Running   0          30s
@@ -247,20 +247,20 @@ Note the `2/2` ready status indicates both the application and debug sidecar con
 +
 First, make a request to the application to initialize the metrics:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc exec -n SHOWROOM_USERNAME-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 Hello from example application.
 ----
 +
 Now check the metrics endpoint:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc exec -n SHOWROOM_USERNAME-observability-demo deployment/sample-app -c debug -- curl -s localhost:8080/metrics | head -20
 ----
@@ -268,7 +268,7 @@ oc exec -n SHOWROOM_USERNAME-observability-demo deployment/sample-app -c debug -
 The `-c debug` flag specifies which container to exec into (the debug sidecar). Since containers in the same pod share the network namespace, the sidecar can access `localhost:8080`.
 +
 .Sample output
-[source,text]
+[source,text,role="copypaste"]
 ----
 # HELP http_request_duration_seconds Duration of all HTTP requests
 # TYPE http_request_duration_seconds histogram
@@ -310,7 +310,7 @@ A **ServiceMonitor** tells Prometheus which services to scrape for metrics. It u
 
 . Create a ServiceMonitor resource:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: monitoring.coreos.com/v1
@@ -340,13 +340,13 @@ This ServiceMonitor tells Prometheus to:
 
 . Verify the ServiceMonitor was created:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get servicemonitor -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                 AGE
 sample-app-monitor   10s
@@ -354,7 +354,7 @@ sample-app-monitor   10s
 
 . Generate some traffic to create metrics:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc exec -n SHOWROOM_USERNAME-observability-demo deployment/sample-app -c debug -- sh -c \
   'for i in $(seq 1 60); do
@@ -377,7 +377,7 @@ Go to **Observe** → **Metrics** in the OpenShift console.
 +
 Enter this PromQL query:
 +
-[source,promql]
+[source,promql,role="copypaste"]
 ----
 http_requests_total{}
 ----
@@ -388,7 +388,7 @@ You should see results showing the counter values for each pod.
 
 . Query the rate of requests over time, you can add a new query:
 +
-[source,promql]
+[source,promql,role="copypaste"]
 ----
 rate(http_requests_total{}[5m])
 ----
@@ -464,13 +464,13 @@ In this exercise, you'll create a **second** ServiceMonitor with the COO-specifi
 
 . Verify the COO MonitoringStack is deployed:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get monitoringstack -n observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                   AGE
 observability-stack    1h
@@ -478,13 +478,13 @@ observability-stack    1h
 
 . Check the label selector the MonitoringStack uses to discover ServiceMonitors:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.spec.resourceSelector.matchLabels}'
 ----
 +
 .Expected output
-[source,json]
+[source,json,role="copypaste"]
 ----
 {"monitoring.rhobs/stack":"observability-stack"}
 ----
@@ -497,7 +497,7 @@ image::observability-stack.png[Monitoring topology showing COO stack in observab
 
 . Create a **new** ServiceMonitor with the COO label, for the COO we need to use the monitoring.rhobs/v1 API group instead of the monitoring.coreos.com group used by CMO. This is because COO uses a different Prometheus operator under the hood that watches for ServiceMonitors with the `monitoring.rhobs/stack: observability-stack` label.
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: monitoring.rhobs/v1
@@ -525,13 +525,13 @@ Note the `monitoring.rhobs/stack: observability-stack` label - this tells COO to
 +
 First, check that Prometheus pods are running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n observability-demo -l app.kubernetes.io/name=prometheus
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                READY   STATUS    RESTARTS   AGE
 prometheus-observability-stack-0    2/2     Running   0          1h
@@ -541,7 +541,7 @@ prometheus-observability-stack-2    2/2     Running   0          1h
 +
 Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify it's being scraped:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- \
   curl -s http://localhost:9090/api/v1/targets | \
@@ -549,14 +549,14 @@ oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- 
 ----
 +
 .Expected output (showing your application is being monitored)
-[source,text]
+[source,text,role="copypaste"]
 ----
 ..."job":"sample-app-coo/sample-app/0","namespace":"SHOWROOM_USERNAME-observability-demo"...
 ----
 +
 If you see your application and namespace, the COO Prometheus has successfully discovered and is scraping your ServiceMonitor. If not, verify the ServiceMonitor has the correct label:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get servicemonitor.monitoring.rhobs sample-app-coo -n SHOWROOM_USERNAME-observability-demo --show-labels
 ----
@@ -567,14 +567,14 @@ You should see `monitoring.rhobs/stack=observability-stack` in the labels.
 +
 A `PersesDatasource` named `prometheus` has been provisioned in your namespace as part of the workshop setup. It provides a shared connection to the COO Prometheus instance that all dashboards in your namespace can reference.
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get persesdatasource prometheus \
   -n SHOWROOM_USERNAME-observability-demo -o yaml
 ----
 +
 .Expected output
-[source,yaml]
+[source,yaml,role="copypaste"]
 ----
 apiVersion: perses.dev/v1alpha1
 kind: PersesDatasource
@@ -602,7 +602,7 @@ The `default: true` field means that dashboards in your namespace which don't sp
 +
 Now create a dashboard that references the datasource:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: perses.dev/v1alpha1
@@ -755,7 +755,7 @@ This creates a Perses dashboard with 2 panels that reference the shared datasour
 
 . Generate traffic to populate the dashboard:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc exec -n SHOWROOM_USERNAME-observability-demo deployment/sample-app -c debug -- sh -c \
   'for i in $(seq 1 100); do
@@ -862,7 +862,7 @@ Dashboards help you see current state, but alerts proactively notify you when pr
 
 . Create a PrometheusRule resource with an alerting rule:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: monitoring.coreos.com/v1
@@ -892,7 +892,7 @@ This alert fires if request rate drops below 0.1 requests/second for more than 2
 
 . Verify the PrometheusRule was created:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get prometheusrule -n SHOWROOM_USERNAME-observability-demo
 ----
@@ -911,7 +911,7 @@ Wait 2-3 minutes without generating any traffic. The alert should transition fro
 
 . Generate traffic to resolve the alert:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc exec -n SHOWROOM_USERNAME-observability-demo deployment/sample-app -c debug -- sh -c \
   'for i in $(seq 1 200); do
@@ -955,7 +955,7 @@ Check that your alerting rules are working:
 . Ask a cluster admin to run `make deploy` (with cluster-admin credentials) so workshop monitoring API RoleBindings are applied
 . Verify access after RBAC update:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc auth can-i get prometheuses.monitoring.coreos.com/api -n openshift-user-workload-monitoring
 oc auth can-i get alertmanagers.monitoring.coreos.com/api -n openshift-user-workload-monitoring

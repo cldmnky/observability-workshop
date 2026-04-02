@@ -92,7 +92,7 @@ Before enabling telemetry, understand how data flows from the application to eac
 
 This workshop uses a two-tier OpenTelemetry Collector topology. Every signal—traces, metrics, and logs—flows through the same two hops before reaching a purpose-built backend:
 
-[source,text]
+[source,text,role="copypaste"]
 ----
 Application pods (SHOWROOM_USERNAME-observability-demo)
   +--------------------------------------------------------+
@@ -157,13 +157,13 @@ The Tempo distributed tracing stack was deployed via GitOps as part of the works
 
 . Verify the Tempo Operator is running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n openshift-tempo-operator
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                          READY   STATUS    RESTARTS   AGE
 tempo-operator-controller-manager-xxxxx       2/2     Running   0          1h
@@ -171,13 +171,13 @@ tempo-operator-controller-manager-xxxxx       2/2     Running   0          1h
 
 . Check the TempoStack instance:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get tempostack -n openshift-tempo-operator
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME    AGE   CONDITION
 tempo   1h    Ready
@@ -187,13 +187,13 @@ The `CONDITION` must be **Ready** before traces can be ingested.
 
 . Verify each Tempo component is running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n openshift-tempo-operator -l app.kubernetes.io/instance=tempo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                        READY   STATUS    RESTARTS   AGE
 tempo-tempo-compactor-xxxxx                 1/1     Running   0          1h
@@ -205,13 +205,13 @@ tempo-tempo-query-frontend-xxxxx            1/1     Running   0          1h
 
 . Confirm the distributor service endpoint (used by the OpenTelemetry Collector to write traces):
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get svc tempo-tempo-distributor -n openshift-tempo-operator
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                      TYPE        CLUSTER-IP      PORT(S)
 tempo-tempo-distributor   ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
@@ -273,7 +273,7 @@ The inbound HTTP handler is wrapped with `otelhttp.NewHandler()`, which:
 +
 The trace context flows automatically through your microservices:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 Browser
   +-- frontend (otelhttp server span: GET /new-note)
@@ -301,7 +301,7 @@ This file contains three `Deployment` patches—one per service. When applied, e
 
 . Verify the current state of the deployments:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get deployment frontend backend \
   -n SHOWROOM_USERNAME-observability-demo \
@@ -312,7 +312,7 @@ oc get statefulset database \
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME       CONTAINERS
 frontend   frontend
@@ -341,14 +341,14 @@ Before creating resources in your namespace, confirm the OpenTelemetry Operator 
 
 . Verify the OpenTelemetry Operator pod is running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n openshift-operators \
   -l app.kubernetes.io/name=opentelemetry-operator
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                          READY   STATUS    RESTARTS   AGE
 opentelemetry-operator-controller-xxxxx       2/2     Running   0          1h
@@ -356,13 +356,13 @@ opentelemetry-operator-controller-xxxxx       2/2     Running   0          1h
 
 . Confirm the operator registered the CRDs:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc api-resources | grep opentelemetry
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 instrumentations              opentelemetry.io   true    Instrumentation
 opentelemetrycollectors       opentelemetry.io   true    OpenTelemetryCollector
@@ -370,13 +370,13 @@ opentelemetrycollectors       opentelemetry.io   true    OpenTelemetryCollector
 
 . Inspect the pre-deployed central collector:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get opentelemetrycollector central-collector -n observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME               MODE         VERSION
 central-collector  deployment   0.140.0-2
@@ -384,14 +384,14 @@ central-collector  deployment   0.140.0-2
 
 . Verify the central collector pods are running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n observability-demo \
   -l app.kubernetes.io/name=central-collector-collector
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                      READY   STATUS    RESTARTS   AGE
 central-collector-collector-xxxxx         1/1     Running   0          1h
@@ -402,13 +402,13 @@ Two replicas provide resilience for the shared collection endpoint.
 
 . Inspect the central collector service (this is where sidecars forward telemetry):
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get svc central-collector-collector -n observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                           TYPE        CLUSTER-IP      PORT(S)
 central-collector-collector    ClusterIP   172.30.x.x      4317/TCP, 4318/TCP
@@ -431,7 +431,7 @@ You will deploy a sidecar-mode `OpenTelemetryCollector` CR in your `SHOWROOM_USE
 
 . Verify the required ServiceAccount is present in your namespace:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get serviceaccount otel-collector-sidecar \
   -n SHOWROOM_USERNAME-observability-demo
@@ -440,7 +440,7 @@ oc get serviceaccount otel-collector-sidecar \
 This ServiceAccount was pre-created for your namespace with the RBAC permissions needed by the `k8sattributes` and `resourcedetection` processors (read access to pods, namespaces, and nodes).
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                    SECRETS   AGE
 otel-collector-sidecar  0         1h
@@ -448,7 +448,7 @@ otel-collector-sidecar  0         1h
 
 . Create the sidecar OpenTelemetryCollector CR:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: opentelemetry.io/v1beta1
@@ -520,13 +520,13 @@ EOF
 
 . Verify the CR was accepted:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get opentelemetrycollector sidecar -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME     MODE    VERSION
 sidecar  sidecar 0.140.0-2
@@ -538,7 +538,7 @@ In `sidecar` mode, the operator does not create a standalone `Deployment`. Inste
 
 The sidecar carries **all three signal types** over the same processor chain:
 
-[source,text]
+[source,text,role="copypaste"]
 ----
               otlp receiver  (localhost:4317 gRPC / localhost:4318 HTTP)
                     |
@@ -572,7 +572,7 @@ The `Instrumentation` CR is a template that tells the OpenTelemetry Operator how
 
 . Create the Instrumentation CR:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
 apiVersion: opentelemetry.io/v1alpha1
@@ -605,13 +605,13 @@ Key fields explained:
 
 . Verify the CR was accepted:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get instrumentation my-instrumentation -n SHOWROOM_USERNAME-observability-demo
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                 AGE
 my-instrumentation   10s
@@ -632,14 +632,14 @@ Now you'll activate the OpenTelemetry SDK in all three Go services. This adds th
 
 . Set your namespace as a shell variable:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 NAMESPACE="SHOWROOM_USERNAME-observability-demo"
 ----
 
 . Add the OTEL environment variables to all three services:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 for app in frontend backend; do
   oc set env deployment/${app} -n ${NAMESPACE} \
@@ -656,7 +656,7 @@ oc set env statefulset/database -n ${NAMESPACE} \
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 deployment.apps/frontend updated
 deployment.apps/backend updated
@@ -665,7 +665,7 @@ statefulset.apps/database updated
 
 . Add the sidecar injection annotation to each pod template:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 for app in frontend backend; do
   oc patch deployment/${app} -n ${NAMESPACE} \
@@ -680,7 +680,7 @@ oc patch statefulset/database -n ${NAMESPACE} \
 The annotation value `sidecar` must match the name of the `OpenTelemetryCollector` CR you created in Exercise 4. When the operator sees this annotation on a pod being created, it injects the collector container spec from that CR.
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 deployment.apps/frontend patched
 deployment.apps/backend patched
@@ -689,7 +689,7 @@ statefulset.apps/database patched
 
 . Set the ServiceAccount on all three services so the injected sidecar can call the Kubernetes API:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 for app in frontend backend; do
   oc set serviceaccount deployment/${app} \
@@ -702,7 +702,7 @@ oc set serviceaccount statefulset/database \
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 deployment.apps/frontend serviceaccount updated
 deployment.apps/backend serviceaccount updated
@@ -716,7 +716,7 @@ statefulset.apps/database serviceaccount updated
 `database` is a StatefulSet with a `ReadWriteOnce` PVC. Its default `RollingUpdate` strategy terminates the existing pod before starting the replacement, so the volume is cleanly released. Expect a few seconds of database unavailability during this step.
 ====
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc rollout status deployment/frontend deployment/backend \
   -n ${NAMESPACE}
@@ -725,7 +725,7 @@ oc rollout status statefulset/database \
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 deployment "frontend" successfully rolled out
 deployment "backend" successfully rolled out
@@ -736,14 +736,14 @@ statefulset rolling update complete 1 pods at revision database-xxxxx...
 
 . Verify sidecar injection occurred:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n ${NAMESPACE} \
   -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                        CONTAINERS
 frontend-xxxxx              frontend, otc-container
@@ -755,14 +755,14 @@ The `otc-container` is the injected OpenTelemetry Collector sidecar. Each pod no
 
 . Confirm the sidecar container is running and pipelines have started:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc logs -n ${NAMESPACE} \
   -l app=frontend -c otc-container | tail -10
 ----
 +
 .Expected output (excerpt)
-[source,text]
+[source,text,role="copypaste"]
 ----
 Everything is ready. Begin running and processing data.
 Pipeline started (traces).
@@ -772,7 +772,7 @@ Pipeline started (logs).
 
 . Generate application traffic to produce telemetry:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 FRONTEND_URL=$(oc get route frontend \
   -n ${NAMESPACE} \
@@ -839,7 +839,7 @@ Click one of the higher points to open the trace detail view.
 +
 The waterfall shows a horizontal bar for each span, indented to reflect parent-child relationships. The `otelhttp` library creates two spans per service boundary: a *server* span named after the matched route (`POST /api/notes`) and a *client* span named after the HTTP method (`HTTP POST`) for each outbound call:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 frontend: POST /api/notes            [=====================================] 134ms
   frontend: HTTP POST                [===================================] 130ms
@@ -909,7 +909,7 @@ The attributes on any span come from three distinct layers—the application its
 +
 Baggage is a key-value store carried inside the `baggage` HTTP header alongside `traceparent`. The frontend sets two members before every outbound request:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 baggage: client.platform=web,request.source=workshop-demo
 ----
@@ -923,14 +923,14 @@ All TraceQL queries below include `{ .k8s.namespace.name = "SHOWROOM_USERNAME-ob
 +
 Filter all traces that originated from the web frontend:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["baggage.client.platform"] = "web" }
 ----
 +
 Or find every span produced by the workshop demo requests, regardless of service:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["baggage.request.source"] = "workshop-demo" }
 ----
@@ -939,7 +939,7 @@ Or find every span produced by the workshop demo requests, regardless of service
 +
 Click **Show query** beneath the filter bar to reveal the TraceQL editor. TraceQL is the Tempo query language, similar to PromQL for Prometheus or LogQL for Loki.
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && resource.service.name = "database" && duration > 50ms }
 ----
@@ -948,14 +948,14 @@ This filters to only traces in your namespace where the database service had at 
 +
 Query by the specific table the slow operation touched:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["db.sql.table"] = "notes" && duration > 30ms }
 ----
 +
 Or filter by database operation type:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["db.operation"] = "INSERT" && resource.service.name = "database" }
 ----
@@ -964,21 +964,21 @@ Or filter by database operation type:
 +
 The custom `note.*` and `event.*` attributes open the trace store as a queryable record of application events. Find all traces that created a note:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["note.id"] != "" }
 ----
 +
 Or find traces by peer service to understand the backend-to-database communication pattern:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && span["peer.service"] = "database" && span["db.sql.table"] = "notes" }
 ----
 
 . Find error traces:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 { .k8s.namespace.name = "SHOWROOM_USERNAME-observability-demo" && status = error }
 ----
@@ -993,7 +993,7 @@ Navigate to **Observe** → **Logs**.
 +
 Query for log lines containing that trace ID:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "<your-trace-id>"
 ----
@@ -1021,7 +1021,7 @@ The central collector in `observability-demo` receives telemetry from all sideca
 
 . View the central collector configuration:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get opentelemetrycollector central-collector \
   -n observability-demo \
@@ -1037,7 +1037,7 @@ Note the four export destinations:
 
 . Inspect the spanmetrics connector:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get opentelemetrycollector central-collector \
   -n observability-demo \
@@ -1050,7 +1050,7 @@ The `spanmetrics` connector acts as both an exporter (receiving spans from the t
 +
 Navigate to **Observe** → **Metrics** and enter:
 +
-[source,promql]
+[source,promql,role="copypaste"]
 ----
 sum(rate(traces_spanmetrics_calls_total{service_name="frontend"}[5m])) by (span_name)
 ----
@@ -1059,7 +1059,7 @@ This shows the request rate per operation for the frontend service—derived sol
 +
 To see the p95 latency for backend operations:
 +
-[source,promql]
+[source,promql,role="copypaste"]
 ----
 histogram_quantile(0.95,
   sum(rate(traces_span_metrics_duration_milliseconds_bucket{k8s_namespace_name="SHOWROOM_USERNAME-observability-demo", k8s_deployment_name="backend"}[5m]))
@@ -1071,7 +1071,7 @@ histogram_quantile(0.95,
 +
 The central collector runs a dedicated logs pipeline that maps OTEL resource attributes to the label keys expected by the LokiStack `openshift-logging` multi-tenancy gateway:
 +
-[source,yaml]
+[source,yaml,role="copypaste"]
 ----
 processors:
   resource/logs:            # <1>
@@ -1101,7 +1101,7 @@ exporters:
 +
 Verify a log record arrived in Loki by navigating to **Observe** → **Logs** in the OpenShift console and querying:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} | json
 ----
@@ -1143,7 +1143,7 @@ Before enabling auto-instrumentation, generate traffic and look at a trace water
 
 . Generate several note-creation requests:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 FRONTEND_URL=$(oc get route frontend \
   -n SHOWROOM_USERNAME-observability-demo \
@@ -1167,7 +1167,7 @@ A single `oc patch` command adds the two annotations that trigger both sidecar i
 
 . Patch the notifier deployment:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc patch deployment notifier \
   -n SHOWROOM_USERNAME-observability-demo \
@@ -1195,14 +1195,14 @@ When this annotated pod is scheduled, the OpenTelemetry Operator's mutating admi
 
 . Watch the rollout:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc rollout status deployment/notifier -n SHOWROOM_USERNAME-observability-demo
 ----
 
 . Confirm the pod now has two containers (application + sidecar):
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n SHOWROOM_USERNAME-observability-demo \
   -l app=notifier \
@@ -1210,7 +1210,7 @@ oc get pods -n SHOWROOM_USERNAME-observability-demo \
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                        CONTAINERS
 notifier-xxxxx              notifier, otc-container
@@ -1218,7 +1218,7 @@ notifier-xxxxx              notifier, otc-container
 
 . Verify the Python SDK is active by checking notifier logs:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc logs -n SHOWROOM_USERNAME-observability-demo \
   -l app=notifier -c notifier | head -20
@@ -1230,7 +1230,7 @@ Look for OpenTelemetry bootstrap messages such as `Instrumenting FastAPI` or `Op
 
 . Send another batch of note-creation requests:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 FRONTEND_URL=$(oc get route frontend \
   -n SHOWROOM_USERNAME-observability-demo \
@@ -1247,7 +1247,7 @@ echo "Done"
 
 . Return to **Observe** → **Traces** in the console. A note-creation trace will now show a fourth hop. The `backend: HTTP POST` client span that previously had no child now has a notifier server span beneath it:
 +
-[source,text]
+[source,text,role="copypaste"]
 ----
 frontend: POST /api/notes              [=====================================] 134ms
   frontend: HTTP POST                  [===================================] 130ms

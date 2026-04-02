@@ -65,13 +65,13 @@ The LokiStack instance and logging operator were pre-configured, so you'll confi
 
 . Verify the logging operator is running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n openshift-logging
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 NAME                                           READY   STATUS    RESTARTS   AGE
 cluster-logging-operator-xxxxx                 1/1     Running   0          1h
@@ -88,13 +88,13 @@ logging-loki-query-frontend-xxxxx              1/1     Running   0          1h
 
 . Check the LokiStack instance:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get lokistack -n openshift-logging logging-loki -o custom-columns=Name:metadata.name,Size:.spec.size
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 Name           Size
 logging-loki   1x.extra-small
@@ -104,13 +104,13 @@ The status should be **Ready**.
 
 . Verify the ClusterLogForwarder configuration:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get clusterlogforwarder -n openshift-logging instance -o custom-columns=Name:metadata.name,Outputs:.spec.outputs[0].name
 ----
 +
 .Expected output
-[source,text]
+[source,text,role="copypaste"]
 ----
 Name       Outputs
 instance   lokistack
@@ -118,7 +118,7 @@ instance   lokistack
 
 . View the ClusterLogForwarder configuration:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get clusterlogforwarder -n openshift-logging instance -o json| jq .spec
 ----
@@ -146,7 +146,7 @@ Check that your logging infrastructure is operational:
 . Describe the LokiStack: `oc describe lokistack logging-loki -n openshift-logging`
 . If reason is `MissingObjectStorageSecret`, check sync Job status:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get job logging-loki-s3-secret-sync -n openshift-logging
 oc logs job/logging-loki-s3-secret-sync -n openshift-logging
@@ -179,7 +179,7 @@ Each service writes structured request logs to stdout, which Loki collects.
 
 . Deploy the logging demo application manifest from GitHub:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 NAMESPACE="SHOWROOM_USERNAME-observability-demo"
 curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/src/deploy.yaml \
@@ -189,7 +189,7 @@ curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/s
 
 . Wait for the deployments to roll out:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc rollout status deployment/frontend -n SHOWROOM_USERNAME-observability-demo
 oc rollout status deployment/backend -n SHOWROOM_USERNAME-observability-demo
@@ -204,7 +204,7 @@ The application images are pre-built and hosted on `quay.io/cldmnky/observabilit
 
 . Verify the three deployments are running:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get pods -n SHOWROOM_USERNAME-observability-demo -l app=frontend
 oc get pods -n SHOWROOM_USERNAME-observability-demo -l app=backend
@@ -213,7 +213,7 @@ oc get pods -n SHOWROOM_USERNAME-observability-demo -l app=database
 
 . Verify the frontend Route and open the UI:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc get route frontend -n SHOWROOM_USERNAME-observability-demo
 FRONTEND_HOST=$(oc get route frontend -n SHOWROOM_USERNAME-observability-demo -o jsonpath='{.spec.host}')
@@ -228,7 +228,7 @@ The exported file (`workshop-notes.md`) confirms notes are persisted and downloa
 +
 . Generate traffic with mixed success and failure responses:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc run -n SHOWROOM_USERNAME-observability-demo traffic-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
   sh -c 'for i in $(seq 1 50); do curl -s http://frontend:8080/ping >/dev/null; curl -s -o /dev/null http://frontend:8080/error; echo "Completed request pair $i"; sleep 0.5; done'
@@ -238,7 +238,7 @@ This generates a mix of 200 (success) and 404 (error) responses, creating varied
 
 . View logs from each tier to see request traces:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc logs -n SHOWROOM_USERNAME-observability-demo deployment/frontend --tail=20
 oc logs -n SHOWROOM_USERNAME-observability-demo deployment/backend --tail=20
@@ -246,7 +246,7 @@ oc logs -n SHOWROOM_USERNAME-observability-demo statefulset/database --tail=20
 ----
 +
 .Sample output
-[source,text]
+[source,text,role="copypaste"]
 ----
 2026/02/11 10:23:14 service=frontend method=POST path=/api/notes status=201 duration_ms=5
 2026/02/11 10:23:15 service=frontend method=GET path=/ping status=200 duration_ms=3
@@ -298,7 +298,7 @@ image::observe-logs-query.png[LogQL query editor in OpenShift Console]
 
 . Write your first LogQL query to see all logs from your namespace:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |json
 ----
@@ -311,7 +311,7 @@ image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
 +
 . Filter logs to show only error responses (404):
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "404" |json
 ----
@@ -320,7 +320,7 @@ The `|=` operator filters for log lines containing "404".
 
 . Query logs from a specific pod:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo", kubernetes_pod_name=~"frontend.*"} |json
 ----
@@ -329,7 +329,7 @@ The `=~` operator matches a regular expression.
 
 . Query frontend note activity generated from the UI:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes" |json
 ----
@@ -338,7 +338,7 @@ This shows note creation and note update calls from the frontend route.
 
 . Combine multiple filters to find successful frontend requests:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200" |json
 ----
@@ -347,7 +347,7 @@ This shows successful `/ping` requests from the frontend pod.
 
 . Use LogQL to count error rates:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 sum(rate({kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "404" [5m]))
 ----
@@ -356,7 +356,7 @@ This calculates the rate of 404 errors per second over the last 5 minutes.
 
 . Query logs from multiple applications:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |json | line_format "{{.kubernetes_pod_name}}: {{.message}}"
 ----
@@ -376,7 +376,7 @@ The `|json` stage parses the collector's JSON envelope, extracting labeled field
 This is valuable when a key signal (latency, error codes, payload size) lives only in log lines and has not yet been instrumented as a Prometheus metric.
 ====
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 avg_over_time(
   {
@@ -436,7 +436,7 @@ The real power of observability comes from correlating different signals. You'll
 
 . Generate a burst of errors to simulate an incident:
 +
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 oc run -n SHOWROOM_USERNAME-observability-demo error-generator --rm -i --restart=Never --image=quay.io/curl/curl:8.11.1 -- \
   sh -c 'for i in $(seq 1 100); do curl -s -o /dev/null http://frontend:8080/error; sleep 0.1; done'
@@ -448,7 +448,7 @@ Navigate to **Observe** → **Metrics**
 +
 Query:
 +
-[source,promql]
+[source,promql,role="copypaste"]
 ----
 sum by (service) (rate(http_requests_total{code="404", namespace="SHOWROOM_USERNAME-observability-demo}[5m]))
 ----
@@ -457,7 +457,7 @@ You should see a traffic spike while the error generator is running.
 
 . Switch to **Observe** → **Logs** and correlate with log data:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} |= "404" |= "error" | json
 ----
@@ -472,7 +472,7 @@ Compare the timestamp of log entries with the metric spike time.
 
 . Extract structured data from logs:
 +
-[source,logql]
+[source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="SHOWROOM_USERNAME-observability-demo"} 
   |= "404" 
@@ -532,7 +532,7 @@ For the `application` tenant, `AlertingRule` resources must be created in the ap
 
 A complete `AlertingRule` that fires when the 404 error rate exceeds 0.5 per second for 2 minutes looks like this:
 
-[source,yaml]
+[source,yaml,role="copypaste"]
 ----
 apiVersion: loki.grafana.com/v1
 kind: AlertingRule

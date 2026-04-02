@@ -68,7 +68,7 @@ The following components are already deployed and configured in your lab environ
 
 Participants should run these commands to verify setup:
 
-[source,bash]
+[source,bash,role="copypaste"]
 ----
 # Verify OpenShift CLI
 oc version
