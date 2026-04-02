@@ -28,7 +28,11 @@ ui:
     - path: js/user-context.js
       src: ./content/supplemental-ui/js/user-context.js
     - path: partials/footer-scripts.hbs
-      src: ./content/supplemental-ui/partials/footer-scripts.hbs
+      contents: |
+        <script defer src="{{uiRootPath}}/js/vendor/clipboard.js"></script>
+        <script defer src="{{uiRootPath}}/js/site.js"></script>
+        <script defer src="{{uiRootPath}}/js/vendor/highlight.js"></script>
+        <script defer src="{{uiRootPath}}/js/user-context.js"></script>
     - path: img/favicon.ico
       src: ./content/supplemental-ui/img/favicon.ico
     - path: .nojekyll
