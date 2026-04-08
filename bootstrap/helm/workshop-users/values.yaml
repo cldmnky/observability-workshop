@@ -1,6 +1,6 @@
 # Number of workshop users. Users are named user1, user2, ..., userN.
 users:
-  count: 10
+  count: 25
   prefix: user
 
 # OpenShift group that all workshop users belong to

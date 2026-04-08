@@ -383,18 +383,20 @@ This is valuable when a key signal (latency, error codes, payload size) lives on
 +
 [source,logql,role="copypaste"]
 ----
-avg_over_time(
-  {
-    kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo",
-    kubernetes_pod_name=~"frontend.*"
-  }
-  |json
-  | regexp `duration_ms=(?P<duration_ms>\d+)`
-  | unwrap duration_ms [5m]
+avg by (kubernetes_pod_name) (
+  avg_over_time(
+    {
+      kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo",
+      kubernetes_pod_name=~"frontend.*"
+    }
+    |json
+    | regexp `duration_ms=(?P<duration_ms>\d+)`
+    | unwrap duration_ms [5m]
+  )
 )
 ----
 +
-`|json` parses the JSON envelope; `| regexp` extracts `duration_ms` from the `message` field as a new label; `| unwrap duration_ms` promotes it to a numeric sample value; `avg_over_time` computes the average frontend response time in milliseconds over the last 5 minutes — without requiring a separate Prometheus metric.
+`|json` parses the collector's JSON envelope, extracting the `message` field and all Kubernetes metadata labels. `| regexp` extracts `duration_ms` from the message as a new label. `| unwrap duration_ms` promotes it to a numeric sample value. The outer `avg by (kubernetes_pod_name)` aggregates across all the extracted metadata labels, collapsing the result to one series per pod — which avoids hitting Loki's per-query series limit. `avg_over_time` computes the average frontend response time in milliseconds over the last 5 minutes, without requiring a separate Prometheus metric.
 
 === Verify
 
@@ -455,7 +457,7 @@ Query:
 +
 [source,promql,role="copypaste"]
 ----
-sum by (service) (rate(http_requests_total{code="404", namespace="%OPENSHIFT_USERNAME%-observability-demo}[5m]))
+sum by (service) (rate(http_requests_total{code="404", namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
 ----
 +
 You should see a traffic spike while the error generator is running.

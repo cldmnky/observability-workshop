@@ -98,7 +98,8 @@ Application pods (%OPENSHIFT_USERNAME%-observability-demo)
   +--------------------------------------------------------+
   |  frontend / backend / database / notifier              |
   |  +----------+  OTLP HTTP (localhost:4318)              |
-  |  | app      |---> otc-container (sidecar collector)   |
+  |  | app      |---> otc-container (sidecar-style        |
+  |  |          |     restartable init container)         |
   |  +----------+                                          |
   +--------------------------------------------------------+
          | All signals: traces + metrics + logs
@@ -121,7 +122,7 @@ Application pods (%OPENSHIFT_USERNAME%-observability-demo)
 
 **Why two tiers?**
 
-* **Sidecar collector**: Runs within the application pod as a second container (`otc-container`). The app sends to `localhost:4318` (no network hop). The sidecar enriches every span, metric data point, and log record with Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`) via the `k8sattributes` processor, then forwards all three signals over a single gRPC connection to the central collector.
+* **Sidecar collector**: Runs within the application pod as an injected collector named `otc-container`. In the current OpenTelemetry Operator implementation it appears under `initContainers` as a restartable init container, but it remains running for the life of the pod and acts as the pod-local collector. The app sends to `localhost:4318` (no network hop). The collector enriches every span, metric data point, and log record with Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`) via the `k8sattributes` processor, then forwards all three signals over a single gRPC connection to the central collector.
 * **Central collector**: Runs as a shared `Deployment` (2 replicas) in `observability-demo`. It receives all signals from every user's sidecar and routes them to different backends using different protocols and auth mechanisms. It also runs the `spanmetrics` connector, which generates RED metrics directly from incoming trace spans.
 
 This pattern keeps the sidecar simple (no secrets, no TLS config, no auth tokens) while centralising the complex backend integrations in one place.
@@ -321,7 +322,7 @@ NAME       CONTAINERS
 database   database
 ----
 +
-Each service currently has a single application container. After enabling OpenTelemetry later in this module, each pod will gain a second container—the injected sidecar collector.
+Each service currently has a single application container. After enabling OpenTelemetry later in this module, each pod will gain an injected collector named `otc-container`. In the current operator implementation it appears under `initContainers`, not the main `containers` list.
 
 === Verify
 
@@ -739,19 +740,19 @@ statefulset rolling update complete 1 pods at revision database-xxxxx...
 [source,bash,role="copypaste"]
 ----
 oc get pods -n ${NAMESPACE} \
-  -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
+  -o custom-columns='NAME:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ----
 +
 .Expected output
 [source,text,role="copypaste"]
 ----
-NAME                        CONTAINERS
-frontend-xxxxx              frontend, otc-container
-backend-xxxxx               backend, otc-container
-database-0                  database, otc-container
+NAME                        INIT           CONTAINERS
+frontend-xxxxx              otc-container  frontend
+backend-xxxxx               otc-container  backend
+database-0                  otc-container  database
 ----
 +
-The `otc-container` is the injected OpenTelemetry Collector sidecar. Each pod now has two containers: the application and its dedicated collector.
+The `otc-container` is the injected OpenTelemetry Collector. In this environment it shows up under `INIT` because the operator implements it as a restartable init container, but it remains running and handles local telemetry collection for the pod.
 
 . Confirm the sidecar container is running and pipelines have started:
 +
@@ -795,11 +796,11 @@ This sends 30 iterations of mixed GET and POST requests, generating spans at eac
 * ✓ OTEL environment variables set on all three deployments
 * ✓ Sidecar injection annotation present on all three pod templates
 * ✓ All three deployments rolled out successfully
-* ✓ Each pod has two containers: the application and `otc-container` (sidecar)
+* ✓ Each pod shows `otc-container` under `INIT` and the application container under `CONTAINERS`
 * ✓ Sidecar logs show all three pipelines started
 * ✓ Traffic generated against the frontend route
 
-**What you learned**: The OpenTelemetry Operator's sidecar injection mechanism transforms a running pod by adding a pre-configured collector container, without rebuilding the image. The annotation `sidecar.opentelemetry.io/inject: "sidecar"` tells the operator to use the `sidecar` CR you created in Exercise 4 as the container specification.
+**What you learned**: The OpenTelemetry Operator's sidecar injection mechanism transforms a running pod by adding a pre-configured collector named `otc-container`, without rebuilding the image. In this environment the collector is represented as a restartable init container, not a regular application container. The annotation `sidecar.opentelemetry.io/inject: "sidecar"` tells the operator to use the `sidecar` CR you created in Exercise 4 as the container specification.
 
 == Exercise 7: View and explore live traces
 
@@ -1200,21 +1201,17 @@ When this annotated pod is scheduled, the OpenTelemetry Operator's mutating admi
 oc rollout status deployment/notifier -n %OPENSHIFT_USERNAME%-observability-demo
 ----
 
-. Confirm the pod now has two containers (application + sidecar):
+. Confirm the pod now has the application container plus injected OpenTelemetry init container(s):
 +
 [source,bash,role="copypaste"]
 ----
 oc get pods -n %OPENSHIFT_USERNAME%-observability-demo \
   -l app=notifier \
-  -o custom-columns='NAME:.metadata.name,CONTAINERS:.spec.containers[*].name'
+  -o custom-columns='NAME:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ----
+
 +
-.Expected output
-[source,text,role="copypaste"]
-----
-NAME                        CONTAINERS
-notifier-xxxxx              notifier, otc-container
-----
+Look for `otc-container` under `INIT` and `notifier` under `CONTAINERS`. Depending on the operator version, you may also see an additional Python auto-instrumentation init container.
 
 . Verify the Python SDK is active by checking notifier logs:
 +
@@ -1285,7 +1282,7 @@ The `notifier` spans are produced entirely by `opentelemetry-instrumentation-fas
 
 === Verify
 
-* ✓ Notifier pod has two running containers: `notifier` and `otc-container`
+* ✓ Notifier pod shows `otc-container` under `INIT` and `notifier` under `CONTAINERS`
 * ✓ Notifier logs show OpenTelemetry SDK bootstrap messages
 * ✓ Traces for note creation show four service hops: `frontend → backend → notifier → database`
 * ✓ Notifier spans are children of the backend span (W3C Trace Context propagation works)
@@ -1302,7 +1299,7 @@ By completing this module, you should now understand:
 * ✓ **Context propagation** via W3C `traceparent` headers links spans across service boundaries automatically
 * ✓ **Tempo** stores traces on object storage with distinct distributor (write) and query-frontend (read) components
 * ✓ The **sidecar-to-central** collector pattern decouples application-facing collection from backend-facing export
-* ✓ A **sidecar OpenTelemetryCollector** in `sidecar` mode injects a container into annotated pods without any image changes
+* ✓ A **sidecar OpenTelemetryCollector** in `sidecar` mode injects a pod-local collector into annotated pods without any image changes
 * ✓ The **`k8sattributes` and `resourcedetection` processors** automatically enrich telemetry with Kubernetes and infrastructure metadata
 * ✓ **TraceQL** filters traces by service name, operation, duration, status, and any span attribute
 * ✓ The **`spanmetrics` connector** in the central collector generates RED metrics from traces, eliminating the need for a Prometheus client library
@@ -1338,7 +1335,7 @@ You activated the full distributed tracing and OpenTelemetry pipeline for the wo
 * **Trace and span**: A trace is a tree of spans; each span represents one service operation with timing and attributes
 * **Context propagation**: `traceparent` HTTP headers link spans across service boundaries using the W3C standard
 * **TempoStack**: Operator-managed, with distributor, ingester, querier, query-frontend, and compactor components
-* **Sidecar mode**: The operator injects the collector as a second container into annotated pods
+* **Sidecar mode**: The operator injects the collector into annotated pods as a pod-local `otc-container`; in this environment it appears as a restartable init container
 * **k8sattributes and resourcedetection**: Processors that attach Kubernetes context metadata to all telemetry
 * **Two-tier architecture**: Sidecar handles application-facing collection; central collector handles backend-facing export and routing
 * **spanmetrics connector**: Generates Prometheus-queryable RED metrics automatically from trace spans

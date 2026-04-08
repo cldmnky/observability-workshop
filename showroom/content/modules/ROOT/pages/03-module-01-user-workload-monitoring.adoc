@@ -115,20 +115,24 @@ image::user-workload-monitoring-console.png[User workload monitoring in OpenShif
 . Access the OpenShift console monitoring interface:
 +
 * Navigate to **Observe** → **Metrics** in the left navigation
-* This opens the Prometheus query interface, make sure the namespace filter is set to `openshift-user-workload-monitoring`.
-
-. Run your first PromQL query to see cluster metrics:
+* In OCP 4.21+, the metrics query interface is scoped to the currently selected project. Use the **Project** dropdown at the top of the page to select the namespace you want to query.
 +
-In the query box, enter:
+NOTE: As a regular user, system namespaces such as `openshift-user-workload-monitoring` are not queryable from the console metrics page. Use `oc get pods -n openshift-user-workload-monitoring` from your terminal to verify those components are running.
+
+. Run your first PromQL query to see your application's targets:
++
+Switch the **Project** dropdown to `%OPENSHIFT_USERNAME%-observability-demo`, then enter this query:
 +
 [source,promql,role="copypaste"]
 ----
-up{namespace="openshift-user-workload-monitoring"}
+up{namespace="%OPENSHIFT_USERNAME%-observability-demo"}
 ----
 +
 Click **Run Queries**
 +
-This shows all targets being scraped in the user workload monitoring namespace. Each target should show `value: 1` (up and healthy).
+NOTE: This query returns results only after you deploy the sample application in Exercise 2. You may want to return to this step after completing Exercise 2 to see targets.
++
+This shows all scrape targets in your namespace. Each target should show `value: 1` (up and healthy).
 
 image::user-workload-metrics.png[User workload monitoring targets in Prometheus]
 
@@ -242,6 +246,8 @@ sample-app-xxxxx-xxxxx        2/2     Running   0          30s
 ----
 +
 Note the `2/2` ready status indicates both the application and debug sidecar containers are running.
++
+image::sample-app-pods.png[Sample app pods running with 2/2 ready status in user3-observability-demo namespace]
 
 . Check what metrics the application exposes using the debug sidecar:
 +
@@ -379,7 +385,7 @@ Enter this PromQL query:
 +
 [source,promql,role="copypaste"]
 ----
-http_requests_total{}
+http_requests_total{namespace="%OPENSHIFT_USERNAME%-observability-demo"}
 ----
 +
 Click **Run Queries**
@@ -390,7 +396,7 @@ You should see results showing the counter values for each pod.
 +
 [source,promql,role="copypaste"]
 ----
-rate(http_requests_total{}[5m])
+rate(http_requests_total{namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m])
 ----
 +
 This shows requests per second averaged over 5 minutes.
@@ -491,7 +497,10 @@ oc get monitoringstack observability-stack -n observability-demo -o jsonpath='{.
 +
 ServiceMonitors **must have this label** to be discovered by the COO stack.
 
-You can also see the COO stack in the console: click on **Topology** in the left navigation and select the `observability-demo` namespace. You should see the `observability-stack` operator-backed service managed by `cluster-observability-operator`, consisting of Prometheus (3 pods), Thanos Querier (1 pod), and Alertmanager (2 pods). You may also notice the `opentelemetry` application containing the `central-collector` deployment — this is the OpenTelemetry Collector configured in a later module.
+You can also see the COO stack in the console: click on **Topology** in the left navigation and select the `observability-demo` namespace. You will see two application groups:
++
+* `observability-stack` — the operator-backed service managed by `cluster-observability-operator`, consisting of a Prometheus StatefulSet (3 pods), Thanos Querier (1 pod), and Alertmanager (2 pods)
+* `opentelemetry` — the OpenTelemetry Collector (`central-collector` deployment) configured in a later module
 
 image::observability-stack.png[Monitoring topology showing COO stack in observability-demo namespace]
 
@@ -501,7 +510,7 @@ image::observability-stack.png[Monitoring topology showing COO stack in observab
 ----
 cat <<EOF | oc apply -f -
 apiVersion: monitoring.rhobs/v1
-kind: ServiceMonitor.monitoring.rhobs
+kind: ServiceMonitor
 metadata:
   name: sample-app-coo
   namespace: %OPENSHIFT_USERNAME%-observability-demo
@@ -539,22 +548,24 @@ prometheus-observability-stack-1    2/2     Running   0          1h
 prometheus-observability-stack-2    2/2     Running   0          1h
 ----
 +
-Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify it's being scraped:
+Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor, then verify it's being scraped using the debug sidecar in your own namespace:
 +
 [source,bash,role="copypaste"]
 ----
-oc exec -n observability-demo prometheus-observability-stack-0 -c prometheus -- \
-  curl -s http://localhost:9090/api/v1/targets | \
-  grep -E 'sample-app.*%OPENSHIFT_USERNAME%-observability-demo' | head -5
+oc exec -n %OPENSHIFT_USERNAME%-observability-demo deployment/sample-app -c debug -- \
+  curl -s 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090/api/v1/targets' | \
+  grep -o '"job":"[^"]*"' | grep sample-app-coo | head -5
 ----
 +
 .Expected output (showing your application is being monitored)
 [source,text,role="copypaste"]
 ----
-..."job":"sample-app-coo/sample-app/0","namespace":"%OPENSHIFT_USERNAME%-observability-demo"...
+"job":"sample-app-coo/sample-app/0"
 ----
 +
-If you see your application and namespace, the COO Prometheus has successfully discovered and is scraping your ServiceMonitor. If not, verify the ServiceMonitor has the correct label:
+NOTE: The exec runs from your own `sample-app` debug sidecar (which you own) and queries the COO Prometheus via its in-cluster service URL. You do not need `pods/exec` access to the `observability-demo` namespace.
++
+If you do not see your application, verify the ServiceMonitor has the correct label:
 +
 [source,bash,role="copypaste"]
 ----
@@ -576,7 +587,7 @@ oc get persesdatasource prometheus \
 .Expected output
 [source,yaml,role="copypaste"]
 ----
-apiVersion: perses.dev/v1alpha1
+apiVersion: perses.dev/v1alpha2
 kind: PersesDatasource
 metadata:
   name: prometheus
@@ -605,7 +616,7 @@ Now create a dashboard that references the datasource:
 [source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
-apiVersion: perses.dev/v1alpha1
+apiVersion: perses.dev/v1alpha2
 kind: PersesDashboard
 metadata:
   name: sample-app-dashboard
@@ -902,8 +913,28 @@ oc get prometheusrule -n %OPENSHIFT_USERNAME%-observability-demo
 Navigate to **Observe** → **Alerting** in the OpenShift console.
 +
 * Click on the **Alerting rules** tab
+* The default filter is **Source: Platform** — click the **(X)** next to "Platform" in the filter bar, or click **Clear all filters**, to reveal user-defined rules
 * Search for "LowRequestRate"
-* You should see the alert in **Inactive** or **Pending** state
+* You should see the alert in **Inactive**, **Pending**, or **Firing** state
++
+image::alert-rules.png[LowRequestRate alerting rule visible after clearing Platform source filter]
++
+NOTE: The **Alerting rules** tab defaults to showing only platform-scoped rules. You must clear the Platform filter (or set Source to **User**) to see rules created via `PrometheusRule` in your own namespace.
++
+If the rule does not appear, confirm it was accepted by Kubernetes using the CLI:
++
+[source,bash,role="copypaste"]
+----
+oc get prometheusrule -n %OPENSHIFT_USERNAME%-observability-demo -o jsonpath='{.items[0].spec.groups[0].rules[0].alert}{"\n"}'
+----
++
+.Expected output
+[source,text,role="copypaste"]
+----
+LowRequestRate
+----
++
+NOTE: `PrometheusRule` resources using `monitoring.coreos.com/v1` are managed by the CMO user workload monitoring stack (not the COO stack). Allow 30-60 seconds for the Thanos Ruler to pick up the new rule after creation.
 
 . Trigger the alert by stopping traffic:
 +
