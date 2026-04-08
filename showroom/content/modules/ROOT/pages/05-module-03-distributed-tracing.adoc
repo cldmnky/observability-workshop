@@ -30,6 +30,8 @@ By the end of this module, you'll be able to:
 
 Before enabling tracing, you need to understand how distributed tracing works in microservice architectures.
 
+image::overview-traces.png[Core distributed tracing concepts: trace, span, context propagation, parent-child relationships, and how tracing reveals bottlenecks invisible to metrics and logs alone]
+
 === Core tracing concepts
 
 **Trace**: The complete journey of a single request through your system.
@@ -228,6 +230,8 @@ Check that your tracing infrastructure is operational:
 * ✓ TempoStack instance condition is Ready
 * ✓ All Tempo component pods (distributor, ingester, querier, query-frontend, compactor) are Running
 * ✓ Tempo distributor service exposes ports 4317 and 4318
+
+image::module3-01-tempo-pods.png[Tempo Stack pods all Running in the openshift-tempo-operator namespace]
 
 **What you learned**: The TempoStack operator deploys and manages all Tempo components. The distributor is the write endpoint; the query-frontend is the read endpoint used by the OpenShift console UI plugin.
 
@@ -734,6 +738,22 @@ statefulset rolling to 1 pods at revision database-xxxxx
 waiting for statefulset rolling update to complete 0 pods at revision database-xxxxx...
 statefulset rolling update complete 1 pods at revision database-xxxxx...
 ----
++
+[NOTE]
+====
+If a pod rolled out before the `sidecar` `OpenTelemetryCollector` CR was fully
+admitted by the operator's mutating webhook, it may have started without a
+sidecar. If `otc-container` does not appear under `INIT` in the next step,
+trigger a manual rollout restart:
+
+[source,bash,role="copypaste"]
+----
+oc rollout restart deployment/frontend deployment/backend -n ${NAMESPACE}
+oc rollout restart statefulset/database -n ${NAMESPACE}
+----
+
+Then re-run the `oc rollout status` commands above to confirm completion.
+====
 
 . Verify sidecar injection occurred:
 +
@@ -808,7 +828,16 @@ With traffic flowing and telemetry active, you can now view real traces from you
 
 === Steps
 
-. Navigate to **Observe** → **Traces** in the OpenShift console.
+. Navigate to **Observe** → **Traces** in the OpenShift console
+(URL path: `/observe/traces`).
++
+[NOTE]
+====
+Use the left navigation **Observe** → **Traces** to reach the Traces interface.
+The direct URL path is `/observe/traces`. Navigating to `/monitoring/traces`
+redirects to the Alerting page — use the navigation menu rather than manually
+typing the path.
+====
 
 . Set the search parameters:
 +
@@ -836,6 +865,8 @@ Clusters of points at the top of the chart indicate slow traces. The trace list 
 +
 Click one of the higher points to open the trace detail view.
 
+image::module3-03-traces-scatter.png[Traces scatter plot showing individual trace points in the OpenShift console Traces UI]
+
 . Explore the trace waterfall:
 +
 The waterfall shows a horizontal bar for each span, indented to reflect parent-child relationships. The `otelhttp` library creates two spans per service boundary: a *server* span named after the matched route (`POST /api/notes`) and a *client* span named after the HTTP method (`HTTP POST`) for each outbound call:
@@ -851,6 +882,8 @@ frontend: POST /api/notes            [=====================================] 134
 ----
 +
 Bar length represents duration. The server span for each service is the parent of that service's outgoing client spans.
+
+image::module3-04-trace-waterfall.png[Trace waterfall showing the frontend → backend → database call chain with timing bars]
 
 . Click a span to expand its attributes:
 +
@@ -905,6 +938,8 @@ The attributes on any span come from three distinct layers—the application its
 +
 * **Kubernetes attributes** (`k8sattributes` processor): `k8s.pod.name`, `k8s.deployment.name`, `k8s.namespace.name`
 * **Resource attributes** (`resourcedetection` processor): `cloud.platform`, `k8s.cluster.name`
+
+image::module3-05-span-attributes.png[Database span attributes panel showing db.operation, db.sql.table, note.id, and Kubernetes metadata fields]
 
 . Observe W3C Baggage propagation:
 +
@@ -1241,6 +1276,14 @@ for i in $(seq 1 15); do
 done
 echo "Done"
 ----
++
+[NOTE]
+====
+Wait at least 15 seconds after the traffic loop completes before checking the
+Traces UI. The sidecar's `BatchSpanProcessor` buffers spans and flushes every
+10 seconds (or when the batch reaches 1024 spans). Traces may not appear
+immediately after the loop finishes.
+====
 
 . Return to **Observe** → **Traces** in the console. A note-creation trace will now show a fourth hop. The `backend: HTTP POST` client span that previously had no child now has a notifier server span beneath it:
 +
@@ -1258,11 +1301,15 @@ frontend: POST /api/notes              [=====================================] 1
 +
 The `notifier` spans are produced entirely by `opentelemetry-instrumentation-fastapi` and `opentelemetry-instrumentation-httpx`—**no code was changed in `app.py`**.
 
+image::module3-06-trace-4hop-notifier.png[Four-hop trace waterfall showing frontend → backend → notifier → database with the notifier span as a child of the backend span]
+
 . Click on the `notifier: POST /notify` span and inspect its attributes:
 +
 * `http.method`, `http.status_code`, `http.route` — added by FastAPI auto-instrumentation
 * `k8s.pod.name`, `k8s.deployment.name` — added by the sidecar `k8sattributes` processor
 * `service.name: notifier` — set via the `OTEL_SERVICE_NAME` env var injected by the operator
+
+image::module3-07-notifier-span-attributes.png[Notifier span attributes panel showing http.route, http.status_code, service.name, and k8s.pod.name fields]
 
 . Notice that the `traceparent` context passed from backend to notifier is preserved correctly: the notifier root span appears as a **child** of the backend span, maintaining the single unified trace tree.
 

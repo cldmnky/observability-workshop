@@ -82,6 +82,8 @@ When comprehensive observability is implemented, here are the expected improveme
 
 **Success metric**: Measurable reduction in mean time to detection and mean time to resolution for production incidents, with comprehensive visibility into application health.
 
+image::overview-challenges.png[Operational challenges (log fragmentation, no distributed tracing, manual correlation) and the opportunity to move to proactive monitoring with the comprehensive observability kit]
+
 == Common questions
 
 **"Do I need to instrument every microservice individually?"**

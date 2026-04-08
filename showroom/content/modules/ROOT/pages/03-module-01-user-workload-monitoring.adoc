@@ -52,6 +52,8 @@ Use these common methods to decide which metrics matter most:
 
 NOTE: In this workshop, you'll primarily use the **RED method** for monitoring the sample application's HTTP requests (rate, errors, duration). The Prometheus metrics `http_requests_total` and `http_request_duration_seconds` directly support this methodology.
 
+image::metrics-overview.png[The 3 pillars of observability (Metrics, Logs, Traces), the practical detect-identify-locate workflow, and the RED/USE/Golden Signals methodologies]
+
 === OpenShift monitoring architecture
 
 OpenShift provides 3 complementary monitoring options:

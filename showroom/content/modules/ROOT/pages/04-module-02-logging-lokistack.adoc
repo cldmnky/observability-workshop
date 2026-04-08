@@ -34,6 +34,8 @@ Before configuring logging, you need to understand how LokiStack works and why i
 * **Traditional (Elasticsearch)**: Indexes every word in every log message → high storage cost, slower writes
 * **Loki**: Indexes only labels (namespace, pod, container) → lower storage cost, faster writes, efficient for Kubernetes
 
+image::loki-overview.png[Loki as a scalable log aggregator compared to traditional full-text indexing: lower storage cost, faster writes, proactive monitoring ready]
+
 **LokiStack components**:
 
 * **Distributor**: Receives log streams from clients
@@ -106,21 +108,21 @@ The status should be **Ready**.
 +
 [source,bash,role="copypaste"]
 ----
-oc get clusterlogforwarder -n openshift-logging instance -o custom-columns=Name:metadata.name,Outputs:.spec.outputs[0].name
+oc get clusterlogforwarder -n openshift-logging logging-collector -o custom-columns=Name:metadata.name,Outputs:.spec.outputs[0].name
 ----
 +
 .Expected output
 [source,text,role="copypaste"]
 ----
-Name       Outputs
-instance   lokistack
+Name               Outputs
+logging-collector  lokistack
 ----
 
 . View the ClusterLogForwarder configuration:
 +
 [source,bash,role="copypaste"]
 ----
-oc get clusterlogforwarder -n openshift-logging instance -o json| jq .spec
+oc get clusterlogforwarder -n openshift-logging logging-collector -o json | jq .spec
 ----
 +
 Look for pipelines that forward application and infrastructure logs to the default output (LokiStack).
@@ -289,8 +291,14 @@ Now you'll access the console's Observe/Logs web interface and write LogQL queri
 === Steps
 
 . Access the OpenShift console and navigate to **Observe** → **Logs**
+(URL path: `/monitoring/logs`)
 +
 This opens the log query interface powered by Loki.
++
+[NOTE]
+====
+The direct URL path for the Logs interface is `/monitoring/logs`. If you encounter a 404 when navigating, use the left navigation menu: **Observe** → **Logs**, rather than manually typing or bookmarking a URL path.
+====
 
 [NOTE]
 ====
@@ -593,9 +601,33 @@ Once created, the alert follows the same lifecycle as any Prometheus alert:
 . **Pending** — Expression is true but `for` duration has not elapsed yet
 . **Firing** — Expression has been true for longer than `for`; Alertmanager receives the alert and routes it
 
-Navigate to **Observe** → **Alerting** → **Alerting rules** in the OpenShift console to see log-based alerts alongside metric-based ones.
+Navigate to **Observe** → **Alerting** → **Alerting rules** in the OpenShift console to see metric-based alerts. Note that Loki `AlertingRule` CRs are evaluated by the Loki ruler and forwarded to Alertmanager, but they are **not currently listed** on the console Alerting rules page — that page only queries the Prometheus rules API.
 
-**What you learned**: LokiStack's ruler component evaluates LogQL expressions and fires alerts through the same Alertmanager pipeline used by Prometheus. This means log patterns — error bursts, missing heartbeats, security events — can trigger the same notifications and on-call workflows as metric alerts, with no additional tooling required.
+To verify your log-based alert is active, use the CLI:
++
+[source,bash,role="copypaste"]
+----
+oc get alertingrule -n %OPENSHIFT_USERNAME%-observability-demo
+----
++
+.Expected output
+[source,text,role="copypaste"]
+----
+NAME               AGE
+high-error-rate    2m
+----
++
+[source,bash,role="copypaste"]
+----
+oc describe alertingrule high-error-rate -n %OPENSHIFT_USERNAME%-observability-demo
+----
++
+The rule will show `State: Firing` or `State: Pending` in the status conditions once the load generator produces enough 404 errors.
+
+[NOTE]
+====
+The `AlertingRule` CR (`loki.grafana.com/v1`) is a separate resource from `PrometheusRule`. It is evaluated by the LokiStack ruler component. Alerts it produces are forwarded to Alertmanager through the same routing and notification pipeline as Prometheus alerts — but the OpenShift console Alerting rules page (which queries `/api/v1/rules`) only shows Prometheus-managed rules, not Loki ruler rules.
+====
 
 == Learning outcomes
 
