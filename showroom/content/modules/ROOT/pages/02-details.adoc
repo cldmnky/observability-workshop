@@ -58,11 +58,11 @@ The following components are already deployed and configured in your lab environ
 
 === Pre-workshop checklist
 
-□ **OpenShift cluster access confirmed** - Test login credentials
-□ **Terminal access verified** - Confirm oc CLI works
-□ **Browser access tested** - Open OpenShift console
-□ **Sample application running** - Verify demo app is deployed
-□ **GitOps sync confirmed** - Check ArgoCD application status
+* **OpenShift cluster access confirmed** - Test login credentials
+* **Terminal access verified** - Confirm oc CLI works
+* **Browser access tested** - Open OpenShift console
+* **Sample application running** - Verify demo app is deployed
+* **GitOps sync confirmed** - Check ArgoCD application status
 
 === Setup validation
 
