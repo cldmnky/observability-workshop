@@ -961,14 +961,14 @@ Filter all traces that originated from the web frontend:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["baggage.client.platform"] = "web" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.client.platform = "web" }
 ----
 +
 Or find every span produced by the workshop demo requests, regardless of service:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["baggage.request.source"] = "workshop-demo" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.request.source = "workshop-demo" }
 ----
 
 . Use TraceQL to find slow database spans:
@@ -993,7 +993,7 @@ Or filter by database operation type:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["db.operation"] = "INSERT" && resource.service.name = "database" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.db.operation = "INSERT" && .baggage.resource.service.name = "database" }
 ----
 
 . Use TraceQL to surface business-level data:
@@ -1002,14 +1002,14 @@ The custom `note.*` and `event.*` attributes open the trace store as a queryable
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["note.id"] != "" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.note.id != "" }
 ----
 +
 Or find traces by peer service to understand the backend-to-database communication pattern:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["peer.service"] = "database" && span["db.sql.table"] = "notes" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.peer.service = "database" && .baggage.db.sql.table = "notes" }
 ----
 
 . Find error traces:
