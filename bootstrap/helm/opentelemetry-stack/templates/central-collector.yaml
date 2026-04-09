@@ -110,6 +110,9 @@ spec:
           - key: log_type
             value: application
             action: upsert
+          - key: collector
+            value: {{ .Values.centralCollector.name }}
+            action: upsert
       
       # Derive a 'level' log attribute from the OTEL severity_text field
       transform/logs:
