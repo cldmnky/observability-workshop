@@ -589,7 +589,7 @@ oc get persesdatasource prometheus \
 .Expected output
 [source,yaml,role="copypaste"]
 ----
-apiVersion: perses.dev/v1alpha2
+apiVersion: perses.dev/v1alpha1
 kind: PersesDatasource
 metadata:
   name: prometheus
@@ -618,7 +618,7 @@ Now create a dashboard that references the datasource:
 [source,bash,role="copypaste"]
 ----
 cat <<EOF | oc apply -f -
-apiVersion: perses.dev/v1alpha2
+apiVersion: perses.dev/v1alpha1
 kind: PersesDashboard
 metadata:
   name: sample-app-dashboard
@@ -842,7 +842,7 @@ Check that your COO dashboard is working:
 **Issue**: ServiceMonitor not picked up by COO
 
 **Solution**:
-. Verify the label: `oc get servicemonitor sample-app-coo -n %OPENSHIFT_USERNAME%-observability-demo --show-labels`
+. Verify the label: `oc get servicemonitor.monitoring.rhobs sample-app-coo -n %OPENSHIFT_USERNAME%-observability-demo --show-labels`
 . Must have: `monitoring.rhobs/stack=observability-stack`
 . Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor after creation
 

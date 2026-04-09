@@ -3,7 +3,7 @@
 :toc-placement: preamble
 :icons: font
 
-Congratulations! You've completed all 4 modules of the OpenShift Observability Workshop.
+Congratulations! You've completed all 3 modules of the OpenShift Observability Workshop.
 
 toc::[]
 
@@ -11,8 +11,7 @@ toc::[]
 
 * **Module 1**: User workload monitoring with Prometheus and Alertmanager
 * **Module 2**: Centralized logging with LokiStack and LogQL
-* **Module 3**: Distributed tracing with Tempo and Jaeger
-* **Module 4**: Unified instrumentation with OpenTelemetry
+* **Module 3**: Distributed tracing with Tempo and OpenTelemetry
 
 == What you've achieved
 
@@ -21,14 +20,14 @@ You've implemented a comprehensive observability stack that provides:
 * Real-time metrics and custom alerts for proactive issue detection
 * Centralized logs searchable across all microservices
 * End-to-end request tracing for performance optimization
-* Standardized instrumentation with OpenTelemetry
+* Automated application instrumentation with the OpenTelemetry Operator
 
 == Skills gained
 
 * Configure observability infrastructure on OpenShift
 * Write queries (PromQL, LogQL) to analyze application behavior
 * Correlate metrics, logs, and traces for fast incident resolution
-* Instrument applications using industry-standard OpenTelemetry
+* Deploy and configure the OpenTelemetry Operator and sidecar collectors
 * Implement production-ready observability practices
 
 == Business impact

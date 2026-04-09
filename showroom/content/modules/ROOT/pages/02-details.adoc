@@ -3,188 +3,69 @@
 :toc-placement: preamble
 :icons: font
 
-== Timing and schedule
+== Schedule
 
-=== Full workshop (3 hours)
+[cols="3,1,1",options="header"]
+|===
+|Module |Full (3h) |Abbreviated (90m)
+|Module 1: User workload monitoring |60 min |30 min
+|Module 2: Logging with LokiStack |60 min |30 min
+|Module 3: Distributed tracing and OpenTelemetry |75 min |30 min
+|===
 
-* **Module 1**: User workload monitoring (60 minutes)
-* **Module 2**: Logging with LokiStack (60 minutes)
-* **Module 3**: Distributed tracing and OpenTelemetry (75 minutes)
+== Software versions
 
-=== Abbreviated workshop (90 minutes)
+[cols="2,1",options="header"]
+|===
+|Component |Version
+|Red Hat OpenShift Container Platform |4.21
+|Cluster Observability Operator |1.4.0
+|Red Hat OpenShift Logging |6.4.3
+|Loki Operator |6.4.3
+|Red Hat build of OpenTelemetry |0.144.0-1
+|Tempo Operator |0.20.0-2
+|===
 
-* **Module 1**: User workload monitoring (30 minutes)
-* **Module 2**: Logging basics (30 minutes)
-* **Module 3**: Distributed tracing and OpenTelemetry overview (30 minutes)
+== Your lab environment
 
-== Technical requirements
+Everything is pre-deployed via GitOps. You need:
 
-=== Software versions
+* An OpenShift namespace with admin privileges (provided)
+* Web browser access to {openshift_console_url}[OpenShift Console^]
+* The `oc` CLI — pre-configured in your lab terminal
 
-* Red Hat OpenShift Container Platform 4.21
-* Cluster Observability Operator 1.3.1
-* Red Hat OpenShift Logging 6.4
-* Red Hat build of OpenTelemetry 0.140.0-2
-* Tempo Operator 0.19.0-3
-* Network Observability Operator 1.10.1
+Pre-deployed components:
 
-=== Environment access
+* Prometheus, Thanos, Alertmanager (user workload monitoring)
+* LokiStack with S3-compatible storage
+* Tempo distributed tracing backend
+* OpenTelemetry Operator + sidecar collectors
+* Sample microservices application
 
-Participants need access to:
-
-* Red Hat OpenShift cluster (provided during workshop)
-* Namespace with admin privileges
-* OpenShift CLI (oc) - pre-configured in lab terminal
-* Web browser (Chrome, Firefox, Safari, Edge)
-* Pre-deployed observability stack via GitOps
-
-=== Pre-configured components
-
-The following components are already deployed and configured in your lab environment:
-
-* **User Workload Monitoring**: Prometheus, Thanos, Alertmanager
-* **Logging**: LokiStack with storage configured
-* **Distributed Tracing**: Tempo with OpenShift integration
-* **OpenTelemetry**: Operator and collector deployed
-* **Sample Application**: Microservices demo application for testing
-
-=== Network requirements
-
-* Internet connectivity for accessing OpenShift console
-* Access to OpenShift cluster API
-* Browser access to monitoring dashboards
-
-== Environment setup
-
-=== Pre-workshop checklist
-
-* **OpenShift cluster access confirmed** - Test login credentials
-* **Terminal access verified** - Confirm oc CLI works
-* **Browser access tested** - Open OpenShift console
-* **Sample application running** - Verify demo app is deployed
-* **GitOps sync confirmed** - Check ArgoCD application status
-
-=== Setup validation
-
-Participants should run these commands to verify setup:
+== Verify your setup
 
 [source,bash,role="copypaste"]
 ----
-# Verify OpenShift CLI
-oc version
-
-# Test cluster connectivity
 oc whoami
-
-# Check current project
-oc project
-
-# Verify observability stack
 oc get pods -n openshift-user-workload-monitoring
 oc get pods -n openshift-logging
 oc get pods -n openshift-tempo-operator
 ----
 
-== Troubleshooting guide
+== Troubleshooting
 
-=== Common setup issues
+[cols="2,3",options="header"]
+|===
+|Problem |Solution
+|`oc` not found |Refresh the lab terminal browser tab
+|Permission denied |Check your namespace: `oc project`
+|Console unreachable |Use the URL from the lab interface: {openshift_console_url}[OpenShift Console^]
+|Metrics not appearing |Check `oc get servicemonitor -n <your-namespace>`
+|Logs missing in Loki |Check `oc get clusterlogforwarder -n openshift-logging`
+|===
 
-**Problem**: "oc command not found"
-→ **Solution**: The oc CLI should be pre-installed in the lab terminal. If missing, refresh your browser.
+== References
 
-**Problem**: "Permission denied" errors
-→ **Solution**: Verify you're using the correct namespace. Check with `oc project` and switch if needed using `oc project <namespace-name>`.
-
-**Problem**: "Unable to connect to OpenShift console"
-→ **Solution**: Verify you're using the correct console URL from the lab interface: {openshift_console_url}[OpenShift Console^]
-
-**Problem**: "Prometheus metrics not appearing"
-→ **Solution**: Check ServiceMonitor configuration and verify pods are running: `oc get servicemonitor`
-
-**Problem**: "Logs not visible in Loki"
-→ **Solution**: Verify ClusterLogForwarder is configured: `oc get clusterlogforwarder -n openshift-logging`
-
-=== During workshop support
-
-* Use the lab terminal for all command line operations
-* Console access is available via {openshift_console_url}[OpenShift Console^]
-* All credentials are provided in the lab interface
-* Sample applications are pre-deployed for testing
-
-== Follow-up resources
-
-=== Next steps for participants
-
-* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift documentation^]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging documentation^]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry documentation^]
-* link:https://www.redhat.com/en/technologies/cloud-computing/openshift[Red Hat OpenShift product page^]
-
-=== Additional learning paths
-
-* **Intermediate**: Advanced monitoring with custom exporters and Grafana dashboards
-* **Advanced**: Multi-cluster observability with OpenShift Cluster Observability Operator
-* **Certification**: Red Hat Certified Specialist in OpenShift Administration
-
-== Module breakdown
-
-=== Module 1: User workload monitoring
-
-**Focus**: Configure Prometheus monitoring for custom application metrics
-
-**Topics**:
-
-* Understanding the 3 pillars of observability
-* Creating ServiceMonitor resources
-* Writing PromQL queries
-* Building custom dashboards
-* Configuring Alertmanager rules
-
-**Hands-on exercises**: 5
-
-=== Module 2: Logging with LokiStack
-
-**Focus**: Implement centralized logging and log analysis
-
-**Topics**:
-
-* LokiStack architecture and components
-* Writing LogQL queries
-* Correlating logs with metrics
-* Creating log-based alerts
-* Log retention and storage management
-
-**Hands-on exercises**: 5
-
-=== Module 3: Distributed tracing and OpenTelemetry
-
-**Focus**: Visualize request flows across microservices and activate a full three-signal telemetry pipeline
-
-**Topics**:
-
-* Distributed tracing concepts: traces, spans, context propagation
-* Tempo deployment and component architecture
-* Two-tier sidecar-to-central OpenTelemetry Collector topology
-* Application instrumentation with the OpenTelemetry Go SDK
-* Deploying a sidecar `OpenTelemetryCollector` and `Instrumentation` CR
-* Activating the telemetry pipeline without image rebuilds
-* Querying live traces with TraceQL in the OpenShift console
-* Span metrics connector generating RED metrics from traces
-* Zero-code Python auto-instrumentation via the Operator
-* Correlating traces, metrics, and logs across all four services
-
-**Hands-on exercises**: 9
-
-== Authors and contributors
-
-**Primary Author**: Magnus Bengtsson <mbengtss@redhat.com>
-
-**Last Updated**: April 2026
-
-**Workshop Version**: 1.1
-
-**Contact Information**:
-
-* Workshop feedback: Share via lab interface
-* Technical questions: Consult documentation links provided
-* Content updates: Submit issues via workshop repository
+* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging^]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry^]
