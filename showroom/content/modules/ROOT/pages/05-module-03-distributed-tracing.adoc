@@ -1082,18 +1082,18 @@ oc get opentelemetrycollector central-collector \
 +
 The `spanmetrics` connector acts as both an exporter (receiving spans from the traces pipeline) and a receiver (producing metric records for the `traces/spanmetrics` pipeline). It generates latency histograms and call-count counters for every `service.name` + `span.name` combination automatically.
 
-. Query the generated span metrics in Prometheus:
+. Visualize the generated span metrics in Perses:
 +
-Navigate to **Observe** → **Metrics** and enter:
+The `spanmetrics` connector remote-writes to the COO Prometheus instance, not to the platform Prometheus scraped by **Observe** → **Metrics**. To query these metrics you must use the COO datasource in Perses.
++
+Navigate to **Observe** → **Dashboards** and open Perses. Create a new dashboard or open an existing one, then add a **Time Series** panel. Select the **COO Prometheus** datasource and enter the following query to see the request rate per operation derived solely from traces:
 +
 [source,promql,role="copypaste"]
 ----
-sum(rate(traces_spanmetrics_calls_total{service_name="frontend"}[5m])) by (span_name)
+sum by (span_name, job) (rate(traces_span_metrics_calls_total{}[5m]))
 ----
 +
-This shows the request rate per operation for the frontend service—derived solely from traces, with no Prometheus client library code in the application.
-+
-To see the p95 latency for backend operations:
+To see the p95 latency for backend operations, add a second panel with:
 +
 [source,promql,role="copypaste"]
 ----
@@ -1102,6 +1102,11 @@ histogram_quantile(0.95,
   by (span_name, le)
 )
 ----
++
+[NOTE]
+====
+These metrics are not visible in **Observe** → **Metrics** because that view queries the platform Prometheus. The span-derived RED metrics are stored exclusively in the COO Prometheus instance and are only accessible through the COO datasource in Perses dashboards.
+====
 
 . Understand the logs pipeline:
 +
@@ -1148,8 +1153,8 @@ You should see structured log records from `frontend`, `backend`, and `database`
 
 * ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and `otlphttp/logs` exporters
 * ✓ `spanmetrics` connector configuration is visible
-* ✓ `traces_spanmetrics_calls_total` metric exists in Prometheus for your services
-* ✓ `traces_spanmetrics_latency_bucket` histogram is queryable for p95 latency
+* ✓ `traces_span_metrics_calls_total` metric is visible in a Perses panel using the COO Prometheus datasource
+* ✓ p95 latency histogram query renders in Perses for backend operations
 * ✓ **Observe → Logs** shows structured log records from `%OPENSHIFT_USERNAME%-observability-demo` with `traceID` fields
 
 **What you learned**: The central collector is a fanout hub—one OTLP receiver, four exporters. Each signal type is independently processed and routed: traces go to Tempo (with TLS and multi-tenancy headers), metrics are remote-written to COO Prometheus, span-derived RED metrics follow the same path via the `spanmetrics` connector, and logs are attribute-remapped and forwarded to the LokiStack application tenant using service-account bearer auth.
