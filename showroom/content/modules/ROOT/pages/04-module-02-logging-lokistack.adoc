@@ -326,10 +326,23 @@ image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404"
 ----
 +
-The `|=` operator filters for log lines containing "404".
+The `|json` stage first parses the collector's JSON envelope. The `| regexp` stage then extracts the `status` field from the structured log message. Finally, `| status="404"` filters for only logs where the parsed status equals "404".
++
+[NOTE]
+====
+**Why not use** `|= "404"`**?**
+
+The `|=` operator performs text matching on the entire log line, which can match "404" appearing anywhere - in paths like `/404.html`, timestamps, or other fields. To filter accurately on the HTTP status code, you must:
+
+1. Parse the log structure first (`|json`, then `| regexp`)
+2. Extract the `status` field as a label
+3. Filter on the parsed label (`| status="404"`)
+
+This ensures you only see logs where the actual status code is 404, not just logs containing the string "404".
+====
 
 . Query logs from a specific pod:
 +
@@ -362,10 +375,10 @@ This shows successful `/ping` requests from the frontend pod.
 +
 [source,logql,role="copypaste"]
 ----
-sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m]))
+sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404" [5m]))
 ----
 +
-This calculates the rate of 404 errors per second over the last 5 minutes.
+This calculates the rate of 404 errors per second over the last 5 minutes. The query parses the log structure and filters on the actual `status` field to ensure accurate counting.
 
 . Query logs from multiple applications:
 +
@@ -441,7 +454,7 @@ Check that you can query logs effectively:
 **Solution**:
 . Ensure enough matching logs exist (generate more traffic)
 . Check time range: `[5m]` requires data in last 5 minutes
-. Verify filter matches log content: `|= "404"` requires "404" in log lines
+. Verify filter correctly parses and matches the status field from structured logs
 
 == Exercise 4: Correlate logs with metrics
 
@@ -474,10 +487,10 @@ You should see a traffic spike while the error generator is running.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" |= "error" | json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404"
 ----
 +
-This shows the actual error log messages during the spike.
+This shows the 404 error responses during the spike.
 
 . Use time range alignment to see the correlation:
 +
@@ -564,7 +577,7 @@ spec:
     rules:
     - alert: HighApplicationErrorRate
       expr: |
-        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m])) > 0.5
+        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404" [5m])) > 0.5
       for: 2m
       labels:
         severity: warning
