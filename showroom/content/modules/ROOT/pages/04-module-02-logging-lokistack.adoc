@@ -593,15 +593,42 @@ The key fields map directly to Prometheus alerting semantics:
 |Human-readable `summary` and `description` shown in the console and notifications.
 |===
 
-=== Alert lifecycle
+=== Steps
 
-Once created, the alert follows the same lifecycle as any Prometheus alert:
+. Create the AlertingRule by applying the YAML shown above:
++
+[source,bash,role="copypaste"]
+----
+cat <<EOF | oc apply -f -
+apiVersion: loki.grafana.com/v1
+kind: AlertingRule
+metadata:
+  name: high-error-rate
+  namespace: %OPENSHIFT_USERNAME%-observability-demo
+  labels:
+    openshift.io/loki-rules: "true"
+spec:
+  tenantID: application
+  groups:
+  - name: application-errors
+    interval: 30s
+    rules:
+    - alert: HighApplicationErrorRate
+      expr: |
+        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m])) > 0.5
+      for: 2m
+      labels:
+        severity: warning
+        team: platform
+      annotations:
+        summary: "High error rate in %OPENSHIFT_USERNAME%-observability-demo"
+        description: "More than 0.5 errors/second for 2 minutes in namespace %OPENSHIFT_USERNAME%-observability-demo."
+EOF
+----
++
+TIP: You can also import this YAML through the OpenShift web console by navigating to the **+** (Import YAML) button in the top-right corner, pasting the YAML, and clicking **Create**.
 
-. **Inactive** — LogQL expression evaluates to zero (no 404s above threshold)
-. **Pending** — Expression is true but `for` duration has not elapsed yet
-. **Firing** — Expression has been true for longer than `for`; Alertmanager receives the alert and routes it
-
-Navigate to **Observe** → **Alerting** → **Alerting rules** in the OpenShift console to see metric-based alerts. Note that Loki `AlertingRule` CRs are evaluated by the Loki ruler and forwarded to Alertmanager, but they are **not currently listed** on the console Alerting rules page — that page only queries the Prometheus rules API.
+=== Verify
 
 To verify your log-based alert is active, use the CLI:
 +
@@ -623,6 +650,16 @@ oc describe alertingrule high-error-rate -n %OPENSHIFT_USERNAME%-observability-d
 ----
 +
 The rule will show `State: Firing` or `State: Pending` in the status conditions once the load generator produces enough 404 errors.
+
+=== Alert lifecycle
+
+Once created, the alert follows the same lifecycle as any Prometheus alert:
+
+. **Inactive** — LogQL expression evaluates to zero (no 404s above threshold)
+. **Pending** — Expression is true but `for` duration has not elapsed yet
+. **Firing** — Expression has been true for longer than `for`; Alertmanager receives the alert and routes it
+
+Navigate to **Observe** → **Alerting** → **Alerting rules** in the OpenShift console to see metric-based alerts. Note that Loki `AlertingRule` CRs are evaluated by the Loki ruler and forwarded to Alertmanager, but they are **not currently listed** on the console Alerting rules page — that page only queries the Prometheus rules API.
 
 [NOTE]
 ====
