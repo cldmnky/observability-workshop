@@ -839,14 +839,21 @@ redirects to the Alerting page — use the navigation menu rather than manually
 typing the path.
 ====
 
-. Set the search parameters:
+. Set the required search parameters before running the query:
 +
+In the **Filter** section, set:
++
+* **Tempo instance**: `openshift-tempo-operator/tempo`
+* **Tenant**: `dev`
 * **Namespace**: `%OPENSHIFT_USERNAME%-observability-demo`
++
+Then set:
++
 * **Time range**: Last 5 minutes
 +
 Click **Search** or the refresh icon.
 +
-The scatter plot should now show individual points, one per trace, with y-axis showing duration in milliseconds.
+The scatter plot should now show individual points, one per trace, with y-axis showing duration in milliseconds. If the chart is empty, confirm you generated traffic in the previous exercise, then click refresh again.
 
 . Review the scatter plot and trace list:
 +
