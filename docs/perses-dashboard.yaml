@@ -1,0 +1,133 @@
+apiVersion: perses.dev/v1alpha1
+kind: PersesDashboard
+metadata:
+  name: sample-app-dashboard
+  namespace: __NAMESPACE__
+  labels:
+    monitoring.rhobs/stack: observability-stack
+spec:
+  display:
+    name: Sample Application Metrics
+    description: HTTP request metrics for sample-app
+  duration: 1h
+  panels:
+    httpRequestRate:
+      kind: Panel
+      spec:
+        display:
+          name: HTTP Request Rate
+          description: HTTP request metrics for sample-app
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              show: true
+              label: ""
+              format:
+                unit: requests/sec
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum(rate(http_requests_total{namespace="__NAMESPACE__"}[5m])) by (pod)
+    httpErrorRate:
+      kind: Panel
+      spec:
+        display:
+          name: Error Rate %
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              show: true
+              label: ""
+              format:
+                unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum(rate(http_requests_total{namespace="__NAMESPACE__", code=~"[45].."}[5m])) by (pod)
+    httpDuration:
+      kind: Panel
+      spec:
+        display:
+          name: Duration
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+              mode: table
+            yAxis:
+              show: true
+              label: ""
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum(rate(http_request_duration_seconds_sum{namespace="__NAMESPACE__"}[5m])) by (pod) / sum(rate(http_request_duration_seconds_count{namespace="__NAMESPACE__"}[5m])) by (pod)
+                  seriesNameFormat: Avg Latenct
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace="__NAMESPACE__"}[5m])) by (pod, le))
+                  seriesNameFormat: P95 Latency
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace="__NAMESPACE__"}[5m])) by (pod, le))
+                  seriesNameFormat: P99 Latency
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: RED Metrics
+          collapse:
+            open: true
+        items:
+          - x: 0
+            "y": 0
+            width: 12
+            height: 6
+            content:
+              $ref: "#/spec/panels/httpRequestRate"
+          - x: 12
+            "y": 0
+            width: 12
+            height: 6
+            content:
+              $ref: "#/spec/panels/httpErrorRate"
+          - x: 0
+            "y": 6
+            width: 24
+            height: 11
+            content:
+              $ref: "#/spec/panels/httpDuration"
