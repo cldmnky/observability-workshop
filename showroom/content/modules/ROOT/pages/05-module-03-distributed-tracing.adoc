@@ -952,6 +952,10 @@ baggage: client.platform=web,request.source=workshop-demo
 +
 Each downstream service reads this header and records every baggage member as a span attribute prefixed with `baggage.`. This means the same logical context—where the request came from—is searchable as a span attribute on every service in the chain.
 +
+. Use TraceQL to find slow database spans:
++
+Click **Show query** beneath the filter bar to reveal the TraceQL editor. TraceQL is the Tempo query language, similar to PromQL for Prometheus or LogQL for Loki.
++
 [NOTE]
 ====
 All TraceQL queries below include `{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" }` to scope results to your namespace. The Tempo backend is shared across all workshop users, so this filter is required to see only your traces.
@@ -970,10 +974,6 @@ Or find every span produced by the workshop demo requests, regardless of service
 ----
 { .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.request.source = "workshop-demo" }
 ----
-
-. Use TraceQL to find slow database spans:
-+
-Click **Show query** beneath the filter bar to reveal the TraceQL editor. TraceQL is the Tempo query language, similar to PromQL for Prometheus or LogQL for Loki.
 +
 [source,text,role="copypaste"]
 ----
