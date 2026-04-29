@@ -665,7 +665,6 @@ Navigate to the Perses UI at link:{perses_url}[{perses_url}^]
 +
 From the Perses UI you can:
 +
-* Browse existing dashboards and datasources
 * Create new dashboards using the visual editor
 * Build and test PromQL queries interactively against the COO Prometheus
 * Export any dashboard as ready-to-apply Kubernetes YAML via **Dashboard** → **Export** → **Download as YAML**

@@ -517,6 +517,8 @@ OpenShift also provides out-of-the-box correlation between metrics and logs in t
 
 Navigate to Workloads → Deployments → In the top right, click the "dotted kube" icon → "Signal Correlation"
 
+image::dotted-kube.png[OpenShift correlation view in OpenShift Console]
+
 image::korrel8.png[Signal correlation view in OpenShift Console]
 
 === Verify
