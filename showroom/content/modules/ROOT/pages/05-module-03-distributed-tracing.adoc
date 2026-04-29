@@ -1000,7 +1000,7 @@ Or filter by database operation type:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.db.operation = "INSERT" && .baggage.resource.service.name = "database" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && db.operation = "INSERT" && .service.name = "database" }
 ----
 
 . Use TraceQL to surface business-level data:
@@ -1009,14 +1009,14 @@ The custom `note.*` and `event.*` attributes open the trace store as a queryable
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.note.id != "" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .note.id != "" }
 ----
 +
 Or find traces by peer service to understand the backend-to-database communication pattern:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.peer.service = "database" && .baggage.db.sql.table = "notes" }
+{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .peer.service = "database" && .db.sql.table = "notes" }
 ----
 
 . Find error traces:

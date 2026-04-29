@@ -481,7 +481,7 @@ Query:
 sum by (service) (rate(http_requests_total{code="404", namespace="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
 ----
 +
-You should see a traffic spike while the error generator is running.
+You should see a traffic while the error generator is running.
 
 . Switch to **Observe** → **Logs** and correlate with log data:
 +
