@@ -965,26 +965,26 @@ Click **Show query** beneath the filter bar to reveal the TraceQL editor. TraceQ
 +
 [NOTE]
 ====
-All TraceQL queries below include `{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" }` to scope results to your namespace. The Tempo backend is shared across all workshop users, so this filter is required to see only your traces.
+All TraceQL queries below include `{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" }` to scope results to your namespace. The Tempo backend is shared across all workshop users, so this filter is required to see only your traces.
 ====
 +
 Filter all traces that originated from the web frontend:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.client.platform = "web" }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.baggage.client.platform = "web" }
 ----
 +
 Or find every span produced by the workshop demo requests, regardless of service:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .baggage.request.source = "workshop-demo" }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.baggage.request.source = "workshop-demo" }
 ----
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && resource.service.name = "database" && duration > 50ms }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && resource.service.name = "database" && duration > 50ms }
 ----
 +
 This filters to only traces in your namespace where the database service had at least one span exceeding 50ms. Because random delays of up to 60ms are injected in the backend and database services, you should see several results.
@@ -993,14 +993,14 @@ Query by the specific table the slow operation touched:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["db.sql.table"] = "notes" && duration > 30ms }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.db.sql.table = "notes" && duration > 30ms }
 ----
 +
 Or filter by database operation type:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && db.operation = "INSERT" && .service.name = "database" }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.db.operation = "INSERT" && resource.service.name = "database" }
 ----
 
 . Use TraceQL to surface business-level data:
@@ -1009,21 +1009,21 @@ The custom `note.*` and `event.*` attributes open the trace store as a queryable
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .note.id != "" }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.note.id != "" }
 ----
 +
 Or find traces by peer service to understand the backend-to-database communication pattern:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && .peer.service = "database" && .db.sql.table = "notes" }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.peer.service = "database" && span.db.sql.table = "notes" }
 ----
 
 . Find error traces:
 +
 [source,text,role="copypaste"]
 ----
-{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && status = error }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && status = error }
 ----
 +
 If any requests returned HTTP errors, this will surface the traces where something went wrong, with all spans visible for root cause analysis.
@@ -1051,7 +1051,7 @@ Because the application uses `otelslog.NewHandler()`, every structured log line 
 * ✓ Backend spans carry `db.system`, `db.operation`, `db.sql.table`, `peer.service`, `db.response.status_code`
 * ✓ Database spans carry `note.id`, `note.title`, `note.content.length` on note-creation requests
 * ✓ All spans include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
-* ✓ TraceQL query `{ .k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span["baggage.request.source"] = "workshop-demo" }` returns results
+* ✓ TraceQL query `{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.baggage.request.source = "workshop-demo" }` returns results
 * ✓ A trace ID from the trace view can be found in **Observe → Logs**
 
 **What you learned**: The workshop application uses two complementary instrumentation strategies. The sidecar collector processors automatically enrich spans with Kubernetes metadata—no application code required. The Go OTel SDK adds semantic-convention attributes (`db.*`, `peer.*`, `net.*`) for production-grade observability, business-level attributes (`note.*`, `event.*`) for application-specific queries, and W3C Baggage to propagate contextual metadata across all service boundaries. TraceQL lets you query across infrastructure, application, and business dimensions using a single query language.
