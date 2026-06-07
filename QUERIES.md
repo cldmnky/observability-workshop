@@ -41,7 +41,7 @@ These metrics are collected by traditional Prometheus scraping of the `/metrics`
 #### 1. HTTP Request Rate per Second (by Route)
 Calculates the rate of incoming requests over a 5-minute sliding window, grouped by HTTP route and method:
 ```promql
-sum by (method, route) (
+sum by (method, route, service) (
   rate(prom_http_requests_total{namespace="user1-observability-demo"}[5m])
 )
 ```
