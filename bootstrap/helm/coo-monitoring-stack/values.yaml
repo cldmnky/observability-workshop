@@ -82,7 +82,7 @@ uiPlugins:
       enabled: true
     incidents:
       enabled: true
-  
+   
   # Logging plugin - LokiStack logs UI
   logging:
     enabled: true
@@ -91,3 +91,15 @@ uiPlugins:
     logsLimit: 50
     timeout: 30s
     schema: select  # Options: otel, viaq, or select (lets user choose)
+
+# Perses datasource configuration — Route hosts for Loki and Tempo.
+# The COO Perses proxy only trusts certificates in the system trust store,
+# so we point at the OpenShift Routes (which use the cluster wildcard
+# ingress cert) instead of internal ClusterIP services.
+persesDatasources:
+  loki:
+    # Route host for the LokiStack gateway (e.g. logging-loki-openshift-logging.apps.<cluster>)
+    routeHost: ""
+  tempo:
+    # Route host for the TempoStack gateway (e.g. tempo-tempo-gateway-openshift-tempo-operator.apps.<cluster>)
+    routeHost: ""
