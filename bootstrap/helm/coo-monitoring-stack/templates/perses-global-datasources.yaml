@@ -1,18 +1,22 @@
-# Wave 4 — PersesGlobalDatasource resources for Loki and Tempo.
-# These are cluster-scoped and accessible from all projects, so they belong
-# with the COO monitoring stack rather than in per-user namespaces.
+# Wave 4 — Perses datasources for Loki and Tempo.
 #
-# Both use the ocp-sa-bearer GlobalSecret (provisioned by the Perses operator)
-# which reads the SA token live from /var/run/secrets/kubernetes.io/serviceaccount/token
-# and validates TLS with the cluster service-CA bundle.
+# Loki: namespaced PersesDatasource in openshift-logging, matching the
+#        official Red Hat Developer blog pattern.  Uses loki-datasource-secret
+#        for bearer-token auth with the LokiStack application tenant.
+# Tempo: cluster-scoped PersesGlobalDatasource accessible from all projects
+#        via the Tempo query-frontend HTTP API.
+#
+# Both use service-ca TLS via the CA cert at /ca/service-ca.crt (mounted
+# from the openshift-service-ca.crt ConfigMap by the Perses operator).
 #
 # SkipDryRunOnMissingResource because these CRDs are installed by the COO
 # operator and may not yet exist on the first sync.
 ---
 apiVersion: perses.dev/v1alpha2
-kind: PersesGlobalDatasource
+kind: PersesDatasource
 metadata:
   name: loki
+  namespace: openshift-logging
   annotations:
     argocd.argoproj.io/sync-wave: "4"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
@@ -28,7 +32,12 @@ spec:
         proxy:
           kind: HTTPProxy
           spec:
+            # URL pattern for LokiStack openshift-logging tenancy:
+            # Perses appends /loki/api/v1/... for queries
             url: 'https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application'
+            headers:
+              X-Scope-OrgID: application
+            secret: loki-datasource-secret
             allowedEndpoints:
               - endpointPattern: /loki/api/v1/query
                 method: POST
@@ -51,7 +60,9 @@ spec:
   client:
     tls:
       enable: true
-      insecureSkipVerify: true
+      caCert:
+        type: file
+        certPath: /ca/service-ca.crt
 ---
 apiVersion: perses.dev/v1alpha2
 kind: PersesGlobalDatasource
@@ -91,4 +102,6 @@ spec:
   client:
     tls:
       enable: true
-      insecureSkipVerify: true
+      caCert:
+        type: file
+        certPath: /ca/service-ca.crt
