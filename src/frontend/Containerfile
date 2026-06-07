@@ -25,7 +25,8 @@ RUN mkdir -p \
     cp notifier/app.py \
        notifier/requirements.txt \
        notifier/Containerfile                       frontend/code/notifier/ && \
-    cp telemetry/telemetry.go                       frontend/code/telemetry/
+    cp telemetry/telemetry.go \
+       telemetry/accesslog.go                       frontend/code/telemetry/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/frontend ./frontend
 

@@ -175,7 +175,7 @@ To practice querying logs, you need an application that generates diverse log en
 * `backend` writes request events to `database`
 * `database` exposes a REST API backed by persistent ChaiSQL storage on disk
 
-Each service writes structured request logs to stdout, which Loki collects.
+Each service writes structured request logs to stdout, which Loki collects via the cluster-logging pipeline. In Module 3 you will enable the OpenTelemetry SDK, which adds a second logging pathway: application-level logs are emitted through the OTel log SDK (correlated with the active trace), while HTTP access logs continue to be written as JSON lines to stdout — making them distinguishable in LokiStack by format and source.
 
 The manifest also deploys a **k6 load generator** that starts automatically once the frontend is healthy. It runs continuously in the background, sending ~10–60 req/s of realistic traffic (pings, note reads/writes, and intentional 404 errors) so your dashboards and queries always have data to work with — no manual traffic generation required.
 

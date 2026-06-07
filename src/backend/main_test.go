@@ -12,6 +12,8 @@ import (
 	otellog "go.opentelemetry.io/otel/log"
 	otelglobal "go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+
+	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
 type testLogExporter struct {
@@ -56,7 +58,7 @@ func findAttr(record sdklog.Record, key string) (otellog.Value, bool) {
 	return value, found
 }
 
-func TestLoggingMiddlewareEmitsHttpRequestLog(t *testing.T) {
+func TestAccessLogEmitsHttpRequestLog(t *testing.T) {
 	previousProvider := otelglobal.GetLoggerProvider()
 	previousLogger := slog.Default()
 	defer otelglobal.SetLoggerProvider(previousProvider)
@@ -69,7 +71,7 @@ func TestLoggingMiddlewareEmitsHttpRequestLog(t *testing.T) {
 	otelglobal.SetLoggerProvider(provider)
 	slog.SetDefault(slog.New(otelslog.NewHandler("backend")))
 
-	handler := loggingMiddleware("backend", http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+	handler := telemetry.AccessLog("backend", http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		response.WriteHeader(http.StatusCreated)
 	}))
 
@@ -89,14 +91,14 @@ func TestLoggingMiddlewareEmitsHttpRequestLog(t *testing.T) {
 	var httpRequestRecord *sdklog.Record
 	for index := range records {
 		record := records[index]
-		if record.Body().AsString() == "http request" {
+		if record.Body().AsString() == "access" {
 			httpRequestRecord = &record
 			break
 		}
 	}
 
 	if httpRequestRecord == nil {
-		t.Fatalf("expected a log record with body %q", "http request")
+		t.Fatalf("expected a log record with body %q", "access")
 	}
 
 	method, ok := findAttr(*httpRequestRecord, "method")

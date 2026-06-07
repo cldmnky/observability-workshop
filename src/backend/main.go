@@ -17,18 +17,22 @@ import (
 
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
 
 type backendApp struct {
-	client      *http.Client
-	databaseURL string
-	notifierURL string
-	serviceName string
+	client              *http.Client
+	databaseURL         string
+	notifierURL         string
+	serviceName         string
+	requestsProcessed   metric.Int64Counter
+	notificationsSent   metric.Int64Counter
 }
 
 type databaseEventRequest struct {
@@ -62,16 +66,42 @@ func main() {
 		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
 	}
 
+	// OTel meter and application-specific counters.
+	var requestsProcessed metric.Int64Counter
+	var notificationsSent metric.Int64Counter
+	if telemetry.Enabled() {
+		meter := otel.Meter(serviceName)
+		var err error
+		requestsProcessed, err = meter.Int64Counter(
+			"backend.requests.processed_total",
+			metric.WithDescription("Total number of requests processed by the backend"),
+			metric.WithUnit("{request}"),
+		)
+		if err != nil {
+			slog.Error("creating backend.requests.processed_total counter", "err", err)
+		}
+		notificationsSent, err = meter.Int64Counter(
+			"backend.notifications_sent_total",
+			metric.WithDescription("Total number of notifications sent to notifier"),
+			metric.WithUnit("{notification}"),
+		)
+		if err != nil {
+			slog.Error("creating backend.notifications_sent_total counter", "err", err)
+		}
+	}
+
 	// HTTP client – otelhttp transport propagates trace context downstream.
 	clientTransport := http.DefaultTransport
 	if telemetry.Enabled() {
 		clientTransport = otelhttp.NewTransport(http.DefaultTransport)
 	}
 	application := &backendApp{
-		client:      &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
-		databaseURL: databaseURL,
-		notifierURL: notifierURL,
-		serviceName: serviceName,
+		client:              &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
+		databaseURL:         databaseURL,
+		notifierURL:         notifierURL,
+		serviceName:         serviceName,
+		requestsProcessed:   requestsProcessed,
+		notificationsSent:   notificationsSent,
 	}
 
 	mux := http.NewServeMux()
@@ -83,8 +113,15 @@ func main() {
 	mux.HandleFunc("/api/notes", application.handleNotes)
 	mux.HandleFunc("/api/notes/", application.handleNoteByID)
 
-	// otelhttp outermost so the span-enriched context flows into loggingMiddleware.
-	var handler http.Handler = loggingMiddleware(serviceName, mux)
+	// /metrics — Prometheus text-format endpoint, scraped by the downstream
+	// ServiceMonitor (monitoring.rhobs/v1) in the user's namespace.
+	// Note: this handler is registered on the mux that otelhttp wraps, so
+	// Prometheus scrape requests will create a server span. To suppress those,
+	// add an otelhttp.WithFilter option to skip the /metrics path.
+	mux.Handle("/metrics", telemetry.MetricsHandler())
+
+	// otelhttp outermost so the span-enriched context flows into AccessLog.
+	var handler http.Handler = telemetry.AccessLog(serviceName, mux)
 	if telemetry.Enabled() {
 		handler = otelhttp.NewHandler(handler, serviceName,
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
@@ -142,6 +179,16 @@ func (application *backendApp) handleOK(response http.ResponseWriter, request *h
 		return
 	}
 
+	if application.requestsProcessed != nil {
+		application.requestsProcessed.Add(request.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("route", request.URL.Path),
+				attribute.String("method", request.Method),
+				attribute.Int("http_status", http.StatusOK),
+			),
+		)
+	}
+
 	writeJSON(response, http.StatusOK, map[string]string{"result": "ok", "service": application.serviceName})
 }
 
@@ -161,6 +208,16 @@ func (application *backendApp) handleError(response http.ResponseWriter, request
 	if err != nil {
 		writeError(response, http.StatusBadGateway, "failed to store event")
 		return
+	}
+
+	if application.requestsProcessed != nil {
+		application.requestsProcessed.Add(request.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("route", request.URL.Path),
+				attribute.String("method", request.Method),
+				attribute.Int("http_status", http.StatusNotFound),
+			),
+		)
 	}
 
 	writeJSON(response, http.StatusNotFound, map[string]string{"error": "simulated error", "service": application.serviceName})
@@ -190,6 +247,16 @@ func (application *backendApp) handleEvents(response http.ResponseWriter, reques
 	if err != nil {
 		writeError(response, http.StatusBadGateway, "failed reading database response")
 		return
+	}
+
+	if application.requestsProcessed != nil {
+		application.requestsProcessed.Add(request.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("route", request.URL.Path),
+				attribute.String("method", request.Method),
+				attribute.Int("http_status", databaseResponse.StatusCode),
+			),
+		)
 	}
 
 	response.Header().Set("Content-Type", "application/json")
@@ -315,6 +382,24 @@ func (application *backendApp) proxyDatabase(response http.ResponseWriter, reque
 		return
 	}
 
+	// OTel application metric: count database proxy requests.
+	if application.requestsProcessed != nil {
+		application.requestsProcessed.Add(request.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("route", path),
+				attribute.String("method", request.Method),
+				attribute.Int("http_status", databaseResponse.StatusCode),
+			),
+		)
+	}
+
+	// OTel application log: correlate each database proxy with its trace.
+	slog.InfoContext(request.Context(), "proxied to database",
+		"route", path,
+		"method", request.Method,
+		"http_status", databaseResponse.StatusCode,
+	)
+
 	if downstreamType := databaseResponse.Header.Get("Content-Type"); downstreamType != "" {
 		response.Header().Set("Content-Type", downstreamType)
 	}
@@ -384,6 +469,21 @@ func (application *backendApp) callNotifier(ctx context.Context, action, title s
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, resp.Body)
+
+	// OTel application metric: count notifications sent.
+	if application.notificationsSent != nil {
+		application.notificationsSent.Add(ctx, 1,
+			metric.WithAttributes(
+				attribute.String("action", action),
+			),
+		)
+	}
+
+	// OTel application log: record each notification correlated with its trace.
+	slog.InfoContext(ctx, "notification sent to notifier",
+		"action", action,
+		"notifier_status", resp.StatusCode,
+	)
 	return nil
 }
 
@@ -420,35 +520,6 @@ func envOrDefault(key string, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (recorder *statusRecorder) WriteHeader(statusCode int) {
-	recorder.status = statusCode
-	recorder.ResponseWriter.WriteHeader(statusCode)
-}
-
-func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		start := time.Now()
-		recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
-		next.ServeHTTP(recorder, request)
-		duration := time.Since(start)
-		slog.InfoContext(
-			request.Context(),
-			"http request",
-			"service", serviceName,
-			"method", request.Method,
-			"path", request.URL.Path,
-			"status", recorder.status,
-			"duration_ms", duration.Milliseconds(),
-			"remote_addr", request.RemoteAddr,
-		)
-	})
 }
 
 func writeError(response http.ResponseWriter, statusCode int, message string) {

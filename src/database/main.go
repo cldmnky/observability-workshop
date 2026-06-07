@@ -136,8 +136,15 @@ func main() {
 	mux.HandleFunc("/notes", application.handleNotes)
 	mux.HandleFunc("/notes/", application.handleNoteByID)
 
-	// otelhttp outermost so the span-enriched context flows into loggingMiddleware.
-	var handler http.Handler = loggingMiddleware(serviceName, mux)
+	// /metrics — Prometheus text-format endpoint, scraped by the downstream
+	// ServiceMonitor (monitoring.rhobs/v1) in the user's namespace.
+	// Note: this handler is registered on the mux that otelhttp wraps, so
+	// Prometheus scrape requests will create a server span. To suppress those,
+	// add an otelhttp.WithFilter option to skip the /metrics path.
+	mux.Handle("/metrics", telemetry.MetricsHandler())
+
+	// otelhttp outermost so the span-enriched context flows into AccessLog.
+	var handler http.Handler = telemetry.AccessLog(serviceName, mux)
 	if telemetry.Enabled() {
 		handler = otelhttp.NewHandler(handler, serviceName,
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
@@ -370,6 +377,15 @@ func (application *app) createEvent(response http.ResponseWriter, request *http.
 		)
 	}
 
+	// OTel application log: record each event write, correlated with the
+	// trace so it appears alongside the span in Loki.
+	slog.InfoContext(request.Context(), "event created",
+		"event.id", nextID,
+		"event.source", input.Source,
+		"event.route", input.Route,
+		"event.http_status", input.Status,
+	)
+
 	writeJSON(response, http.StatusCreated, event{
 		ID:        nextID,
 		Source:    input.Source,
@@ -540,6 +556,14 @@ func (application *app) createNote(response http.ResponseWriter, request *http.R
 		)
 	}
 
+	// OTel application log: record each note create, correlated with its
+	// trace for cross-signal search in the observability backends.
+	slog.InfoContext(request.Context(), "note created",
+		"note.id", nextID,
+		"note.title", title,
+		"note.content_length", len(input.Content),
+	)
+
 	writeJSON(response, http.StatusCreated, note{
 		ID:        nextID,
 		Title:     title,
@@ -673,35 +697,6 @@ func envOrDefault(key string, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (recorder *statusRecorder) WriteHeader(statusCode int) {
-	recorder.status = statusCode
-	recorder.ResponseWriter.WriteHeader(statusCode)
-}
-
-func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		start := time.Now()
-		recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
-		next.ServeHTTP(recorder, request)
-		duration := time.Since(start)
-		slog.InfoContext(
-			request.Context(),
-			"http request",
-			"service", serviceName,
-			"method", request.Method,
-			"path", request.URL.Path,
-			"status", recorder.status,
-			"duration_ms", duration.Milliseconds(),
-			"remote_addr", request.RemoteAddr,
-		)
-	})
 }
 
 func writeError(response http.ResponseWriter, statusCode int, message string) {

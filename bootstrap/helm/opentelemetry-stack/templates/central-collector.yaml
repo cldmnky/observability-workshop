@@ -82,8 +82,17 @@ spec:
           - k8s.job.name
           - k8s.node.name
           - k8s.pod.name
-          - k8s.pod.uid
-          - k8s.pod.start_time
+      
+      # Delete high-cardinality resource attributes that can cause series
+      # explosion in Prometheus and label cardinality issues in Loki
+      resource/cardinality:
+        attributes:
+          - action: delete
+            key: k8s.pod.uid
+          - action: delete
+            key: k8s.pod.start_time
+          - action: delete
+            key: k8s.pod.ip
       
       {{- if .Values.centralCollector.spanmetrics.enabled }}
       # Rename spanmetrics output metrics using OTTL transform processor
@@ -109,6 +118,9 @@ spec:
             action: upsert
           - key: log_type
             value: application
+            action: upsert
+          - key: service_name
+            from_attribute: service.name
             action: upsert
           - key: collector
             value: {{ .Values.centralCollector.name }}
@@ -149,7 +161,6 @@ spec:
       # LokiStack OTLP/HTTP log forwarder (otlp_http replaces deprecated otlphttp alias)
       otlp_http/logs:
         endpoint: {{ .Values.centralCollector.loki.endpoint }}
-        encoding: json
         tls:
           ca_file: {{ .Values.centralCollector.loki.caFile }}
         auth:
@@ -175,6 +186,7 @@ spec:
           - memory_limiter
           - resourcedetection
           - k8sattributes
+          - resource/cardinality
           - batch
           exporters:
           - otlp/tempo
@@ -190,6 +202,7 @@ spec:
           - spanmetrics
           processors:
           - transform
+          - resource/cardinality
           - batch
           exporters:
           - prometheusremotewrite
@@ -203,6 +216,7 @@ spec:
           - memory_limiter
           - resourcedetection
           - k8sattributes
+          - resource/cardinality
           - batch
           exporters:
           - prometheusremotewrite
@@ -215,6 +229,7 @@ spec:
           - memory_limiter
           - resourcedetection
           - k8sattributes
+          - resource/cardinality
           - resource/logs
           - transform/logs
           - batch

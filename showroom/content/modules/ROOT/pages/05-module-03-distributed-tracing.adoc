@@ -489,7 +489,6 @@ spec:
             - k8s.deployment.name
             - k8s.node.name
             - k8s.pod.name
-            - k8s.pod.uid
       batch:
         timeout: 10s
         send_batch_size: 1024
@@ -523,6 +522,11 @@ spec:
 EOF
 ----
 
+[NOTE]
+====
+Note that `k8s.pod.uid` is intentionally omitted from the sidecar's `k8sattributes` processor. The `k8s.pod.uid` attribute is unique per pod instance and would cause high cardinality in both Prometheus time series and Loki index labels. For grouping and identifying pods at the application level, `k8s.pod.name` and `k8s.deployment.name` are sufficient.
+====
+
 . Verify the CR was accepted:
 +
 [source,bash,role="copypaste"]
@@ -551,9 +555,9 @@ The sidecar carries **all three signal types** over the same processor chain:
                     |
          resourcedetection -- add k8s.cluster.name, cloud.platform
                     |
-         k8sattributes   -- add k8s.pod.name, k8s.deployment.name,
-                            k8s.namespace.name, k8s.pod.uid
-                    |
+          k8sattributes   -- add k8s.pod.name, k8s.deployment.name,
+                             k8s.namespace.name
+                     |
               batch        -- buffer and flush (max 10s / 1024 records)
                     |
             otlp_grpc exporter -> central-collector-collector.observability-demo.svc:4317
@@ -791,6 +795,78 @@ Pipeline started (metrics).
 Pipeline started (logs).
 ----
 
+. Verify the Prometheus `/metrics` endpoint is live on each service:
++
+The Go services expose a second instrumentation pathway: a Prometheus text-format
+`/metrics` endpoint served by the `prometheus/client_golang` library alongside
+the OTel SDK. This endpoint is **scraped directly** by Prometheus, bypassing the
+OTel sidecar entirely.  HTTP access logs are written to **stdout** as JSON lines
+— they are shipped to LokiStack by the cluster-logging pipeline independently
+of OTel.
++
+[source,bash,role="copypaste"]
+----
+for app in frontend backend; do
+  POD=$(oc get pod -n ${NAMESPACE} -l app=${app} -o jsonpath='{.items[0].metadata.name}')
+  PORT=$( [ "$app" = "frontend" ] && echo 8080 || echo 8081 )
+  echo "=== ${app} /metrics ==="
+  oc exec -n ${NAMESPACE} ${POD} -c ${app} -- \
+    curl -sf http://localhost:${PORT}/metrics | head -20
+done
+POD=$(oc get pod -n ${NAMESPACE} -l app=database -o jsonpath='{.items[0].metadata.name}')
+echo "=== database /metrics ==="
+oc exec -n ${NAMESPACE} ${POD} -c database -- \
+  curl -sf http://localhost:8082/metrics | head -20
+----
++
+.Expected output (showing the first few Prometheus metrics lines):
++
+[source,text,role="copypaste"]
+----
+# HELP prom_http_requests_total Total HTTP requests handled (Prometheus client SDK).
+# TYPE prom_http_requests_total counter
+# HELP prom_http_request_duration_seconds HTTP request latency histogram (Prometheus client SDK).
+# TYPE prom_http_request_duration_seconds histogram
+----
++
+[NOTE]
+====
+You will see **both** the OTel SDK metrics (pushed via OTLP to the sidecar)
+and the Prometheus client metrics (scraped via `/metrics`). The two systems
+are independent and use different metric names:
++
+* `http_requests_total`, `http_request_duration_seconds` — OTel SDK (pushed to sidecar → central collector → COO Prometheus)
+* `prom_http_requests_total`, `prom_http_request_duration_seconds` — Prometheus client (scraped directly → COO Prometheus via ServiceMonitor)
++
+In Module 1 you queried the OTel-derived metrics in the Perses dashboard.
+After this exercise the Prometheus-client metrics are also available as `prom_*`.
+====
++
+. Confirm the ServiceMonitors are active in your namespace:
++
+The Cluster Observability Operator uses `monitoring.rhobs/v1` `ServiceMonitor`
+resources — a different API group from `monitoring.coreos.com/v1` used by the
+platform Prometheus.  These were shipped as part of the application manifest
+you applied in Module 2.  Each carries the label
+`monitoring.rhobs/stack: observability-stack` so the pre-deployed
+`MonitoringStack` in `observability-demo` selects and scrapes them
+automatically.
++
+[source,bash,role="copypaste"]
+----
+oc get servicemonitor -n ${NAMESPACE} -l monitoring.rhobs/stack=observability-stack
+----
++
+.Expected output
++
+[source,text,role="copypaste"]
+----
+NAME       AGE
+frontend   1h
+backend    1h
+database   1h
+----
+
 . Generate application traffic to produce telemetry:
 +
 [source,bash,role="copypaste"]
@@ -818,9 +894,13 @@ This sends 30 iterations of mixed GET and POST requests, generating spans at eac
 * ✓ All three deployments rolled out successfully
 * ✓ Each pod shows `otc-container` under `INIT` and the application container under `CONTAINERS`
 * ✓ Sidecar logs show all three pipelines started
+* ✓ `/metrics` endpoint responds with `prom_http_requests_total` on all three services
+* ✓ Three `ServiceMonitor` resources (`monitoring.rhobs/v1`) created in your namespace, labelled `monitoring.rhobs/stack=observability-stack`
 * ✓ Traffic generated against the frontend route
 
 **What you learned**: The OpenTelemetry Operator's sidecar injection mechanism transforms a running pod by adding a pre-configured collector named `otc-container`, without rebuilding the image. In this environment the collector is represented as a restartable init container, not a regular application container. The annotation `sidecar.opentelemetry.io/inject: "sidecar"` tells the operator to use the `sidecar` CR you created in Exercise 4 as the container specification.
+
+You also enabled dual instrumentation: the Go SDK pushes OTel metrics, traces, and logs to the sidecar collector (OTLP), while `prometheus/client_golang` exposes Prometheus-format metrics via `/metrics` that are scraped by the COO MonitoringStack using `monitoring.rhobs/v1` ServiceMonitors. HTTP access logs are written as JSON lines to stdout, independently shipped to LokiStack by cluster-logging.
 
 == Exercise 7: View and explore live traces
 
@@ -1128,6 +1208,7 @@ processors:
       - {key: kubernetes.pod_name,       from_attribute: k8s.pod.name,       action: upsert}
       - {key: kubernetes.container_name, from_attribute: k8s.container.name, action: upsert}
       - {key: log_type, value: application, action: upsert}
+      - {key: service_name,              from_attribute: service.name,       action: upsert}
   transform/logs:           # <2>
     log_statements:
       - context: log
@@ -1136,7 +1217,6 @@ processors:
 exporters:
   otlphttp/logs:            # <3>
     endpoint: https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application/otlp
-    encoding: json
     tls:
       ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
     auth:
@@ -1144,7 +1224,7 @@ exporters:
 ----
 <1> LokiStack in `openshift-logging` tenancy mode requires `kubernetes.namespace_name` (not `k8s.namespace.name`) for tenant routing.
 <2> Derives a `level` field from OTEL `severity_text` (lowercased) for log filtering in the Loki UI.
-<3> Sends log records as OTLP/HTTP JSON to the LokiStack gateway's application tenant endpoint.
+<3> Sends log records as native OTLP/HTTP protobuf to the LokiStack gateway's application tenant endpoint. The `encoding: json` option from the legacy `loki` exporter does not apply here.
 <4> Uses the pod's service account token for bearer auth—the central collector SA has `loki.grafana.com/application` create rights via ClusterRoleBinding.
 +
 Verify a log record arrived in Loki by navigating to **Observe** → **Logs** in the OpenShift console and querying:
@@ -1156,13 +1236,56 @@ Verify a log record arrived in Loki by navigating to **Observe** → **Logs** in
 +
 You should see structured log records from `frontend`, `backend`, and `database`, each containing `traceID` and `spanID` fields that link them to the traces you viewed in Exercise 7.
 
+. Query application-specific custom OTel metrics in Perses:
++
+In addition to the automatic `spanmetrics` generated from traces, our application is custom-instrumented with native OpenTelemetry metrics using the Go OTel SDK. These metrics are pushed directly from the application container sidecars to the central collector, which remote-writes them to the COO Prometheus instance.
++
+Unlike the standard Prometheus metrics scraped via the `/metrics` endpoint in Module 1, these custom OTel metrics represent dedicated application performance counters that bypass the traditional scraping infrastructure entirely.
++
+Add a panel to your Perses dashboard with the **COO Prometheus** datasource to query the OTel counter for frontend requests proxied to the backend:
++
+[source,promql,role="copypaste"]
+----
+sum by (method, path, backend_status) (rate(frontend_requests_proxied_total{}[5m]))
+----
++
+You can also query backend request processing and notification metrics:
++
+[source,promql,role="copypaste"]
+----
+sum by (route, method, http_status) (rate(backend_requests_processed_total{}[5m]))
+sum by (action) (rate(backend_notifications_sent_total{}[5m]))
+----
+
+. Verify trace-correlated OTel application logs in the Log Browser:
++
+When `OTEL_ENABLED=true` is set, all application log output using the standard `slog` library is bridged directly to the OTel logs SDK via the `otelslog` handler.
++
+This means that logs are not only sent as structured events, but they are also automatically decorated with the active `trace_id` and `span_id`!
++
+Navigate to **Observe** → **Logs** and run the following query to view OTel-correlated database write events and proxy attempts:
++
+[source,logql,role="copypaste"]
+----
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "proxied to database" | json
+----
++
+Expand one of the log lines. Notice the `traceID` and `spanID` fields. Clicking on the trace ID will link you directly back to the exact trace waterfall in **Observe** → **Traces**, demonstrating the tight correlation between metrics, logs, and traces.
+
+[NOTE]
+====
+The `k8sattributes` processor in the central collector intentionally excludes high-cardinality fields such as `k8s.pod.uid` and `k8s.pod.start_time`. These attributes are unique per pod instance and would cause series explosion in Prometheus and excessive Loki label cardinality. The `k8s.pod.name` and `k8s.deployment.name` attributes provide sufficient granularity for debugging and aggregation.
+====
+
 === Verify
 
 * ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and `otlphttp/logs` exporters
 * ✓ `spanmetrics` connector configuration is visible
 * ✓ `traces_span_metrics_calls_total` metric is visible in a Perses panel using the COO Prometheus datasource
 * ✓ p95 latency histogram query renders in Perses for backend operations
+* ✓ Custom application OTel metrics like `frontend_requests_proxied_total` are queryable in Perses
 * ✓ **Observe → Logs** shows structured log records from `%OPENSHIFT_USERNAME%-observability-demo` with `traceID` fields
+* ✓ OTel log records like `proxied to database` or `note created` are correlated with `traceID` inside the logs console
 
 **What you learned**: The central collector is a fanout hub—one OTLP receiver, four exporters. Each signal type is independently processed and routed: traces go to Tempo (with TLS and multi-tenancy headers), metrics are remote-written to COO Prometheus, span-derived RED metrics follow the same path via the `spanmetrics` connector, and logs are attribute-remapped and forwarded to the LokiStack application tenant using service-account bearer auth.
 

@@ -18,7 +18,10 @@ import (
 
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/cldmnky/observability-workshop/src/telemetry"
 )
@@ -34,9 +37,10 @@ var staticFiles embed.FS
 var codeFiles embed.FS
 
 type frontendApp struct {
-	client      *http.Client
-	backendURL  string
-	serviceName string
+	client           *http.Client
+	backendURL       string
+	serviceName      string
+	requestsProxied  metric.Int64Counter
 }
 
 func main() {
@@ -63,6 +67,21 @@ func main() {
 		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
 	}
 
+	// OTel meter and application-specific counters.
+	var requestsProxied metric.Int64Counter
+	if telemetry.Enabled() {
+		meter := otel.Meter(serviceName)
+		var err error
+		requestsProxied, err = meter.Int64Counter(
+			"frontend.requests.proxied_total",
+			metric.WithDescription("Total number of requests proxied to backend"),
+			metric.WithUnit("{request}"),
+		)
+		if err != nil {
+			slog.Error("creating frontend.requests.proxied_total counter", "err", err)
+		}
+	}
+
 	// HTTP client – wrap transport with otelhttp so outgoing requests
 	// carry W3C trace-context and are recorded as child spans.
 	clientTransport := http.DefaultTransport
@@ -70,9 +89,10 @@ func main() {
 		clientTransport = otelhttp.NewTransport(http.DefaultTransport)
 	}
 	application := &frontendApp{
-		client:      &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
-		backendURL:  backendURL,
-		serviceName: serviceName,
+		client:           &http.Client{Timeout: 10 * time.Second, Transport: clientTransport},
+		backendURL:       backendURL,
+		serviceName:      serviceName,
+		requestsProxied:  requestsProxied,
 	}
 
 	mux := http.NewServeMux()
@@ -88,12 +108,20 @@ func main() {
 	mux.HandleFunc("/api/notes", application.handleNotes)
 	mux.HandleFunc("/api/notes/", application.handleNoteByID)
 
-	// otelhttp.NewHandler is the outermost layer: it extracts the incoming
-	// traceparent header, creates a server span, and enriches the request
-	// context before control passes inward.  loggingMiddleware sits *inside*
-	// otelhttp so that slog.InfoContext receives a context that already holds
-	// the active span – enabling trace_id / span_id in every log record.
-	var handler http.Handler = loggingMiddleware(serviceName, mux)
+	// /metrics — Prometheus text-format endpoint, scraped by the downstream
+	// ServiceMonitor (monitoring.rhobs/v1) in the user's namespace.
+	// Note: this handler is registered on the mux that otelhttp wraps, so
+	// Prometheus scrape requests will still create a server span. To suppress
+	// those, add an otelhttp.WithFilter option to skip the path.
+	mux.Handle("/metrics", telemetry.MetricsHandler())
+
+	// otelhttp.NewHandler is the outermost layer for application routes: it
+	// extracts the incoming traceparent header, creates a server span, and
+	// enriches the request context before control passes inward.
+	// AccessLog middleware sits *inside* otelhttp so that it observes real
+	// HTTP status codes (otelhttp may override them) and records Prometheus
+	// metrics labelled by method/route/status.
+	var handler http.Handler = telemetry.AccessLog(serviceName, mux)
 	if telemetry.Enabled() {
 		// baggageMiddleware runs inside otelhttp so it enriches the already-extracted
 		// context; the W3C baggage header is then injected into all outgoing requests
@@ -311,6 +339,29 @@ func (application *frontendApp) proxyToBackend(response http.ResponseWriter, req
 		return
 	}
 
+	// OTel application metric: count proxied requests by method, path, and
+	// backend status code. This is independent of Prometheus and appears
+	// only in the OTel metrics pipeline (→ central-collector → COO).
+	if application.requestsProxied != nil {
+		application.requestsProxied.Add(request.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("method", method),
+				attribute.String("path", path),
+				attribute.Int("backend_status", backendResponse.StatusCode),
+			),
+		)
+	}
+
+	// OTel application log: record every backend proxy attempt correlated
+	// with the active trace. These records flow through the sidecar’s
+	// logs pipeline to the central collector and on to Loki.
+	slog.InfoContext(request.Context(), "proxied request to backend",
+		"method", method,
+		"path", path,
+		"backend_status", backendResponse.StatusCode,
+		"target", target,
+	)
+
 	if downstreamType := backendResponse.Header.Get("Content-Type"); downstreamType != "" {
 		response.Header().Set("Content-Type", downstreamType)
 	}
@@ -328,37 +379,6 @@ func envOrDefault(key string, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (recorder *statusRecorder) WriteHeader(statusCode int) {
-	recorder.status = statusCode
-	recorder.ResponseWriter.WriteHeader(statusCode)
-}
-
-func loggingMiddleware(serviceName string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		start := time.Now()
-		recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
-		next.ServeHTTP(recorder, request)
-		duration := time.Since(start)
-		// Use slog with the request context so that – when OTEL is active –
-		// log records are automatically correlated with the active trace span.
-		slog.InfoContext(
-			request.Context(),
-			"http request",
-			"service", serviceName,
-			"method", request.Method,
-			"path", request.URL.Path,
-			"status", recorder.status,
-			"duration_ms", duration.Milliseconds(),
-			"remote_addr", request.RemoteAddr,
-		)
-	})
 }
 
 // baggageMiddleware injects standard request metadata as W3C baggage so that

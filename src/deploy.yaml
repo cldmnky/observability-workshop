@@ -14,6 +14,10 @@ spec:
     metadata:
       labels:
         app: frontend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: frontend
@@ -65,6 +69,10 @@ spec:
     metadata:
       labels:
         app: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: backend
@@ -119,6 +127,10 @@ spec:
     metadata:
       labels:
         app: database
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: database
@@ -428,3 +440,57 @@ spec:
         - name: script
           configMap:
             name: loadgenerator-script
+---
+# ServiceMonitors (monitoring.rhobs/v1) — discovered by the COO MonitoringStack
+# via the label monitoring.rhobs/stack=observability-stack.  Each targets one
+# Go service's /metrics endpoint scraped from Prometheus client_golang.
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: frontend
+  namespace: __NAMESPACE__
+  labels:
+    app: sample-app
+    monitoring.rhobs/stack: observability-stack
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+---
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: backend
+  namespace: __NAMESPACE__
+  labels:
+    app: sample-app
+    monitoring.rhobs/stack: observability-stack
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+---
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: database
+  namespace: __NAMESPACE__
+  labels:
+    app: sample-app
+    monitoring.rhobs/stack: observability-stack
+spec:
+  selector:
+    matchLabels:
+      app: database
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
