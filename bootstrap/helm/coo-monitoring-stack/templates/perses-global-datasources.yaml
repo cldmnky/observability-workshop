@@ -74,7 +74,7 @@ spec:
         proxy:
           kind: HTTPProxy
           spec:
-            url: 'https://{{ .Values.persesDatasources.tempo.routeHost }}'
+            url: 'https://{{ .Values.persesDatasources.tempo.routeHost }}/api/traces/v1/dev/tempo'
             headers:
               X-Scope-OrgID: dev
             allowedEndpoints:
