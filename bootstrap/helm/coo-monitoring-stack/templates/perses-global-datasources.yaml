@@ -48,6 +48,12 @@ spec:
                 method: GET
               - endpointPattern: /loki/api/v1/tail
                 method: GET
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: file
+        certPath: /ca/service-ca.crt
 ---
 apiVersion: perses.dev/v1alpha2
 kind: PersesGlobalDatasource
@@ -84,3 +90,9 @@ spec:
                 method: GET
               - endpointPattern: /api/v2/search/tag/.+/values
                 method: GET
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: file
+        certPath: /ca/service-ca.crt
