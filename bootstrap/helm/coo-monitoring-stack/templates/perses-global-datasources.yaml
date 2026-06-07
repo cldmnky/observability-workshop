@@ -1,0 +1,90 @@
+# Wave 4 — PersesGlobalDatasource resources for Loki and Tempo.
+# These are cluster-scoped and accessible from all projects, so they belong
+# with the COO monitoring stack rather than in per-user namespaces.
+#
+# Both use the ocp-sa-bearer GlobalSecret (provisioned by the Perses operator)
+# which reads the SA token live from /var/run/secrets/kubernetes.io/serviceaccount/token
+# and validates TLS with the cluster service-CA bundle.
+#
+# SkipDryRunOnMissingResource because these CRDs are installed by the COO
+# operator and may not yet exist on the first sync.
+---
+apiVersion: perses.dev/v1alpha2
+kind: PersesGlobalDatasource
+metadata:
+  name: loki
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  config:
+    default: false
+    display:
+      name: "Loki"
+      description: "LokiStack application logs (openshift-logging)"
+    plugin:
+      kind: LokiDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: 'https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application'
+            secret:
+              name: ocp-sa-bearer
+            allowedEndpoints:
+              - endpointPattern: /loki/api/v1/query
+                method: POST
+              - endpointPattern: /loki/api/v1/query
+                method: GET
+              - endpointPattern: /loki/api/v1/query_range
+                method: POST
+              - endpointPattern: /loki/api/v1/query_range
+                method: GET
+              - endpointPattern: /loki/api/v1/labels
+                method: GET
+              - endpointPattern: /loki/api/v1/label/([a-zA-Z0-9_-]+)/values
+                method: GET
+              - endpointPattern: /loki/api/v1/series
+                method: POST
+              - endpointPattern: /loki/api/v1/series
+                method: GET
+              - endpointPattern: /loki/api/v1/tail
+                method: GET
+---
+apiVersion: perses.dev/v1alpha2
+kind: PersesGlobalDatasource
+metadata:
+  name: tempo
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  config:
+    default: false
+    display:
+      name: "Tempo"
+      description: "TempoStack distributed tracing backend"
+    plugin:
+      kind: TempoDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: 'https://tempo-tempo-query-frontend.openshift-tempo-operator.svc.cluster.local:3200'
+            secret:
+              name: ocp-sa-bearer
+            allowedEndpoints:
+              - endpointPattern: /api/echo
+                method: GET
+              - endpointPattern: /api/search
+                method: GET
+              - endpointPattern: /api/search/tags
+                method: GET
+              - endpointPattern: /api/search/tag/.+/values
+                method: GET
+              - endpointPattern: /api/traces/.+
+                method: GET
+              - endpointPattern: /api/v2/search/tags
+                method: GET
+              - endpointPattern: /api/v2/search/tag/.+/values
+                method: GET

@@ -1,7 +1,10 @@
-# Wave 4 — Pre-create PersesDatasources in each user namespace pointing at the
-# shared COO MonitoringStack Prometheus, LokiStack, and Tempo distributed tracing
-# backend.  Marking prometheus default=true means Perses dashboards in the same
-# namespace pick it up without an explicit datasource ref.
+# Wave 4 — Pre-create a namespaced PersesDatasource in each user namespace
+# pointing at the shared COO MonitoringStack Prometheus.  Marking it
+# default=true means Perses dashboards in the same namespace pick it up
+# without an explicit datasource ref.
+#
+# Loki and Tempo are PersesGlobalDatasource resources managed by the
+# coo-monitoring-stack chart.
 #
 # SkipDryRunOnMissingResource is required because the perses.dev CRDs are
 # installed by the COO operator; they may not yet exist on the first ArgoCD sync.
@@ -33,89 +36,5 @@ spec:
           kind: HTTPProxy
           spec:
             url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
----
-apiVersion: perses.dev/v1alpha2
-kind: PersesDatasource
-metadata:
-  name: loki
-  namespace: {{ $ns }}
-  labels:
-    monitoring.rhobs/stack: observability-stack
-  annotations:
-    argocd.argoproj.io/sync-wave: "4"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec:
-  config:
-    display:
-      name: "Loki"
-      description: "LokiStack application logs (openshift-logging)"
-    plugin:
-      kind: LokiDatasource
-      spec:
-        proxy:
-          kind: HTTPProxy
-          spec:
-            url: 'https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application'
-            secret:
-              name: ocp-sa-bearer
-            allowedEndpoints:
-              - endpointPattern: /loki/api/v1/query
-                method: POST
-              - endpointPattern: /loki/api/v1/query
-                method: GET
-              - endpointPattern: /loki/api/v1/query_range
-                method: POST
-              - endpointPattern: /loki/api/v1/query_range
-                method: GET
-              - endpointPattern: /loki/api/v1/labels
-                method: GET
-              - endpointPattern: /loki/api/v1/label/([a-zA-Z0-9_-]+)/values
-                method: GET
-              - endpointPattern: /loki/api/v1/series
-                method: POST
-              - endpointPattern: /loki/api/v1/series
-                method: GET
-              - endpointPattern: /loki/api/v1/tail
-                method: GET
----
-apiVersion: perses.dev/v1alpha2
-kind: PersesDatasource
-metadata:
-  name: tempo
-  namespace: {{ $ns }}
-  labels:
-    monitoring.rhobs/stack: observability-stack
-  annotations:
-    argocd.argoproj.io/sync-wave: "4"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec:
-  config:
-    display:
-      name: "Tempo"
-      description: "TempoStack distributed tracing backend"
-    plugin:
-      kind: TempoDatasource
-      spec:
-        proxy:
-          kind: HTTPProxy
-          spec:
-            url: 'https://tempo-tempo-query-frontend.openshift-tempo-operator.svc.cluster.local:3200'
-            secret:
-              name: ocp-sa-bearer
-            allowedEndpoints:
-              - endpointPattern: /api/echo
-                method: GET
-              - endpointPattern: /api/search
-                method: GET
-              - endpointPattern: /api/search/tags
-                method: GET
-              - endpointPattern: /api/search/tag/.+/values
-                method: GET
-              - endpointPattern: /api/traces/.+
-                method: GET
-              - endpointPattern: /api/v2/search/tags
-                method: GET
-              - endpointPattern: /api/v2/search/tag/.+/values
-                method: GET
 {{- end }}
 {{- end }}
