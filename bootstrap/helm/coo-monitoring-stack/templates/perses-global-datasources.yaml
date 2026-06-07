@@ -51,11 +51,7 @@ spec:
   client:
     tls:
       enable: true
-      caCert:
-        type: configmap
-        name: openshift-service-ca.crt
-        namespace: openshift-operators
-        certPath: service-ca.crt
+      insecureSkipVerify: true
 ---
 apiVersion: perses.dev/v1alpha2
 kind: PersesGlobalDatasource
@@ -95,8 +91,4 @@ spec:
   client:
     tls:
       enable: true
-      caCert:
-        type: configmap
-        name: openshift-service-ca.crt
-        namespace: openshift-operators
-        certPath: service-ca.crt
+      insecureSkipVerify: true
