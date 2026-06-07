@@ -587,9 +587,27 @@ oc get servicemonitor.monitoring.rhobs sample-app-coo -n %OPENSHIFT_USERNAME%-ob
 +
 You should see `monitoring.rhobs/stack=observability-stack` in the labels.
 
-. Verify the pre-created Perses DataSource for the COO Prometheus:
+. Verify the pre-created Perses DataSources for Prometheus, Loki, and Tempo:
 +
-A `PersesDatasource` named `prometheus` has been provisioned in your namespace as part of the workshop setup. It provides a shared connection to the COO Prometheus instance that all dashboards in your namespace can reference.
+As part of the multi-signal observability setup, three `PersesDatasource` resources (`prometheus`, `loki`, and `tempo`) have been pre-provisioned in your namespace. They connect the built-in Perses dashboard engine in the OpenShift console directly to the underlying metric, log, and trace backends.
++
+Check that all three datasources exist:
++
+[source,bash,role="copypaste"]
+----
+oc get persesdatasource -n %OPENSHIFT_USERNAME%-observability-demo
+----
++
+.Expected output
+[source,text]
+----
+NAME         AGE
+prometheus   10m
+loki         10m
+tempo        10m
+----
++
+Inspect the details of the metrics, logs, and tracing datasources. For example, check the `prometheus` datasource (note the standard `perses.dev/v1alpha2` apiVersion):
 +
 [source,bash,role="copypaste"]
 ----
@@ -600,7 +618,7 @@ oc get persesdatasource prometheus \
 .Expected output
 [source,yaml,role="copypaste"]
 ----
-apiVersion: perses.dev/v1alpha1
+apiVersion: perses.dev/v1alpha2
 kind: PersesDatasource
 metadata:
   name: prometheus
@@ -620,7 +638,15 @@ spec:
             url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
 ----
 +
-The `default: true` field means that dashboards in your namespace which don't specify a datasource name will automatically use this one. Dashboards that do reference it use `name: prometheus`.
+The `default: true` field on the `prometheus` datasource means dashboards in your namespace which don't specify a datasource name will automatically use this one.
++
+You can similarly inspect the `loki` and `tempo` datasources. They use the cluster's secure internal endpoints with service account-level token credentials (`ocp-sa-bearer`) to safely read application log and distributed trace signals:
++
+[source,bash,role="copypaste"]
+----
+oc get persesdatasource loki -n %OPENSHIFT_USERNAME%-observability-demo -o yaml
+oc get persesdatasource tempo -n %OPENSHIFT_USERNAME%-observability-demo -o yaml
+----
 
 . Create a Perses dashboard to visualize your metrics:
 +
@@ -690,7 +716,7 @@ Check that your COO dashboard is working:
 
 * ✓ MonitoringStack exists in observability-demo namespace
 * ✓ ServiceMonitor `sample-app-coo` has label `monitoring.rhobs/stack: observability-stack`
-* ✓ PersesDatasource `prometheus` exists in your namespace with `default: true`
+* ✓ PersesDatasource `prometheus`, `loki`, and `tempo` exist in your namespace (prometheus is `default: true`)
 * ✓ PersesDashboard created successfully
 * ✓ Dashboard appears in **Observe** → **Dashboards**
 * ✓ Panels show request rate and total requests
@@ -716,11 +742,11 @@ Check that your COO dashboard is working:
 . Must have: `monitoring.rhobs/stack=observability-stack`
 . Wait 1-2 minutes for Prometheus to discover the new ServiceMonitor after creation
 
-**Issue**: PersesDatasource `prometheus` not found
+**Issue**: PersesDatasource `prometheus`, `loki`, or `tempo` not found
 
 **Solution**:
-. The datasource is pre-provisioned by the workshop setup. If it is missing, contact the workshop facilitator.
-. To verify it exists: `oc get persesdatasource prometheus -n %OPENSHIFT_USERNAME%-observability-demo`
+. All three datasources are pre-provisioned by the workshop setup. If any are missing, contact the workshop facilitator.
+. To verify they exist: `oc get persesdatasource -n %OPENSHIFT_USERNAME%-observability-demo`
 
 **Issue**: Dashboard not visible in console
 
