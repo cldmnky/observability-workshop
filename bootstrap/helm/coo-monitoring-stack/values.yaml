@@ -32,11 +32,11 @@ monitoringStack:
   # Global resources for all monitoring stack pods (Prometheus, Alertmanager, etc.)
   resources:
     requests:
-      cpu: 100m
+      cpu: 1000m
       memory: 256Mi
     limits:
-      cpu: 500m
-      memory: 512Mi
+      cpu: 2000m
+      memory: 2048Mi
   
   # Prometheus configuration
   prometheus:
@@ -89,7 +89,7 @@ uiPlugins:
     lokiStackName: logging-loki
     lokiStackNamespace: openshift-logging
     logsLimit: 50
-    timeout: 30s
+    timeout: 60s
     schema: select  # Options: otel, viaq, or select (lets user choose)
 
 # Perses datasource configuration — Route hosts for Loki and Tempo.
