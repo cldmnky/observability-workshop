@@ -7,6 +7,7 @@
 package telemetry
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ---------------------------------------------------------------------------
@@ -91,7 +93,13 @@ func AccessLog(serviceName string, next http.Handler) http.Handler {
 		}
 
 		// --- stdout access log (one JSON line) ---
-		accessLog.Info("access",
+		msg := "access"
+		if span := trace.SpanFromContext(r.Context()); span.IsRecording() {
+			sc := span.SpanContext()
+			msg = fmt.Sprintf("access [trace:%s span:%s]",
+				sc.TraceID().String(), sc.SpanID().String())
+		}
+		accessLog.Info(msg,
 			"service", serviceName,
 			"method", r.Method,
 			"path", r.URL.Path,

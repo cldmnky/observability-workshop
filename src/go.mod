@@ -16,6 +16,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.40.0
 	go.opentelemetry.io/otel/sdk/log v0.16.0
 	go.opentelemetry.io/otel/sdk/metric v1.40.0
+	go.opentelemetry.io/otel/trace v1.40.0
 )
 
 require (
@@ -54,7 +55,6 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0 // indirect
-	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	golang.org/x/net v0.49.0 // indirect

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	_ "github.com/chaisql/chai"
-	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -85,7 +84,7 @@ func main() {
 		_ = telShutdown(shutCtx)
 	}()
 	if telemetry.Enabled() {
-		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
+		slog.SetDefault(slog.New(telemetry.NewSpanLogHandler(serviceName)))
 	}
 
 	// Custom OTEL metrics – track how many events and notes are created.

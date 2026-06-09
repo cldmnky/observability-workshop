@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -64,7 +63,7 @@ func main() {
 	// When OTEL is active route all structured log output via the SDK so
 	// that log records are correlated with the active trace.
 	if telemetry.Enabled() {
-		slog.SetDefault(slog.New(otelslog.NewHandler(serviceName)))
+		slog.SetDefault(slog.New(telemetry.NewSpanLogHandler(serviceName)))
 	}
 
 	// OTel meter and application-specific counters.
