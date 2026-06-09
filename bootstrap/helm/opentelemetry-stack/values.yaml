@@ -24,7 +24,7 @@ centralCollector:
   # Name of the OpenTelemetryCollector CR
   name: central-collector
   # Number of replicas
-  replicas: 2
+  replicas: 1
   
   # Memory limiter configuration (MiB)
   memoryLimit: 1800
