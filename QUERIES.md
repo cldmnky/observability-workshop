@@ -157,32 +157,45 @@ sum by (http_method) (
 Loki is accessible in the console via **Observe** → **Logs**. The URL path is `/monitoring/logs`.
 
 ### A. Standard stdout Access Logs (JSON via Vector)
-Access logs are printed as raw JSON strings to standard output by the `AccessLog` middleware, bypassed by the OTel logging bridge. The log structure is nested: the actual access fields (`method`, `route`, `status`, etc.) are inside a `message` field as a JSON string.
+Access logs are printed as raw JSON strings to standard output by the `AccessLog` middleware, bypassed by the OTel logging bridge. The log structure is **nested double-JSON**: the first layer is the container runtime/Vector envelope (`hostname`, `kubernetes`, `message`, `openshift`), and the actual access fields (`method`, `route`, `status`, etc.) live inside the `message` field as a **JSON string**.
+
+[IMPORTANT]
+====
+`| json message` extracts the `message` field as a label from the outer JSON — it does **NOT** re-parse its content as JSON. To access fields inside `message`, you must use a pipeline that re-writes the log line:
+
+```
+| json                        # extracts all outer fields (kubernetes_namespace_name, message, level, …)
+| line_format "{{.message}}"  # replaces the log line with just the message string
+| json                        # parses the message as fresh JSON → extracts method, route, status, …
+```
+
+Alternatively, use `| json msg="message"` to store the raw `message` string, then `| line_format "{{.msg}}" | json` to avoid clobbering the `message` label.
+====
 
 #### 1. Query All Standard Access Logs for the Namespace
-Fetches all stdout application logs and parses the nested `message` field:
+Fetches all stdout application logs and parses the nested `message` field into available labels (`method`, `route`, `status`, `duration_ms`, `service`):
 ```logql
-{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message
+{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json | line_format "{{.message}}" | json
 ```
 
 #### 2. Isolate Slow Access Logs (> 50ms)
 Filters parsed access logs where the processing duration exceeds 50 milliseconds:
 ```logql
-{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message | duration_ms > 50
+{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json | line_format "{{.message}}" | json | duration_ms > 50
 ```
 
 #### 3. Count Requests by Service and Status Code
 Generates a time-series rate chart of HTTP responses grouped by HTTP status:
 ```logql
 sum by (service, status) (
-  count_over_time({kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message [5m])
+  count_over_time({kubernetes_namespace_name="user1-observability-demo"} |= "access" | json | line_format "{{.message}}" | json [5m])
 )
 ```
 
 #### 4. Filter by HTTP Method and Route
 Finds PUT or DELETE write transactions targeting notes:
 ```logql
-{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message | method =~ "PUT|DELETE" | route =~ "/api/notes.*"
+{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json | line_format "{{.message}}" | json | method =~ "PUT|DELETE" | route =~ "/api/notes.*"
 ```
 
 ---
