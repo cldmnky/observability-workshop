@@ -157,9 +157,6 @@ spec:
           insecure: true
         resource_to_telemetry_conversion:
           enabled: true
-        sending_queue:
-          enabled: true
-          queue_size: 10000
       
       # LokiStack OTLP/HTTP log forwarder (otlp_http replaces deprecated otlphttp alias)
       otlp_http/logs:
