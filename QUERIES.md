@@ -49,11 +49,11 @@ sum by (method, route, service) (
 #### 2. HTTP Error Rate Percentage (by Service & Route)
 Calculates the percentage of HTTP status codes matching 4xx or 5xx over a 5-minute window:
 ```promql
-sum by (route) (
+sum by (route, service) (
   rate(prom_http_requests_total{namespace="user1-observability-demo", status=~"[45].."}[5m])
 )
 /
-sum by (route) (
+sum by (route, service) (
   rate(prom_http_requests_total{namespace="user1-observability-demo"}[5m])
 ) * 100
 ```
@@ -157,32 +157,32 @@ sum by (http_method) (
 Loki is accessible in the console via **Observe** → **Logs**. The URL path is `/monitoring/logs`.
 
 ### A. Standard stdout Access Logs (JSON via Vector)
-Access logs are printed as raw JSON strings to standard output by the `AccessLog` middleware, bypassed by the OTel logging bridge.
+Access logs are printed as raw JSON strings to standard output by the `AccessLog` middleware, bypassed by the OTel logging bridge. The log structure is nested: the actual access fields (`method`, `route`, `status`, etc.) are inside a `message` field as a JSON string.
 
 #### 1. Query All Standard Access Logs for the Namespace
-Fetches all stdout application logs and parses them as structured JSON objects:
+Fetches all stdout application logs and parses the nested `message` field:
 ```logql
-{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json
+{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message
 ```
 
 #### 2. Isolate Slow Access Logs (> 50ms)
 Filters parsed access logs where the processing duration exceeds 50 milliseconds:
 ```logql
-{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json | duration_ms > 50
+{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message | duration_ms > 50
 ```
 
 #### 3. Count Requests by Service and Status Code
 Generates a time-series rate chart of HTTP responses grouped by HTTP status:
 ```logql
 sum by (service, status) (
-  count_over_time({kubernetes_namespace_name="user1-observability-demo"} |= "access" | json [5m])
+  count_over_time({kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message [5m])
 )
 ```
 
 #### 4. Filter by HTTP Method and Route
 Finds PUT or DELETE write transactions targeting notes:
 ```logql
-{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json | method =~ "PUT|DELETE" | route =~ "/api/notes.*"
+{kubernetes_namespace_name="user1-observability-demo"} |= "access" | json message | method =~ "PUT|DELETE" | route =~ "/api/notes.*"
 ```
 
 ---
