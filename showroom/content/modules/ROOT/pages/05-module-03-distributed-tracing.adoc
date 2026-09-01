@@ -149,7 +149,7 @@ The sidecar uses four processors in order:
 The central collector uses a `spanmetrics` connector to generate **RED metrics** automatically from incoming traces:
 
 * **Rate**: `traces_spanmetrics_calls_total` — request count per service and operation
-* **Errors**: `traces_spanmetrics_calls_total{status.code="STATUS_CODE_ERROR"}` — error count
+* **Errors**: `traces_spanmetrics_calls_total{status_code="STATUS_CODE_ERROR"}` — error count
 * **Duration**: `traces_spanmetrics_latency_bucket` — latency histogram with configurable buckets
 
 These metrics are published to the COO-managed Prometheus instance via `prometheusremotewrite`. The COO `MonitoringStack` has `enableRemoteWriteReceiver: true` set, which activates the `/api/v1/write` endpoint that Prometheus exposes for ingest.
@@ -1179,7 +1179,7 @@ Navigate to **Observe** → **Dashboards** and open Perses. Create a new dashboa
 +
 [source,promql,role="copypaste"]
 ----
-sum by (span_name, job) (rate(traces_spanmetrics_calls_total{}[5m]))
+sum by (service_name, span_name) (rate(traces_spanmetrics_calls_total{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
 ----
 +
 To see the p95 latency for backend operations, add a second panel with:
