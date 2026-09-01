@@ -32,5 +32,6 @@
 ** xref:05-module-03-distributed-tracing.adoc#_exercise_7_view_and_explore_live_traces[Exercise 7: View Live Traces]
 ** xref:05-module-03-distributed-tracing.adoc#_exercise_8_explore_the_central_collector_pipeline[Exercise 8: Central Collector Pipeline]
 ** xref:05-module-03-distributed-tracing.adoc#_exercise_9_zero_code_python_auto_instrumentation[Exercise 9: Python Auto-instrumentation]
+** xref:05-module-03-distributed-tracing.adoc#_exercise_10_bonus_deploy_a_multi_signal_dashboard[Exercise 10 (Bonus): Multi-signal Dashboard]
 
 * xref:07-conclusion.adoc[Workshop Completion]
