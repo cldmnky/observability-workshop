@@ -148,9 +148,9 @@ The sidecar uses four processors in order:
 
 The central collector uses a `spanmetrics` connector to generate **RED metrics** automatically from incoming traces:
 
-* **Rate**: `traces_span_metrics_calls_total` — request count per service and operation
-* **Errors**: `traces_span_metrics_calls_total{status.code="STATUS_CODE_ERROR"}` — error count
-* **Duration**: `traces_span_metrics_duration_milliseconds_bucket` — latency histogram with configurable buckets
+* **Rate**: `traces_spanmetrics_calls_total` — request count per service and operation
+* **Errors**: `traces_spanmetrics_calls_total{status_code="STATUS_CODE_ERROR"}` — error count
+* **Duration**: `traces_spanmetrics_latency_bucket` — latency histogram with configurable buckets
 
 These metrics are published to the COO-managed Prometheus instance via `prometheusremotewrite`. The COO `MonitoringStack` has `enableRemoteWriteReceiver: true` set, which activates the `/api/v1/write` endpoint that Prometheus exposes for ingest.
 
@@ -1179,7 +1179,7 @@ Navigate to **Observe** → **Dashboards** and open Perses. Create a new dashboa
 +
 [source,promql,role="copypaste"]
 ----
-sum by (span_name, job) (rate(traces_span_metrics_calls_total{}[5m]))
+sum by (service_name, span_name) (rate(traces_spanmetrics_calls_total{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
 ----
 +
 To see the p95 latency for backend operations, add a second panel with:
@@ -1187,7 +1187,7 @@ To see the p95 latency for backend operations, add a second panel with:
 [source,promql,role="copypaste"]
 ----
 histogram_quantile(0.95,
-  sum(rate(traces_span_metrics_duration_milliseconds_bucket{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", k8s_deployment_name="backend"}[5m]))
+  sum(rate(traces_spanmetrics_latency_bucket{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", k8s_deployment_name="backend"}[5m]))
   by (span_name, le)
 )
 ----
@@ -1283,7 +1283,7 @@ The `k8sattributes` processor in the central collector intentionally excludes hi
 
 * ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and `otlphttp/logs` exporters
 * ✓ `spanmetrics` connector configuration is visible
-* ✓ `traces_span_metrics_calls_total` metric is visible in a Perses panel using the COO Prometheus datasource
+* ✓ `traces_spanmetrics_calls_total` metric is visible in a Perses panel using the COO Prometheus datasource
 * ✓ p95 latency histogram query renders in Perses for backend operations
 * ✓ Custom application OTel metrics like `frontend_requests_proxied_total` are queryable in Perses
 * ✓ **Observe → Logs** shows structured log records from `%OPENSHIFT_USERNAME%-observability-demo` with `traceID` fields
@@ -1479,6 +1479,121 @@ image::module3-07-notifier-span-attributes.png[Notifier span attributes panel sh
 * ✓ `app.py` was not modified at any point in this exercise
 
 **What you learned**: The `Instrumentation` CR is a namespace-level template. A single annotation—`instrumentation.opentelemetry.io/inject-python`—causes the OpenTelemetry Operator's admission webhook to inject an init-container that downloads and configures the Python agent at pod start. No source changes, no image rebuilds, no SDK imports. The W3C Trace Context standard ensures the notifier's spans slot directly into the existing trace tree built by the Go services.
+
+== Exercise 10 (Bonus): Deploy a multi-signal dashboard
+
+One dashboard, three signals. This bonus exercise brings the whole workshop together: a single Perses dashboard in the OpenShift console that shows **OTel spanmetrics** (RED metrics generated from traces and queried from COO Prometheus), **application logs** (queried from LokiStack), and **traces** (queried from Tempo) — for the same application, in the same view.
+
+=== Where the data comes from
+
+The dashboard file you will apply contains two documents:
+
+* A namespaced `PersesDatasource` named `prometheus` pointing at the shared COO MonitoringStack (same URL and `default: true` configuration the GitOps pipeline pre-provisions).
+* A namespaced `PersesDashboard` named `multi-signal-dashboard` with four panels.
+
+[NOTE]
+====
+Loki and Tempo are **not** defined in the file — and they must not be. They already exist as cluster-scoped `PersesGlobalDatasource` resources named `loki` and `tempo`, managed by GitOps in the `coo-monitoring-stack` chart. Global datasources are visible from every namespace, so the dashboard references them directly by plugin kind and resource name. Only the Prometheus datasource is namespaced, because each user namespace needs its own `default: true` datasource pointing at the shared COO MonitoringStack. Applying the file is idempotent: if the `prometheus` datasource already exists, `oc apply` updates it in place; if it is missing, it is created.
+====
+
+The two metric panels query OTel spanmetrics — metrics generated from trace spans by the central collector's `spanmetrics` connector and renamed by its transform processor (see Exercise 8). The metric names are produced by the central collector configuration in this repository:
+
+* `traces_spanmetrics_calls_total` — counter of spans, labeled with `service_name`, `http_method`, `http_status_code`
+* `traces_spanmetrics_latency_bucket` — latency histogram buckets, used for a P95 `histogram_quantile` calculation
+
+The log panel uses LogQL against the LokiStack **application** tenant, and the trace panel uses TraceQL against Tempo — both scoped to your namespace.
+
+[options="header",cols="25,25,25,25"]
+|===
+|Panel |Signal |Datasource (kind/name) |Query type
+|Span Call Rate |Metrics (OTel spanmetrics) |`PrometheusDatasource/prometheus` |`PrometheusTimeSeriesQuery`
+|Span Latency (P95) |Metrics (OTel spanmetrics) |`PrometheusDatasource/prometheus` |`PrometheusTimeSeriesQuery`
+|Application Logs |Logs |`LokiDatasource/loki` (global) |`LokiLogQuery`
+|Application Traces |Traces |`TempoDatasource/tempo` (global) |`TempoTraceQuery`
+|===
+
+=== Step 1: Deploy the datasource and dashboard
+
+Fetch the manifest from the workshop repository, substitute your namespace, and apply it. The `sed` replacement of `__NAMESPACE__` is the only change needed:
+
+[source,bash,role="copypaste"]
+----
+NAMESPACE="%OPENSHIFT_USERNAME%-observability-demo"
+curl -sL https://raw.githubusercontent.com/cldmnky/observability-workshop/main/docs/perses-multisignal-dashboard.yaml \
+  | sed "s/__NAMESPACE__/${NAMESPACE}/g" \
+  | oc apply -f -
+----
+
+The file contains two documents separated by `---`. A single apply creates or updates both: `persesdatasource/prometheus` and `persesdashboard/multi-signal-dashboard`. If the datasource was already provisioned by GitOps, `oc apply` reports `configured` — the dashboard still gets created.
+
+=== Step 2: Verify the resources
+
+Confirm both namespaced resources exist, and that Loki and Tempo remain cluster-scoped globals:
+
+[source,bash,role="copypaste"]
+----
+oc get persesdatasource,persesdashboard -n %OPENSHIFT_USERNAME%-observability-demo
+----
+
+[source,bash,role="copypaste"]
+----
+oc get persesglobaldatasource
+----
+
+You should see `prometheus` and `multi-signal-dashboard` in your namespace, while `loki` and `tempo` are listed only as global datasources — no namespaced Loki or Tempo datasource was created.
+
+=== Step 3: Open the dashboard in the console
+
+* Navigate to **Observe** → **Dashboards (Perses)** in the left navigation.
+* In the dashboard dropdown, select **Multi-Signal Dashboard**.
+* The dashboard shows two sections:
+** **OTel Spanmetrics (COO Prometheus)** — Span Call Rate and Span Latency (P95) time series
+** **Logs and Traces (Loki + Tempo)** — the Application Logs table and the Application Traces table
+
+The metric panels show only the four workshop services (`frontend`, `backend`, `database`, `notifier`) via the `service_name` filter in the PromQL, so they stay readable even though the spanmetrics connector processes spans from all workshop users sharing the central collector.
+
+=== Step 4: No data? Reuse the Exercise 6 traffic generator
+
+If any panel is empty, generate application traffic exactly as in Exercise 6 — the spans, logs, and metrics this dashboard visualizes all come from the same requests:
+
+[source,bash,role="copypaste"]
+----
+FRONTEND_URL=$(oc get route frontend \
+  -n %OPENSHIFT_USERNAME%-observability-demo \
+  -o jsonpath='{.spec.host}')
+
+for i in $(seq 1 15); do
+  curl -sk -o /dev/null "https://$FRONTEND_URL/"
+  curl -sk -o /dev/null -X POST "https://$FRONTEND_URL/api/notes" \
+    -H "Content-Type: application/json" \
+    -d "{\"title\":\"Dashboard test $i\",\"content\":\"Multi-signal\"}"
+  sleep 1
+done
+echo "Traffic generation complete"
+----
+
+[NOTE]
+====
+Data appears with different latencies per signal. The spanmetrics connector flushes metrics every 30 seconds, the dashboard refreshes every 30 seconds (`refreshInterval`), LokiStack ships logs on a short delay, and Tempo indexes traces within seconds. Wait 1–2 minutes after the traffic loop before concluding a panel is broken.
+====
+
+[NOTE]
+====
+If logs and traces appear in their panels but the OTel spanmetrics panels remain empty after the wait above, the problem may be the central collector's Prometheus remote-write path rather than the dashboard. Have the facilitator check the central collector for remote-write errors such as `out of order sample` before troubleshooting the dashboard query — generating more traffic will not resolve this failure.
+====
+
+=== Verify
+
+* ✓ `oc apply` reports both `persesdatasource/prometheus` and `persesdashboard/multi-signal-dashboard` created or configured
+* ✓ `oc get persesdatasource,persesdashboard -n %OPENSHIFT_USERNAME%-observability-demo` shows both resources
+* ✓ `loki` and `tempo` exist only as `PersesGlobalDatasource` — no namespaced duplicates were created
+* ✓ Dashboard appears in **Observe** → **Dashboards (Perses)** as **Multi-Signal Dashboard**
+* ✓ Span Call Rate panel shows per-service, per-method call rates
+* ✓ Span Latency (P95) panel shows per-service P95 latency
+* ✓ Application Logs panel shows log lines from your namespace
+* ✓ Application Traces panel lists traces from your namespace
+
+**What you learned**: A single Perses dashboard can mix signals from three different backends by referencing datasources at different scopes — the namespaced `prometheus` datasource for COO metrics and the global `loki` and `tempo` datasources for logs and traces. The `spanmetrics` connector turns the traces you already emit into Prometheus-queryable RED metrics with no application changes, so the same traffic drives metric, log, and trace panels simultaneously.
 
 == Learning outcomes
 

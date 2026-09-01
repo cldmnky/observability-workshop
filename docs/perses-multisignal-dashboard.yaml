@@ -1,0 +1,198 @@
+# Exercise 10 (Bonus) — Multi-signal dashboard for the workshop application
+#
+# This file contains TWO documents applied in a single `oc apply`:
+#
+#   1. PersesDatasource "prometheus"  — namespaced, COO Prometheus (OTel spanmetrics)
+#   2. PersesDashboard                — namespaced, multi-signal dashboard
+#
+# Why is only Prometheus namespaced?
+# -----------------------------------
+# Loki and Tempo are intentionally NOT defined here. They already exist as
+# cluster-scoped PersesGlobalDatasource resources, managed by GitOps in the
+# coo-monitoring-stack chart, and are visible from every namespace. The
+# dashboard therefore references them by plugin kind + name:
+#
+#   metrics -> { kind: PrometheusDatasource, name: prometheus }  (namespaced, this file)
+#   logs    -> { kind: LokiDatasource,       name: loki }        (global, pre-existing)
+#   traces  -> { kind: TempoDatasource,      name: tempo }       (global, pre-existing)
+#
+# The Prometheus datasource is namespaced so each user namespace can have its
+# own `default: true` datasource pointing at the shared COO MonitoringStack.
+# Applying this file is idempotent: if the datasource already exists (for
+# example, pre-provisioned by ArgoCD), `oc apply` updates it in place; if it
+# is missing, it is created.
+#
+# Replace __NAMESPACE__ with your user namespace before applying, e.g.:
+#   sed "s/__NAMESPACE__/<username>-observability-demo/g" < file
+---
+apiVersion: perses.dev/v1alpha2
+kind: PersesDatasource
+metadata:
+  name: prometheus
+  namespace: __NAMESPACE__
+  labels:
+    monitoring.rhobs/stack: observability-stack
+spec:
+  config:
+    default: true
+    display:
+      name: "COO Prometheus"
+      description: "COO MonitoringStack Prometheus in observability-demo"
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: 'http://observability-stack-prometheus.observability-demo.svc.cluster.local:9090'
+---
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: multi-signal-dashboard
+  namespace: __NAMESPACE__
+  labels:
+    monitoring.rhobs/stack: observability-stack
+spec:
+  config:
+    display:
+      name: Multi-Signal Dashboard
+      description: OTel spanmetrics (COO Prometheus), application logs (Loki), and traces (Tempo) for the workshop application
+    duration: 1h
+    refreshInterval: 30s
+    panels:
+      # --- Signal 1: metrics (OTel spanmetrics -> COO Prometheus) ---
+      spanCalls:
+        kind: Panel
+        spec:
+          display:
+            name: Span Call Rate
+            description: RED "rate" metric generated from trace spans by the central collector spanmetrics connector
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              yAxis:
+                show: true
+                label: ""
+                format:
+                  unit: requests/sec
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: prometheus
+                    query: sum by (service_name, http_method) (rate(traces_spanmetrics_calls_total{k8s_namespace_name="__NAMESPACE__", service_name=~"frontend|backend|database|notifier"}[5m]))
+                    seriesNameFormat: "{{service_name}} {{http_method}}"
+      spanLatency:
+        kind: Panel
+        spec:
+          display:
+            name: Span Latency (P95)
+            description: P95 latency from the OTel spanmetrics histogram (traces_spanmetrics_latency_bucket)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              yAxis:
+                show: true
+                label: ""
+                format:
+                  unit: seconds
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: prometheus
+                    query: histogram_quantile(0.95, sum by (le, service_name) (rate(traces_spanmetrics_latency_bucket{k8s_namespace_name="__NAMESPACE__", service_name=~"frontend|backend|database|notifier"}[5m])))
+                    seriesNameFormat: "{{service_name}}"
+      # --- Signal 2: logs (LokiStack application tenant) ---
+      appLogs:
+        kind: Panel
+        spec:
+          display:
+            name: Application Logs
+            description: Live application logs for this namespace from the global Loki datasource
+          plugin:
+            kind: LogsTable
+            spec:
+              showTime: true
+              enableDetails: true
+          queries:
+            - kind: LogQuery
+              spec:
+                plugin:
+                  kind: LokiLogQuery
+                  spec:
+                    datasource:
+                      kind: LokiDatasource
+                      name: loki
+                    query: '{kubernetes_namespace_name="__NAMESPACE__"} | json'
+      # --- Signal 3: traces (Tempo) ---
+      appTraces:
+        kind: Panel
+        spec:
+          display:
+            name: Application Traces
+            description: Trace search for this namespace from the global Tempo datasource
+          plugin:
+            kind: TraceTable
+            spec:
+              visual:
+                palette:
+                  mode: auto
+          queries:
+            - kind: TraceQuery
+              spec:
+                plugin:
+                  kind: TempoTraceQuery
+                  spec:
+                    datasource:
+                      kind: TempoDatasource
+                      name: tempo
+                    query: '{ resource.k8s.namespace.name = "__NAMESPACE__" }'
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: OTel Spanmetrics (COO Prometheus)
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/spanCalls"
+            - x: 12
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/spanLatency"
+      - kind: Grid
+        spec:
+          display:
+            title: Logs and Traces (Loki + Tempo)
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 24
+              height: 10
+              content:
+                $ref: "#/spec/panels/appLogs"
+            - x: 0
+              "y": 10
+              width: 24
+              height: 10
+              content:
+                $ref: "#/spec/panels/appTraces"
