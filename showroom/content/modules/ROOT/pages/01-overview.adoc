@@ -87,7 +87,7 @@ image::overview-challenges.png[Operational challenges (log fragmentation, no dis
 == Common questions
 
 **"Do I need to instrument every microservice individually?"**
-→ Yes, but Module 4 shows how OpenTelemetry auto-instrumentation reduces the effort significantly
+→ Yes, but Module 3 shows how OpenTelemetry auto-instrumentation reduces the effort significantly
 
 **"What's the difference between metrics, logs, and traces?"**
 → Module 1 explains the 3 pillars of observability and when to use each signal type
