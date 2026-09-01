@@ -129,6 +129,8 @@ Application pods (%OPENSHIFT_USERNAME%-observability-demo)
 
 This pattern keeps the sidecar simple (no secrets, no TLS config, no auth tokens) while centralising the complex backend integrations in one place.
 
+image::opentelemetry-two-tier-collector.png[Two-Tier OpenTelemetry Collector Architecture with Sidecar to Central Fanout and Spanmetrics Connector]
+
 === Processors in the sidecar collector
 
 The sidecar uses four processors in order:
