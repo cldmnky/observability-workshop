@@ -32,7 +32,11 @@ spec:
         proxy:
           kind: HTTPProxy
           spec:
-            url: 'https://{{ .Values.persesDatasources.loki.routeHost }}/api/logs/v1/application'
+            {{- $lokiHost := .Values.persesDatasources.loki.routeHost -}}
+            {{- if and .Values.deployer (hasKey .Values.deployer "domain") .Values.deployer.domain -}}
+            {{- $lokiHost = printf "logging-loki-openshift-logging.%s" .Values.deployer.domain -}}
+            {{- end }}
+            url: 'https://{{ $lokiHost }}/api/logs/v1/application'
             headers:
               X-Scope-OrgID: application
             allowedEndpoints:
@@ -74,7 +78,11 @@ spec:
         proxy:
           kind: HTTPProxy
           spec:
-            url: 'https://{{ .Values.persesDatasources.tempo.routeHost }}/api/traces/v1/dev/tempo'
+            {{- $tempoHost := .Values.persesDatasources.tempo.routeHost -}}
+            {{- if and .Values.deployer (hasKey .Values.deployer "domain") .Values.deployer.domain -}}
+            {{- $tempoHost = printf "tempo-tempo-gateway-openshift-tempo-operator.%s" .Values.deployer.domain -}}
+            {{- end }}
+            url: 'https://{{ $tempoHost }}/api/traces/v1/dev/tempo'
             headers:
               X-Scope-OrgID: dev
             allowedEndpoints:

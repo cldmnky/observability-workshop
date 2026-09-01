@@ -3,7 +3,7 @@ name: workshop-users
 description: Per-user namespaces and RBAC for the OpenShift Observability Workshop
 type: application
 version: 0.1.0
-appVersion: "4.21"
+appVersion: "4.22"
 keywords:
   - workshop
   - rbac

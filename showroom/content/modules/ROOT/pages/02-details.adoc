@@ -18,12 +18,12 @@
 [cols="2,1",options="header"]
 |===
 |Component |Version
-|Red Hat OpenShift Container Platform |4.21
-|Cluster Observability Operator |1.4.0
-|Red Hat OpenShift Logging |6.4.3
-|Loki Operator |6.4.3
-|Red Hat build of OpenTelemetry |0.144.0-1
-|Tempo Operator |0.20.0-2
+|Red Hat OpenShift Container Platform |4.22
+|Cluster Observability Operator |1.5
+|Red Hat OpenShift Logging |6.6
+|Loki Operator |6.6
+|Red Hat build of OpenTelemetry |3.9 (Operator 0.152.0)
+|Tempo Operator |3.9 (Operator 0.21.0)
 |===
 
 == Your lab environment
@@ -66,6 +66,7 @@ oc get pods -n openshift-tempo-operator
 
 == References
 
-* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift^]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging^]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry^]
+* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.22[Monitoring Stack for Red Hat OpenShift^]
+* link:https://docs.redhat.com/en/documentation/red_hat_openshift_logging/6.6[OpenShift Logging^]
+* link:https://docs.redhat.com/en/documentation/red_hat_build_of_opentelemetry/3.9[Red Hat build of OpenTelemetry^]
+* link:https://docs.redhat.com/en/documentation/red_hat_openshift_distributed_tracing_platform/3.9[Distributed Tracing Documentation^]

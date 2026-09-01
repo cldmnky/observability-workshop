@@ -3,7 +3,7 @@ name: builds-operator
 description: Builds for Red Hat OpenShift operator installation
 type: application
 version: 0.1.0
-appVersion: "1.7"
+appVersion: "1.9"
 keywords:
   - builds
   - shipwright
@@ -12,4 +12,4 @@ keywords:
 maintainers:
   - name: Red Hat
 sources:
-  - https://docs.redhat.com/en/documentation/builds_for_red_hat_openshift/1.7/html/install/installing-builds
+  - https://docs.redhat.com/en/documentation/builds_for_red_hat_openshift/1.9/html/install/installing-builds

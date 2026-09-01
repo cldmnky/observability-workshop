@@ -2,8 +2,8 @@
 operator:
   # Namespace for the logging operator
   namespace: openshift-logging
-  # Operator channel (stable-6.0, stable-6.1, stable-6.2, stable-6.4)
-  channel: stable-6.4
+  # Operator channel (stable-6.5, stable-6.6)
+  channel: stable-6.6
   # Install plan approval
   installPlanApproval: Automatic
   # Source catalog
@@ -15,8 +15,8 @@ operator:
 lokiOperator:
   # Install namespace (AllNamespaces mode requires openshift-operators)
   namespace: openshift-operators
-  # Operator channel
-  channel: stable-6.4
+  # Operator channel (stable-6.5, stable-6.6)
+  channel: stable-6.6
   # Install plan approval
   installPlanApproval: Automatic
   # Source catalog

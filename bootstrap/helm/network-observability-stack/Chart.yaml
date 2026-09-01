@@ -3,7 +3,7 @@ name: network-observability-stack
 description: Red Hat Network Observability Operator with FlowCollector for OpenShift network traffic monitoring
 type: application
 version: 1.0.0
-appVersion: "1.8.0"
+appVersion: "1.12.2"
 keywords:
   - network
   - observability

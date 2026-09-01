@@ -146,9 +146,9 @@ The sidecar uses four processors in order:
 
 The central collector uses a `spanmetrics` connector to generate **RED metrics** automatically from incoming traces:
 
-* **Rate**: `traces_spanmetrics_calls_total` — request count per service and operation
-* **Errors**: `traces_spanmetrics_calls_total{status.code="STATUS_CODE_ERROR"}` — error count
-* **Duration**: `traces_spanmetrics_latency_bucket` — latency histogram with configurable buckets
+* **Rate**: `traces_span_metrics_calls_total` — request count per service and operation
+* **Errors**: `traces_span_metrics_calls_total{status.code="STATUS_CODE_ERROR"}` — error count
+* **Duration**: `traces_span_metrics_duration_milliseconds_bucket` — latency histogram with configurable buckets
 
 These metrics are published to the COO-managed Prometheus instance via `prometheusremotewrite`. The COO `MonitoringStack` has `enableRemoteWriteReceiver: true` set, which activates the `/api/v1/write` endpoint that Prometheus exposes for ingest.
 
@@ -384,7 +384,7 @@ oc get opentelemetrycollector central-collector -n observability-demo
 [source,text,role="copypaste"]
 ----
 NAME               MODE         VERSION
-central-collector  deployment   0.140.0-2
+central-collector  deployment   0.152.0-3
 ----
 
 . Verify the central collector pods are running:
@@ -538,7 +538,7 @@ oc get opentelemetrycollector sidecar -n %OPENSHIFT_USERNAME%-observability-demo
 [source,text,role="copypaste"]
 ----
 NAME     MODE    VERSION
-sidecar  sidecar 0.140.0-2
+sidecar  sidecar 0.152.0-3
 ----
 +
 In `sidecar` mode, the operator does not create a standalone `Deployment`. Instead it stores the container spec and injects it into pods on demand when the annotation is detected.
@@ -1307,6 +1307,11 @@ This demonstrates the difference between the **manual SDK approach** used by the
 |database |Go |Manual SDK (`telemetry.Setup()` + `otelhttp`)
 |**notifier** |**Python** |**Zero-code: OTel Operator init-container injection**
 |===
+
+[NOTE]
+====
+Python zero-code auto-instrumentation is a **Technology Preview (TP)** feature in Red Hat build of OpenTelemetry 3.9 / OpenShift 4.22. Technology Preview features are not intended for production use but provide early access to upcoming capabilities.
+====
 
 === Step 1: Observe the missing notifier span
 

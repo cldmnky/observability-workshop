@@ -3,7 +3,7 @@ name: opentelemetry-stack
 description: OpenTelemetry Operator with auto-instrumentation, sidecar and central collectors, and spanmetrics connector
 type: application
 version: 0.1.0
-appVersion: "0.x"
+appVersion: "0.152.0-3"
 keywords:
   - opentelemetry
   - instrumentation

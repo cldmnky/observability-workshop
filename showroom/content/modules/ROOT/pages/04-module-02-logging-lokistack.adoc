@@ -77,8 +77,8 @@ oc get pods -n openshift-logging
 ----
 NAME                                           READY   STATUS    RESTARTS   AGE
 cluster-logging-operator-xxxxx                 1/1     Running   0          1h
-collector-xxxxx                                2/2     Running   0          1h
-collector-xxxxx                                2/2     Running   0          1h
+logging-collector-xxxxx                        2/2     Running   0          1h
+logging-collector-xxxxx                        2/2     Running   0          1h
 logging-loki-compactor-0                       1/1     Running   0          1h
 logging-loki-distributor-xxxxx                 1/1     Running   0          1h
 logging-loki-gateway-xxxxx                     2/2     Running   0          1h
@@ -87,6 +87,8 @@ logging-loki-ingester-0                        1/1     Running   0          1h
 logging-loki-querier-xxxxx                     1/1     Running   0          1h
 logging-loki-query-frontend-xxxxx              1/1     Running   0          1h
 ----
++
+NOTE: Depending on your Logging release, collector pods may appear as `logging-collector-xxxxx`, `collector-xxxxx`, or `instance-xxxxx`.
 
 . Check the LokiStack instance:
 +
@@ -291,13 +293,13 @@ Now you'll access the console's Observe/Logs web interface and write LogQL queri
 === Steps
 
 . Access the OpenShift console and navigate to **Observe** → **Logs**
-(URL path: `/monitoring/logs`)
+(URL path: `/observe/logs`)
 +
 This opens the log query interface powered by Loki.
 +
 [NOTE]
 ====
-The direct URL path for the Logs interface is `/monitoring/logs`. If you encounter a 404 when navigating, use the left navigation menu: **Observe** → **Logs**, rather than manually typing or bookmarking a URL path.
+The direct URL path for the Logs interface is `/observe/logs`. Use the left navigation menu: **Observe** → **Logs** to reach the log query interface.
 ====
 
 [NOTE]

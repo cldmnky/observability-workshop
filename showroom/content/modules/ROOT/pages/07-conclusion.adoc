@@ -47,9 +47,10 @@ You've implemented a comprehensive observability stack that provides:
 
 == References
 
-* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.21[Monitoring Stack for Red Hat OpenShift documentation^]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/logging/[OpenShift Logging documentation^]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/red_hat_build_of_opentelemetry/[Red Hat build of OpenTelemetry documentation^]
+* link:https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.22[Monitoring Stack for Red Hat OpenShift documentation^]
+* link:https://docs.redhat.com/en/documentation/red_hat_openshift_logging/6.6[OpenShift Logging documentation^]
+* link:https://docs.redhat.com/en/documentation/red_hat_build_of_opentelemetry/3.9[Red Hat build of OpenTelemetry documentation^]
+* link:https://docs.redhat.com/en/documentation/red_hat_openshift_distributed_tracing_platform/3.9[Red Hat OpenShift Distributed Tracing Platform documentation^]
 * link:https://www.redhat.com/en/technologies/cloud-computing/openshift[Red Hat OpenShift product page^]
 
 == Feedback

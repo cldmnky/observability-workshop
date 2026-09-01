@@ -3,7 +3,7 @@ name: tempo-stack
 description: Tempo Operator with TempoStack for distributed tracing with S3 storage and multi-tenancy
 type: application
 version: 0.1.0
-appVersion: "0.18.0"
+appVersion: "0.21.0-3"
 keywords:
   - tracing
   - tempo

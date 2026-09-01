@@ -9,7 +9,7 @@ This repository serves dual purposes:
 1. **Red Hat Showroom Workshop**: Antora-based hands-on learning content for OpenShift observability.
 2. **GitOps Infrastructure**: ArgoCD ApplicationSet + Helm charts deploying a production observability stack.
 
-Deployed via `showroom-deployer` on RHDP (Red Hat Demo Platform) to OpenShift 4.21+ clusters.
+Deployed via `showroom-deployer` on RHDP (Red Hat Demo Platform) to OpenShift 4.22+ clusters.
 
 ## Architecture: Two Interconnected Systems
 
@@ -239,4 +239,4 @@ oc delete subscription tempo-product -n openshift-operators
 - [ ] Nav structure updated if pages added/removed.
 - [ ] AsciiDoc uses attribute placeholders, not hardcoded values.
 - [ ] ArgoCD sync waves set on all resources.
-- [ ] OpenShift 4.21+ compatibility verified (operator versions match).
+- [ ] OpenShift 4.22+ compatibility verified (operator versions match).

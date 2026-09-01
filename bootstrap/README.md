@@ -36,7 +36,7 @@ Applications (Go, Python, Quarkus, Node.js)
 
 ## Prerequisites
 
-- OpenShift 4.21+ cluster with cluster-admin access
+- OpenShift 4.22+ cluster with cluster-admin access
 - OpenShift GitOps (ArgoCD) operator installed
 - **S3 Object Storage** for Tempo traces and Loki logs (choose one):
   - **Option A (Recommended): OpenShift Data Foundation (ODF)** - Automatic bucket provisioning via ObjectBucketClaim
@@ -499,7 +499,7 @@ monitoring:
 ```yaml
 operator:
   namespace: openshift-logging
-  channel: stable-6.2
+  channel: stable-6.6
 
 lokiStack:
   enabled: true
