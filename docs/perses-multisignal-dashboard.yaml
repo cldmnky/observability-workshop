@@ -85,14 +85,14 @@ spec:
                     datasource:
                       kind: PrometheusDatasource
                       name: prometheus
-                    query: sum by (service_name, http_method) (rate(traces_spanmetrics_calls_total{k8s_namespace_name="__NAMESPACE__", service_name=~"frontend|backend|database|notifier"}[5m]))
-                    seriesNameFormat: "{{service_name}} {{http_method}}"
+                    query: sum by (service_name, span_name) (rate(traces_span_metrics_calls_total{k8s_namespace_name="__NAMESPACE__"}[5m]))
+                    seriesNameFormat: "{{service_name}}: {{span_name}}"
       spanLatency:
         kind: Panel
         spec:
           display:
             name: Span Latency (P95)
-            description: P95 latency from the OTel spanmetrics histogram (traces_spanmetrics_latency_bucket)
+            description: P95 latency from the OTel spanmetrics histogram (traces_span_metrics_duration_milliseconds_bucket)
           plugin:
             kind: TimeSeriesChart
             spec:
@@ -100,7 +100,7 @@ spec:
                 show: true
                 label: ""
                 format:
-                  unit: seconds
+                  unit: milliseconds
           queries:
             - kind: TimeSeriesQuery
               spec:
@@ -110,7 +110,7 @@ spec:
                     datasource:
                       kind: PrometheusDatasource
                       name: prometheus
-                    query: histogram_quantile(0.95, sum by (le, service_name) (rate(traces_spanmetrics_latency_bucket{k8s_namespace_name="__NAMESPACE__", service_name=~"frontend|backend|database|notifier"}[5m])))
+                    query: histogram_quantile(0.95, sum by (le, service_name) (rate(traces_span_metrics_duration_milliseconds_bucket{k8s_namespace_name="__NAMESPACE__"}[5m])))
                     seriesNameFormat: "{{service_name}}"
       # --- Signal 2: logs (LokiStack application tenant) ---
       appLogs:

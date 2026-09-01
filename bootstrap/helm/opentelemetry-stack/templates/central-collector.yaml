@@ -133,6 +133,13 @@ spec:
             statements:
               - set(attributes["level"], ConvertCase(severity_text, "lower")) where severity_text != ""
       
+      # Drop synthetic target_info metrics that cause Prometheus remote-write out-of-order errors
+      filter/drop_target_info:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'name == "target_info"'
+      
       # Batch processor for efficiency
       batch:
         timeout: 10s
@@ -155,8 +162,6 @@ spec:
         endpoint: {{ .Values.centralCollector.prometheus.endpoint }}
         tls:
           insecure: true
-        resource_to_telemetry_conversion:
-          enabled: true
       
       # LokiStack OTLP/HTTP log forwarder (otlp_http replaces deprecated otlphttp alias)
       otlp_http/logs:
@@ -203,6 +208,7 @@ spec:
           processors:
           - transform
           - resource/cardinality
+          - filter/drop_target_info
           - batch
           exporters:
           - prometheusremotewrite
@@ -217,6 +223,7 @@ spec:
           - resourcedetection
           - k8sattributes
           - resource/cardinality
+          - filter/drop_target_info
           - batch
           exporters:
           - prometheusremotewrite

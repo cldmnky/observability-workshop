@@ -148,9 +148,9 @@ The sidecar uses four processors in order:
 
 The central collector uses a `spanmetrics` connector to generate **RED metrics** automatically from incoming traces:
 
-* **Rate**: `traces_spanmetrics_calls_total` — request count per service and operation
-* **Errors**: `traces_spanmetrics_calls_total{status_code="STATUS_CODE_ERROR"}` — error count
-* **Duration**: `traces_spanmetrics_latency_bucket` — latency histogram with configurable buckets
+* **Rate**: `traces_span_metrics_calls_total` — request count per service and operation
+* **Errors**: `traces_span_metrics_calls_total{status_code="STATUS_CODE_ERROR"}` — error count
+* **Duration**: `traces_span_metrics_duration_milliseconds_bucket` — latency histogram with configurable buckets
 
 These metrics are published to the COO-managed Prometheus instance via `prometheusremotewrite`. The COO `MonitoringStack` has `enableRemoteWriteReceiver: true` set, which activates the `/api/v1/write` endpoint that Prometheus exposes for ingest.
 
@@ -1179,7 +1179,7 @@ Navigate to **Observe** → **Dashboards** and open Perses. Create a new dashboa
 +
 [source,promql,role="copypaste"]
 ----
-sum by (service_name, span_name) (rate(traces_spanmetrics_calls_total{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
+sum by (service_name, span_name) (rate(traces_span_metrics_calls_total{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}[5m]))
 ----
 +
 To see the p95 latency for backend operations, add a second panel with:
@@ -1187,7 +1187,7 @@ To see the p95 latency for backend operations, add a second panel with:
 [source,promql,role="copypaste"]
 ----
 histogram_quantile(0.95,
-  sum(rate(traces_spanmetrics_latency_bucket{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", k8s_deployment_name="backend"}[5m]))
+  sum(rate(traces_span_metrics_duration_milliseconds_bucket{k8s_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", k8s_deployment_name="backend"}[5m]))
   by (span_name, le)
 )
 ----
@@ -1283,7 +1283,7 @@ The `k8sattributes` processor in the central collector intentionally excludes hi
 
 * ✓ Central collector configuration shows `otlp/tempo`, `prometheusremotewrite`, and `otlphttp/logs` exporters
 * ✓ `spanmetrics` connector configuration is visible
-* ✓ `traces_spanmetrics_calls_total` metric is visible in a Perses panel using the COO Prometheus datasource
+* ✓ `traces_span_metrics_calls_total` metric is visible in a Perses panel using the COO Prometheus datasource
 * ✓ p95 latency histogram query renders in Perses for backend operations
 * ✓ Custom application OTel metrics like `frontend_requests_proxied_total` are queryable in Perses
 * ✓ **Observe → Logs** shows structured log records from `%OPENSHIFT_USERNAME%-observability-demo` with `traceID` fields
@@ -1496,10 +1496,10 @@ The dashboard file you will apply contains two documents:
 Loki and Tempo are **not** defined in the file — and they must not be. They already exist as cluster-scoped `PersesGlobalDatasource` resources named `loki` and `tempo`, managed by GitOps in the `coo-monitoring-stack` chart. Global datasources are visible from every namespace, so the dashboard references them directly by plugin kind and resource name. Only the Prometheus datasource is namespaced, because each user namespace needs its own `default: true` datasource pointing at the shared COO MonitoringStack. Applying the file is idempotent: if the `prometheus` datasource already exists, `oc apply` updates it in place; if it is missing, it is created.
 ====
 
-The two metric panels query OTel spanmetrics — metrics generated from trace spans by the central collector's `spanmetrics` connector and renamed by its transform processor (see Exercise 8). The metric names are produced by the central collector configuration in this repository:
+The two metric panels query OTel spanmetrics — metrics generated from trace spans by the central collector's `spanmetrics` connector (see Exercise 8). The metric names are produced by the central collector configuration in this repository:
 
-* `traces_spanmetrics_calls_total` — counter of spans, labeled with `service_name`, `http_method`, `http_status_code`
-* `traces_spanmetrics_latency_bucket` — latency histogram buckets, used for a P95 `histogram_quantile` calculation
+* `traces_span_metrics_calls_total` — counter of spans, labeled with `service_name`, `span_name`, `k8s_namespace_name`
+* `traces_span_metrics_duration_milliseconds_bucket` — latency histogram buckets, used for a P95 `histogram_quantile` calculation
 
 The log panel uses LogQL against the LokiStack **application** tenant, and the trace panel uses TraceQL against Tempo — both scoped to your namespace.
 
