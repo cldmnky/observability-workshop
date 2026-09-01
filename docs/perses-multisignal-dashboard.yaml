@@ -75,7 +75,7 @@ spec:
                 show: true
                 label: ""
                 format:
-                  unit: ops
+                  unit: requests/sec
           queries:
             - kind: TimeSeriesQuery
               spec:
