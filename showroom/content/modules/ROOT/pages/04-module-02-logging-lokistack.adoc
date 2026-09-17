@@ -256,14 +256,15 @@ oc logs -n %OPENSHIFT_USERNAME%-observability-demo statefulset/database --tail=2
 .Sample output
 [source,text,role="copypaste"]
 ----
-2026/02/11 10:23:14 service=frontend method=POST path=/api/notes status=201 duration_ms=5
-2026/02/11 10:23:15 service=frontend method=GET path=/ping status=200 duration_ms=3
-2026/02/11 10:23:16 service=frontend method=GET path=/error status=404 duration_ms=4
-2026/02/11 10:23:14 service=backend method=POST path=/api/notes status=201 duration_ms=3
-2026/02/11 10:23:16 service=backend method=GET path=/api/error status=404 duration_ms=2
-2026/02/11 10:23:14 service=database method=POST path=/notes status=201 duration_ms=1
-2026/02/11 10:23:16 service=database method=POST path=/events status=201 duration_ms=1
+{"time":"2026-09-17T13:54:00.784803374Z","level":"INFO","msg":"access","service":"frontend","method":"GET","path":"/api/notes","route":"/api/notes","status":200,"duration_ms":180,"bytes":1568495,"remote_addr":"10.232.1.120:33798"}
+2026/09/17 13:54:00 INFO proxied request to backend method=POST path=/api/notes backend_status=201 target=http://backend:8081/api/notes
+{"time":"2026-09-17T13:54:01.789533649Z","level":"INFO","msg":"access","service":"backend","method":"POST","path":"/api/notes","route":"/api/notes","status":201,"duration_ms":93,"bytes":123,"remote_addr":"10.232.1.117:33544"}
+2026/09/17 13:54:01 INFO proxied to database route=/notes method=POST http_status=201
+{"time":"2026-09-17T13:54:02.586475925Z","level":"INFO","msg":"access","service":"database","method":"GET","path":"/notes","route":"/notes","status":200,"duration_ms":89,"bytes":1569723,"remote_addr":"10.232.1.118:34302"}
+{"time":"2026-09-17T13:53:59.257811716Z","level":"INFO","msg":"access","service":"frontend","method":"GET","path":"/not-found","route":"/","status":404,"duration_ms":0,"bytes":22,"remote_addr":"10.232.1.120:33816"}
 ----
++
+Each service emits two log styles: JSON access logs (`{"msg":"access",...,"status":...,"duration_ms":...}`) via the stdout access-log middleware, and plaintext operational logs (`INFO proxied request...`, `INFO event created...`). Both are collected by Loki — the queries below handle the JSON access logs, which carry the `status` and `duration_ms` fields.
 +
 Open the console and navigate to Workloads → Pods -> Aggregated Logs to see logs from all pods in the namespace.
 +
@@ -273,7 +274,7 @@ image::aggregated-logs-pod.png[Aggregated logs view in OpenShift Console]
 
 Check that logs are being generated:
 
-* ✓ `frontend` logs include `/ping` (200) and `/not-found` (404) from the load generator
+* ✓ `frontend` logs include `/ping` (200) and `/not-found`, `/api/does-not-exist`, `/broken` (404) from the load generator
 * ✓ `backend` logs show forwarded note create and read requests
 * ✓ `database` logs show persisted `/events` API calls
 * ✓ `loadgenerator` pod is running and its logs show k6 iteration output
@@ -328,10 +329,23 @@ image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json |line_format "{{.message}}" |= "404"
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | line_format "{{.message}}" |json | status=404
 ----
 +
-The `|json` stage first parses the collector's JSON envelope. The `| line_format "{{.message}}"` stage then replaces the log line with just the contents of the `message` field. Finally, `|= "404"` keeps only lines where that message contains the string `404`.
+The first `|json` parses the collector's JSON envelope. `| line_format "{{.message}}"` replaces the log line with just the inner `message` string (which is itself JSON access-log). The second `|json` parses that inner JSON into labels such as `method`, `path`, `status`, and `duration_ms`. Finally, `| status=404` keeps only lines where the parsed `status` field equals 404.
++
+[NOTE]
+====
+**Why not just use** `|= "404"`**?**
+
+The `|=` operator matches the string `404` anywhere in the line — including ports like `:40456`, pod IDs like `fd1404a3-...`, or byte counts. To filter accurately on the HTTP status code, you must:
+
+. Parse the collector envelope (`|json`), extract `message` (`| line_format`)
+. Parse the inner access-log JSON (second `|json`)
+. Filter on the parsed label (`| status=404`)
+
+This returns only true 404 responses such as `{"path":"/not-found","status":404,...}`.
+====
 +
 
 . Query logs from a specific pod:
@@ -356,12 +370,12 @@ This shows note creation and note update calls (any line containing `/api/notes`
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/ping" |= "200" |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |json | line_format "{{.message}}" |json | status=200 |= "/ping"
 ----
 +
-Chaining two `|=` filters requires both substrings to be present (logical AND). Here the line must contain both `/ping` and `200`. The trailing `|json` then parses the collector's JSON envelope for display.
+The double-`|json` pipeline parses the envelope, then the inner access-log JSON. `| status=200` keeps only successful responses, and `|= "/ping"` narrows further to the ping endpoint (logical AND).
 
-This shows successful `/ping` requests (HTTP 200) from the frontend pod.
+This shows successful `/ping` requests (HTTP 200) from the frontend pod, such as `{"path":"/ping","status":200,...}`.
 
 . Use LogQL to count error rates:
 +
@@ -403,13 +417,14 @@ avg by (kubernetes_pod_name) (
       kubernetes_pod_name=~"frontend.*"
     }
     |json
-    | regexp `duration_ms=(?P<duration_ms>\d+)`
+    | line_format "{{.message}}"
+    |json
     | unwrap duration_ms [5m]
   )
 )
 ----
 +
-`|json` parses the collector's JSON envelope, extracting the `message` field and all Kubernetes metadata labels. `| regexp` extracts `duration_ms` from the message as a new label. `| unwrap duration_ms` promotes it to a numeric sample value. The outer `avg by (kubernetes_pod_name)` aggregates across all the extracted metadata labels, collapsing the result to one series per pod — which avoids hitting Loki's per-query series limit. `avg_over_time` computes the average frontend response time in milliseconds over the last 5 minutes, without requiring a separate Prometheus metric.
+The first `|json` parses the collector's JSON envelope. `| line_format "{{.message}}"` exposes the inner access-log JSON string. The second `|json` parses that inner JSON, extracting numeric fields such as `duration_ms`, `status`, `method`, and `path`. `| unwrap duration_ms` promotes it to a numeric sample value. The outer `avg by (kubernetes_pod_name)` aggregates across all the extracted metadata labels, collapsing the result to one series per pod — which avoids hitting Loki's per-query series limit. `avg_over_time` computes the average frontend response time in milliseconds over the last 5 minutes, without requiring a separate Prometheus metric.
 
 === Verify
 
@@ -446,7 +461,9 @@ Check that you can query logs effectively:
 **Solution**:
 . Ensure enough matching logs exist (generate more traffic)
 . Check time range: `[5m]` requires data in last 5 minutes
-. Verify the `|~` regex matches the `status` field in your log format (`status=404` or `"status":404`)
+. For the `|~` rate query, verify the regex matches your log format (`status=404` or `"status":404`)
+. For `| status=404` queries, ensure the double-`|json` pipeline is used: `|json | line_format "{{.message}}" |json`
+. Allow 5–10 minutes for ingestion under load — the `1x.extra-small` LokiStack throttles with `429 Too Many Requests` when many users query simultaneously (check `oc logs -n openshift-logging -l app.kubernetes.io/component=collector --tail=50` for `429` warnings). If the newest logs in Loki are older than `oc logs`, expand the query time range to last 2 hours.
 
 == Exercise 4: Correlate logs with metrics
 
@@ -479,10 +496,10 @@ You should see a traffic while the error generator is running.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404"
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | line_format "{{.message}}" |json | status=404
 ----
 +
-This shows the 404 error responses during the spike.
+This shows the true 404 error responses during the spike (for example, `{"path":"/not-found","status":404,...}`). The double-`|json` pipeline is required because the access log is JSON nested inside the collector's JSON envelope.
 
 . Use time range alignment to see the correlation:
 +
@@ -495,12 +512,14 @@ Compare the timestamp of log entries with the metric spike time.
 [source,logql,role="copypaste"]
 ----
 {kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}
-  |= "404"
-  | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*method=(?P<method>\w+).*status=(?P<status>\d{3})`
-  | line_format "{{.timestamp}} - {{.method}} {{.status}}"
+  |json
+  | line_format "{{.message}}"
+  |json
+  | status=404
+  | line_format "{{.method}} {{.path}} -> {{.status}}"
 ----
 +
-This extracts timestamp, HTTP method, and status code from log lines.
+This parses the envelope, then the inner access-log JSON, keeps only 404s, and reformats each line as `GET /not-found -> 404` using the parsed `method`, `path`, and `status` labels.
 
 [NOTE]
 ====
@@ -534,12 +553,12 @@ Check that you can correlate metrics and logs:
 . Verify system clocks are synchronized across cluster nodes
 . Allow 30-60 seconds for metric scraping and log ingestion delays
 
-**Issue**: Cannot extract structured data with regexp
+**Issue**: Cannot extract structured data
 
 **Solution**:
-. Verify log format matches regex pattern
+. Verify log format: access logs are JSON (`{"method":"GET","path":"/...","status":404,...}`), operational logs are plaintext (`INFO proxied request...`). The `|json | line_format "{{.message}}" |json` pipeline only extracts `method`, `path`, `status`, `duration_ms` from JSON access logs.
 . View raw logs first: `{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}`
-. Test regex pattern against actual log samples
+. Test the double-`|json` pipeline step by step: first `|json`, then add `| line_format "{{.message}}"`, then second `|json`
 . Use simpler filters first, then add complexity
 
 == Exercise 5: Log-based alerting
@@ -571,7 +590,7 @@ spec:
     rules:
     - alert: HighApplicationErrorRate
       expr: |
-        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m])) > 0.5
+        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | line_format "{{.message}}" |json | status=404 [5m])) > 0.5
       for: 2m
       labels:
         severity: warning
@@ -581,7 +600,7 @@ spec:
         description: "More than 0.5 errors/second for 2 minutes in namespace %OPENSHIFT_USERNAME%-observability-demo."
 ----
 
-The `expr` uses the same `|= "404"` substring filter you used in Exercise 3: when the per-second rate of log lines containing `404` stays above 0.5 for 2 minutes, the alert fires.
+The `expr` uses the same double-`|json` pipeline you used in Exercise 3: parse the collector envelope, parse the inner access-log JSON, then count only lines where `status=404`. When the per-second rate stays above 0.5 for 2 minutes, the alert fires. A bare `|= "404"` would match ports, pod IDs, and byte counts (about 26/s of noise) — the parsed filter returns the true 404 rate (about 0.8/s from the load generator).
 
 The key fields map directly to Prometheus alerting semantics:
 
@@ -624,7 +643,7 @@ spec:
     rules:
     - alert: HighApplicationErrorRate
       expr: |
-        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m])) > 0.5
+        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | line_format "{{.message}}" |json | status=404 [5m])) > 0.5
       for: 2m
       labels:
         severity: warning
