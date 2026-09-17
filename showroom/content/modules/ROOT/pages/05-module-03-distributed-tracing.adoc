@@ -184,11 +184,11 @@ oc get tempostack -n openshift-tempo-operator
 .Expected output
 [source,text,role="copypaste"]
 ----
-NAME    AGE   CONDITION
-tempo   1h    Ready
+NAME    MANAGEMENT   TEMPO VERSION   READY   AGE
+tempo   Managed      2.10.8          True    2d5h
 ----
 +
-The `CONDITION` must be **Ready** before traces can be ingested.
+The `READY` column must be **True** (and `MANAGEMENT` **Managed**) before traces can be ingested. Older operator versions showed `NAME  AGE  CONDITION` with `Ready` instead.
 
 . Verify each Tempo component is running:
 +
@@ -229,7 +229,7 @@ Port **4317** is OTLP gRPC and port **4318** is OTLP HTTP. The central OpenTelem
 Check that your tracing infrastructure is operational:
 
 * ✓ Tempo Operator pod is Running (2/2 containers)
-* ✓ TempoStack instance condition is Ready
+* ✓ TempoStack instance shows `READY=True` (Managed, with a `TEMPO VERSION` like `2.10.8`)
 * ✓ All Tempo component pods (distributor, ingester, querier, query-frontend, compactor) are Running
 * ✓ Tempo distributor service exposes ports 4317 and 4318
 
