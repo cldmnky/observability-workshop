@@ -318,8 +318,9 @@ Read through this short primer first — the queries below reuse the same few op
 * `| line_format "{{.message}}"` — replace the log line with a template, here just the contents of the `message` field.
 * `| status=404` — after parsing, keep only lines where the parsed `status` label equals 404. This is precise; a bare `|= "404"` would also match ports like `:40456` or pod IDs.
 * `rate()`, `avg_over_time()`, `| unwrap <field>` — turn log lines into numbers. `| unwrap duration_ms` promotes the parsed `duration_ms` label to a sample value so `avg_over_time(... [5m])` can average it. You'll see the full three-stage pattern (parse → unwrap → aggregate) in the last query.
+* `| __error__ = ""` — keep only lines that parsed cleanly. If `|json` can't parse a line (for example, a plaintext `INFO proxied...` line where you expected JSON), Loki keeps the line but tags it with `__error__`. Adding this filter hides those parse failures; `| __error__ != ""` shows only the failures when debugging.
 
-With that vocabulary in place, work through the queries below. Short reminders repeat the key idea under each query.
+With that vocabulary in place, work through the queries below. Short reminders repeat the key idea under each query. When a double-`|json` query returns fewer lines than expected, remember the second `|json` skips plaintext operational logs — they get an `__error__` tag instead of `status`/`duration_ms` labels.
 
 === Steps
 
