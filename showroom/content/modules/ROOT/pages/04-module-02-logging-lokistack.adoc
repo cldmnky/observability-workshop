@@ -231,7 +231,7 @@ echo "https://${FRONTEND_HOST}"
 
 . Open the frontend URL in your browser, create at least two workshop notes, and click **Export Markdown**.
 +
-image::demo-app.png[Demo application UI] 
+image::demo-app.png[Demo application UI]
 +
 The exported file (`workshop-notes.md`) confirms notes are persisted and downloadable from the frontend.
 +
@@ -328,23 +328,11 @@ image::observe-logs-query-2.png[LogQL query results showing logs from all pods]
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404"
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json |line_format "{{.message}}" |= "404"
 ----
 +
-The `|json` stage first parses the collector's JSON envelope. The `| regexp` stage then extracts the `status` field from the structured log message. Finally, `| status="404"` filters for only logs where the parsed status equals "404".
+The `|json` stage first parses the collector's JSON envelope. The `| line_format "{{.message}}"` stage then replaces the log line with just the contents of the `message` field. Finally, `|= "404"` keeps only lines where that message contains the string `404`.
 +
-[NOTE]
-====
-**Why not use** `|= "404"`**?**
-
-The `|=` operator performs text matching on the entire log line, which can match "404" appearing anywhere - in paths like `/404.html`, timestamps, or other fields. To filter accurately on the HTTP status code, you must:
-
-1. Parse the log structure first (`|json`, then `| regexp`)
-2. Extract the `status` field as a label
-3. Filter on the parsed label (`| status="404"`)
-
-This ensures you only see logs where the actual status code is 404, not just logs containing the string "404".
-====
 
 . Query logs from a specific pod:
 +
@@ -362,25 +350,27 @@ The `=~` operator matches a regular expression.
 {kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/api/notes" |json
 ----
 
-This shows note creation and note update calls from the frontend route.
+This shows note creation and note update calls (any line containing `/api/notes`) from the frontend route. The `|=` filter narrows the stream first, then `|json` parses the collector's JSON envelope for display.
 
 . Combine multiple filters to find successful frontend requests:
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "path=/ping" |= "status=200" |json
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo", kubernetes_pod_name=~"frontend.*"} |= "/ping" |= "200" |json
 ----
 +
-This shows successful `/ping` requests from the frontend pod.
+Chaining two `|=` filters requires both substrings to be present (logical AND). Here the line must contain both `/ping` and `200`. The trailing `|json` then parses the collector's JSON envelope for display.
+
+This shows successful `/ping` requests (HTTP 200) from the frontend pod.
 
 . Use LogQL to count error rates:
 +
 [source,logql,role="copypaste"]
 ----
-sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404" [5m]))
+sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |~ `(?:status\s*=\s*404|\\?"status\\?"\s*:\s*404)` [5m]))
 ----
 +
-This calculates the rate of 404 errors per second over the last 5 minutes. The query parses the log structure and filters on the actual `status` field to ensure accurate counting.
+This calculates the rate of 404 errors per second over the last 5 minutes. The `|~` stage is a regex contains filter applied directly to the raw log line. The pattern matches either `status=404` (logfmt style, with optional spaces around `=`) or `"status":404` (JSON style, with optional escaping and optional spaces around `:`), so it counts 404s whether the access log is emitted as plain text or as JSON.
 
 . Query logs from multiple applications:
 +
@@ -432,7 +422,7 @@ Check that you can query logs effectively:
 * ✓ Logs from multiple applications can be queried together
 * ✓ `| unwrap` computes numeric aggregations over values embedded in log lines
 
-**What you learned**: LogQL uses labels (like namespace, pod name) to select log streams, then filters content with operators like `|=` (contains) and `!=` (does not contain). Parsing stages (`|json`, `| regexp`) extract structured fields, and `| unwrap` unlocks metric-style aggregations over those fields.
+**What you learned**: LogQL uses labels (like namespace, pod name) to select log streams, then filters content with operators like `|=` (contains substring), `|~` (contains regex match), and `!=` (does not contain). Parsing and formatting stages (`|json`, `| regexp`, `| line_format`) extract or reshape structured fields, and `| unwrap` unlocks metric-style aggregations over those fields.
 
 === Troubleshooting
 
@@ -456,7 +446,7 @@ Check that you can query logs effectively:
 **Solution**:
 . Ensure enough matching logs exist (generate more traffic)
 . Check time range: `[5m]` requires data in last 5 minutes
-. Verify filter correctly parses and matches the status field from structured logs
+. Verify the `|~` regex matches the `status` field in your log format (`status=404` or `"status":404`)
 
 == Exercise 4: Correlate logs with metrics
 
@@ -504,8 +494,8 @@ Compare the timestamp of log entries with the metric spike time.
 +
 [source,logql,role="copypaste"]
 ----
-{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} 
-  |= "404" 
+{kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"}
+  |= "404"
   | regexp `(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}).*method=(?P<method>\w+).*status=(?P<status>\d{3})`
   | line_format "{{.timestamp}} - {{.method}} {{.status}}"
 ----
@@ -581,7 +571,7 @@ spec:
     rules:
     - alert: HighApplicationErrorRate
       expr: |
-        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |json | regexp `status=(?P<status>\d{3})` | status="404" [5m])) > 0.5
+        sum(rate({kubernetes_namespace_name="%OPENSHIFT_USERNAME%-observability-demo"} |= "404" [5m])) > 0.5
       for: 2m
       labels:
         severity: warning
@@ -590,6 +580,8 @@ spec:
         summary: "High error rate in %OPENSHIFT_USERNAME%-observability-demo"
         description: "More than 0.5 errors/second for 2 minutes in namespace %OPENSHIFT_USERNAME%-observability-demo."
 ----
+
+The `expr` uses the same `|= "404"` substring filter you used in Exercise 3: when the per-second rate of log lines containing `404` stays above 0.5 for 2 minutes, the alert fires.
 
 The key fields map directly to Prometheus alerting semantics:
 
@@ -731,7 +723,9 @@ You successfully implemented centralized logging with LokiStack.
 * `{label="value"}`: Select log streams by label
 * `|=`: Filter for lines containing text
 * `!=`: Exclude lines containing text
-* `|~`: Regex match filter
+* `|~`: Regex contains filter (matches a regex anywhere in the line)
+* `|json`: Parse the collector's JSON envelope into labels
+* `| line_format`: Replace the log line with a template (for example, just `{{.message}}`)
 * `rate()`: Calculate rate of log entries
 * `regexp`: Extract structured data from logs
 * `| unwrap <field>`: Promote a parsed label to a numeric sample for metric aggregations
