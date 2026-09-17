@@ -983,20 +983,23 @@ The attributes on any span come from three distinct layers—the application its
 [options="header",cols="45,55"]
 |===
 |Attribute |Value / description
-|`http.method` |`GET`
-|`http.status_code` |`200`
-|`http.route` |Matched route pattern (for example, `/`)
-|`baggage.client.platform` |`web` — set by the frontend baggage middleware and propagated to every downstream span via the W3C `baggage` header
-|`baggage.request.source` |`workshop-demo` — identifies the request origin; visible on all three service spans in this trace
+|`http.request.method` |`POST` (new OTel semconv; older docs show `http.method`)
+|`http.response.status_code` |`201` (new semconv; older docs show `http.status_code`)
+|`url.path` |Matched route path (for example, `/api/notes`; older docs show `http.route`)
+|`server.address` |`frontend` — logical server name
 |===
++
+NOTE: The frontend *sets* W3C baggage (`client.platform=web`, `request.source=workshop-demo`) for downstream propagation, but records it only on backend/database spans — not on its own server span. To find frontend-originated traces, query `span.baggage.*` (matches the downstream spans in the same trace).
 +
 **Backend span** (`backend: POST /api/notes`)
 +
 [options="header",cols="45,55"]
 |===
 |Attribute |Value / description
-|`http.method` |`POST`
-|`http.status_code` |`200`
+|`http.request.method` |`POST` (new OTel semconv; older docs show `http.method`)
+|`http.response.status_code` |`201` (new semconv; older docs show `http.status_code`)
+|`url.path` |`/api/notes`
+|`db.system` |`chainsql` — identifies the downstream data store
 |`db.system` |`chainsql` — identifies the downstream data store
 |`db.operation` |`INSERT` — derived from the HTTP method (`POST → INSERT`, `GET → SELECT`)
 |`db.sql.table` |`notes` — extracted from the request path
@@ -1008,6 +1011,8 @@ The attributes on any span come from three distinct layers—the application its
 |===
 +
 **Database span** (`database: POST /notes`)
++
+Database spans also carry `http.request.method`, `http.response.status_code`, and `url.path` (new OTel semconv) alongside the custom attributes below.
 +
 [options="header",cols="45,55"]
 |===
@@ -1039,7 +1044,7 @@ Baggage is a key-value store carried inside the `baggage` HTTP header alongside 
 baggage: client.platform=web,request.source=workshop-demo
 ----
 +
-Each downstream service reads this header and records every baggage member as a span attribute prefixed with `baggage.`. This means the same logical context—where the request came from—is searchable as a span attribute on every service in the chain.
+Each downstream service reads this header and records every baggage member as a span attribute prefixed with `baggage.`. The frontend sets baggage but records it only downstream — so `span.baggage.*` matches backend/database spans, and at trace level finds every frontend-originated trace. This means the same logical context—where the request came from—is searchable as a span attribute on the downstream services in the chain.
 +
 . Use TraceQL to find slow database spans:
 +
@@ -1087,11 +1092,11 @@ Or filter by database operation type:
 
 . Use TraceQL to surface business-level data:
 +
-The custom `note.*` and `event.*` attributes open the trace store as a queryable record of application events. Find all traces that created a note:
+The custom `note.*` and `event.*` attributes open the trace store as a queryable record of application events. Find all traces that created a note (`note.id` is a numeric attribute, so compare against a number, not an empty string):
 +
 [source,text,role="copypaste"]
 ----
-{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.note.id != "" }
+{ resource.k8s.namespace.name = "%OPENSHIFT_USERNAME%-observability-demo" && span.note.id > 0 }
 ----
 +
 Or find traces by peer service to understand the backend-to-database communication pattern:
@@ -1129,7 +1134,8 @@ Because the application uses `otelslog.NewHandler()`, every structured log line 
 
 * ✓ Traces appear in **Observe → Traces** for namespace `%OPENSHIFT_USERNAME%-observability-demo`
 * ✓ Trace waterfall shows spans from all three services (frontend, backend, database)
-* ✓ Frontend spans carry `baggage.client.platform=web` and `baggage.request.source=workshop-demo`
+* ✓ Backend/database spans carry `baggage.client.platform=web` and `baggage.request.source=workshop-demo` (set by the frontend, recorded downstream)
+* ✓ Spans carry new OTel semconv HTTP attributes (`http.request.method`, `http.response.status_code`, `url.path`)
 * ✓ Backend spans carry `db.system`, `db.operation`, `db.sql.table`, `peer.service`, `db.response.status_code`
 * ✓ Database spans carry `note.id`, `note.title`, `note.content.length` on note-creation requests
 * ✓ All spans include Kubernetes metadata (`k8s.pod.name`, `k8s.deployment.name`)
